@@ -24,7 +24,7 @@ export default function EquipmentPage() {
   const [viewing, setViewing] = useState<ThietBi | null>(null);
   const [saving, setSaving] = useState(false);
   const suppliers = store.getSuppliers();
-  const inventory = store.getInventory();
+  const inventory = store.getInventory();   
 
   const canEdit = user?.vaiTro === 'ADMIN';
 

@@ -26,7 +26,7 @@ export default function ImportsPage() {
 
   const handleCreate = async () => {
     if (!form.maThietBi || !form.maNhaCungCap) {
-      toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return;
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin ', variant: 'destructive' }); return;
     }
     if (form.soLuongNhap < 1) {
       toast({ title: 'Lỗi', description: 'Số lượng phải lớn hơn 0', variant: 'destructive' }); return;
