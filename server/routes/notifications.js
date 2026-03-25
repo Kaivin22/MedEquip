@@ -5,7 +5,7 @@ import { getUserNotifications, markAsRead, markAllAsRead } from "../controllers/
 const router = Router();
 
 router.get("/", authMiddleware, getUserNotifications);
-router.put("/:id/read", authMiddleware, markAsRead);
 router.put("/read-all", authMiddleware, markAllAsRead);
+router.put("/:id/read", authMiddleware, markAsRead);
 
 export default router;

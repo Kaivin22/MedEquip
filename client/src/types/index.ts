@@ -50,6 +50,21 @@ export interface Khoa {
   trangThai: boolean;
 }
 
+export interface PhieuYeuCauNhap {
+  maPhieu: string;
+  maNguoiYeuCau: string;
+  tenThietBi: string;
+  loaiThietBi: string;
+  donViTinh: string;
+  soLuong: number;
+  mucDichSuDung: string;
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_NHAP';
+  ngayTao: string;
+  ngayDuyet?: string;
+  nguoiDuyet?: string;
+  lyDoTuChoi?: string;
+}
+
 export interface PhieuYeuCauCapPhat {
   maPhieu: string;
   maNguoiYeuCau: string;

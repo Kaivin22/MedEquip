@@ -5,7 +5,7 @@ import { getAllSuppliers, createSupplier, updateSupplier } from "../controllers/
 const router = Router();
 
 router.get("/", authMiddleware, getAllSuppliers);
-router.post("/", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), createSupplier);
-router.put("/:id", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), updateSupplier);
+router.post("/", authMiddleware, roleMiddleware("ADMIN"), createSupplier);
+router.put("/:id", authMiddleware, roleMiddleware("ADMIN"), updateSupplier);
 
 export default router;

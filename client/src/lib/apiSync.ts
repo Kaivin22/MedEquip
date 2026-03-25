@@ -6,7 +6,7 @@
 import { isMockMode, fetchApi } from '@/services/api';
 import { store, generateId } from './store';
 import { refreshData } from './dataLoader';
-import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole } from '@/types';
+import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole, PhieuYeuCauNhap } from '@/types';
 
 // ---- Users ----
 export async function apiCreateUser(data: { hoTen: string; email: string; matKhau: string; vaiTro: UserRole }) {
@@ -70,9 +70,23 @@ export async function apiDeleteEquipment(maThietBi: string) {
     const inv = store.getInventory().find(i => i.maThietBi === maThietBi);
     if (inv && (inv.soLuongDangDung > 0 || inv.soLuongKho > 0)) return { success: false, message: 'Thiết bị đang có tồn kho' };
     store.setEquipment(store.getEquipment().filter(e => e.maThietBi !== maThietBi));
+    store.setInventory(store.getInventory().filter(i => i.maThietBi !== maThietBi));
     return { success: true };
   }
-  const result = await fetchApi<any>(`/equipment/${maThietBi}/deactivate`, { method: 'PUT' });
+  const result = await fetchApi<any>(`/equipment/${maThietBi}`, { method: 'DELETE' });
+  if (result.success) {
+    await refreshData('equipment');
+    await refreshData('inventory');
+  }
+  return result;
+}
+
+export async function apiUpdateEquipment(maThietBi: string, data: Partial<Omit<ThietBi, 'maThietBi' | 'trangThai' | 'ngayTao'>>) {
+  if (isMockMode()) {
+    store.setEquipment(store.getEquipment().map(e => e.maThietBi === maThietBi ? { ...e, ...data } : e));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/equipment/${maThietBi}`, { method: 'PUT', body: JSON.stringify(data) });
   if (result.success) await refreshData('equipment');
   return result;
 }
@@ -152,6 +166,37 @@ export async function apiApproveRequest(maPhieu: string, approved: boolean, lyDo
   }
   const result = await fetchApi<any>(`/requests/${maPhieu}/approve-dept`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
   if (result.success) await refreshData('requests');
+  return result;
+}
+
+// ---- Import Requests ----
+export async function apiCreateImportRequest(data: Omit<PhieuYeuCauNhap, 'maPhieu' | 'trangThai' | 'ngayTao' | 'ngayDuyet' | 'nguoiDuyet' | 'lyDoTuChoi'>) {
+  if (isMockMode()) {
+    const phieu: PhieuYeuCauNhap = { maPhieu: generateId('YCN'), ...data, trangThai: 'CHO_DUYET', ngayTao: new Date().toISOString() };
+    const requests = store.getImportRequests();
+    requests.push(phieu);
+    store.setImportRequests(requests);
+    return { success: true, phieu };
+  }
+  const result = await fetchApi<any>('/import-requests', { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) await refreshData('importRequests');
+  return result;
+}
+
+export async function apiApproveImportRequest(maPhieu: string, approved: boolean, lyDo?: string) {
+  if (isMockMode()) {
+    const requests = store.getImportRequests();
+    store.setImportRequests(requests.map(r => r.maPhieu === maPhieu ? {
+      ...r,
+      trangThai: approved ? 'DA_DUYET' as const : 'TU_CHOI' as const,
+      ngayDuyet: new Date().toISOString(),
+      lyDoTuChoi: lyDo,
+      nguoiDuyet: 'MOCK_ADMIN'
+    } : r));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/import-requests/${maPhieu}/approve`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
+  if (result.success) await refreshData('importRequests');
   return result;
 }
 

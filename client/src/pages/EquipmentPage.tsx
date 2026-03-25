@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { store, generateId } from '@/lib/store';
-import { apiCreateEquipment, apiDeleteEquipment } from '@/lib/apiSync';
+import { store } from '@/lib/store';
+import { apiCreateEquipment, apiUpdateEquipment, apiDeleteEquipment } from '@/lib/apiSync';
 import { ThietBi } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,7 @@ export default function EquipmentPage() {
   const [imageViewOpen, setImageViewOpen] = useState(false);
   const [editing, setEditing] = useState<ThietBi | null>(null);
   const [viewing, setViewing] = useState<ThietBi | null>(null);
+  const [saving, setSaving] = useState(false);
   const suppliers = store.getSuppliers();
   const inventory = store.getInventory();
 
@@ -35,7 +36,7 @@ export default function EquipmentPage() {
     equipment.filter(e =>
       e.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
       e.maThietBi.toLowerCase().includes(search.toLowerCase()) ||
-      e.loaiThietBi.toLowerCase().includes(search.toLowerCase())
+      (e.loaiThietBi || '').toLowerCase().includes(search.toLowerCase())
     ), [equipment, search]);
 
   const openAdd = () => {
@@ -56,54 +57,66 @@ export default function EquipmentPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'Lỗi', description: 'Hình ảnh quá lớn (tối đa 5MB)', variant: 'destructive' });
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => setForm(f => ({ ...f, hinhAnh: reader.result as string }));
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.tenThietBi || !form.loaiThietBi || !form.donViTinh) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin bắt buộc', variant: 'destructive' });
       return;
     }
-    let updated: ThietBi[];
-    if (editing) {
-      updated = equipment.map(e => e.maThietBi === editing.maThietBi ? { ...e, ...form, ngayCapNhat: new Date().toISOString() } : e);
-      toast({ title: 'Thành công', description: 'Đã cập nhật thiết bị' });
-    } else {
-      if (equipment.some(e => e.tenThietBi === form.tenThietBi)) {
-        toast({ title: 'Lỗi', description: 'Thiết bị đã tồn tại', variant: 'destructive' });
-        return;
+    setSaving(true);
+    try {
+      if (editing) {
+        // Update existing equipment via API
+        const result = await apiUpdateEquipment(editing.maThietBi, form);
+        if (!result.success) {
+          toast({ title: 'Lỗi', description: result.message || 'Cập nhật thất bại', variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Thành công', description: 'Đã cập nhật thiết bị' });
+      } else {
+        // Create new equipment via API
+        const result = await apiCreateEquipment(form);
+        if (!result.success) {
+          toast({ title: 'Lỗi', description: result.message || 'Thêm mới thất bại', variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Thành công', description: `Đã thêm thiết bị mới` });
       }
-      const newTB: ThietBi = {
-        maThietBi: generateId('TB'),
-        ...form,
-        trangThai: true,
-        ngayTao: new Date().toISOString(),
-      };
-      updated = [...equipment, newTB];
-      // Also create inventory record
-      const inv = store.getInventory();
-      inv.push({ maTonKho: generateId('TK'), maThietBi: newTB.maThietBi, soLuongKho: 0, soLuongHu: 0, soLuongDangDung: 0, ngayCapNhat: new Date().toISOString() });
-      store.setInventory(inv);
-      toast({ title: 'Thành công', description: `Đã thêm thiết bị ${newTB.maThietBi}` });
+      setEquipment(store.getEquipment());
+      setDialogOpen(false);
+    } catch (err) {
+      toast({ title: 'Lỗi', description: 'Không thể kết nối máy chủ', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    store.setEquipment(updated);
-    setEquipment(updated);
-    setDialogOpen(false);
   };
 
-  const handleDelete = (tb: ThietBi) => {
+  const handleDelete = async (tb: ThietBi) => {
     const inv = inventory.find(i => i.maThietBi === tb.maThietBi);
     if (inv && (inv.soLuongDangDung > 0 || inv.soLuongKho > 0)) {
       toast({ title: 'Không thể xóa', description: 'Thiết bị đang được sử dụng hoặc còn tồn kho', variant: 'destructive' });
       return;
     }
-    const updated = equipment.filter(e => e.maThietBi !== tb.maThietBi);
-    store.setEquipment(updated);
-    setEquipment(updated);
-    toast({ title: 'Đã xóa', description: `Thiết bị ${tb.maThietBi} đã được xóa` });
+    try {
+      const result = await apiDeleteEquipment(tb.maThietBi);
+      if (!result.success) {
+        toast({ title: 'Không thể xóa', description: result.message || 'Thao tác thất bại', variant: 'destructive' });
+        return;
+      }
+      setEquipment(store.getEquipment());
+      toast({ title: 'Đã xóa', description: `Thiết bị ${tb.maThietBi} đã được xóa` });
+    } catch (err) {
+      toast({ title: 'Lỗi', description: 'Không thể kết nối máy chủ', variant: 'destructive' });
+    }
   };
 
   return (
@@ -125,7 +138,7 @@ export default function EquipmentPage() {
           const ncc = suppliers.find(s => s.maNhaCungCap === tb.maNhaCungCap);
           const inv = inventory.find(i => i.maThietBi === tb.maThietBi);
           return (
-            <Card key={tb.maThietBi} className="shadow-card hover:shadow-card-hover transition-all">
+            <Card key={tb.maThietBi} className={`shadow-card hover:shadow-card-hover transition-all ${!tb.trangThai ? 'opacity-60' : ''}`}>
               <CardContent className="p-4">
                 {tb.hinhAnh ? (
                   <div
@@ -148,6 +161,9 @@ export default function EquipmentPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mb-1">ĐVT: {tb.donViTinh}</p>
                 {ncc && <p className="text-xs text-muted-foreground mb-1">NCC: {ncc.tenNhaCungCap}</p>}
+                {!tb.trangThai && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-destructive/10 text-destructive">Ngừng sử dụng</span>
+                )}
                 {inv && (
                   <div className="flex gap-2 mt-2 text-xs">
                     <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">Kho: {inv.soLuongKho}</span>
@@ -161,9 +177,11 @@ export default function EquipmentPage() {
                   </Button>
                   {canEdit && (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => openEdit(tb)}>
-                        <Pencil className="w-3.5 h-3.5 mr-1" /> Sửa
-                      </Button>
+                      {tb.trangThai && (
+                        <Button variant="outline" size="sm" onClick={() => openEdit(tb)}>
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> Sửa
+                        </Button>
+                      )}
                       <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(tb)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -230,7 +248,7 @@ export default function EquipmentPage() {
                 ) : (
                   <label className="flex flex-col items-center justify-center w-full h-32 rounded-lg border-2 border-dashed border-border hover:border-primary/50 cursor-pointer transition-colors">
                     <ImageIcon className="w-8 h-8 text-muted-foreground mb-1" />
-                    <span className="text-xs text-muted-foreground">Click để tải ảnh lên</span>
+                    <span className="text-xs text-muted-foreground">Click để tải ảnh lên (tối đa 5MB)</span>
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                   </label>
                 )}
@@ -238,9 +256,9 @@ export default function EquipmentPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleSave} className="gradient-primary text-primary-foreground">
-              {editing ? 'Cập nhật' : 'Thêm mới'}
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Hủy</Button>
+            <Button onClick={handleSave} className="gradient-primary text-primary-foreground" disabled={saving}>
+              {saving ? 'Đang lưu...' : editing ? 'Cập nhật' : 'Thêm mới'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -262,8 +280,9 @@ export default function EquipmentPage() {
                 <div><span className="text-muted-foreground">Tên:</span> <strong>{viewing.tenThietBi}</strong></div>
                 <div><span className="text-muted-foreground">Loại:</span> {viewing.loaiThietBi}</div>
                 <div><span className="text-muted-foreground">ĐVT:</span> {viewing.donViTinh}</div>
-                <div className="col-span-2"><span className="text-muted-foreground">Mô tả:</span> {viewing.moTa}</div>
-                <div className="col-span-2"><span className="text-muted-foreground">NCC:</span> {suppliers.find(s => s.maNhaCungCap === viewing.maNhaCungCap)?.tenNhaCungCap || '-'}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">Mô tả:</span> {viewing.moTa || '—'}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">NCC:</span> {suppliers.find(s => s.maNhaCungCap === viewing.maNhaCungCap)?.tenNhaCungCap || '—'}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">Trạng thái:</span> {viewing.trangThai ? 'Đang sử dụng' : 'Ngừng sử dụng'}</div>
               </div>
             </div>
           )}

@@ -134,11 +134,11 @@ CREATE TABLE chi_tiet_nhap_kho (
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
 
--- 9. Bảng Phiếu xuất kho (thêm trang_thai)
+-- 9. Bảng Phiếu xuất kho (ma_khoa_nhan nullable - xuất kho có thể không thuộc khoa)
 CREATE TABLE phieu_xuat_kho (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_nguoi_xuat VARCHAR(20) NOT NULL,
-    ma_khoa_nhan VARCHAR(20) NOT NULL,
+    ma_khoa_nhan VARCHAR(20) NULL,
     ngay_xuat DATETIME DEFAULT CURRENT_TIMESTAMP,
     ly_do TEXT,
     ghi_chu TEXT,
@@ -232,3 +232,21 @@ INSERT INTO thong_bao VALUES
 ('TB-N-001', 'Phiếu yêu cầu mới', 'Có phiếu yêu cầu cấp phát mới từ NV Bệnh viện cần duyệt', 'info', 'ND-003', FALSE, NOW()),
 ('TB-N-002', 'Tồn kho thấp', 'Máy đo SpO2 chỉ còn 30 trong kho', 'warning', 'ND-002', FALSE, NOW()),
 ('TB-N-003', 'Phiếu đã duyệt', 'Phiếu yêu cầu YCCF-001 đã được Trưởng khoa phê duyệt', 'success', 'ND-004', TRUE, NOW());
+
+-- 12. Bảng Phiếu yêu cầu nhập (cho chức năng đề xuất nhập thiết bị mới - US-018)
+CREATE TABLE IF NOT EXISTS phieu_yeu_cau_nhap (
+    ma_phieu VARCHAR(30) PRIMARY KEY,
+    ma_nguoi_yeu_cau VARCHAR(20) NOT NULL,
+    ten_thiet_bi VARCHAR(200) NOT NULL,
+    loai_thiet_bi VARCHAR(50),
+    don_vi_tinh VARCHAR(20),
+    so_luong INT NOT NULL,
+    muc_dich_su_dung TEXT,
+    trang_thai ENUM('CHO_DUYET','DA_DUYET','TU_CHOI','DA_NHAP') DEFAULT 'CHO_DUYET',
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_duyet DATETIME NULL,
+    nguoi_duyet VARCHAR(20) NULL,
+    ly_do_tu_choi TEXT NULL,
+    FOREIGN KEY (ma_nguoi_yeu_cau) REFERENCES nguoi_dung(ma_nguoi_dung),
+    FOREIGN KEY (nguoi_duyet) REFERENCES nguoi_dung(ma_nguoi_dung)
+);

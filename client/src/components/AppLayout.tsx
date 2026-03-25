@@ -8,13 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import {
   Hospital, LayoutDashboard, Package, Truck, Building2, FolderOpen,
   FileText, FileInput, FileOutput, ClipboardCheck, Bell, Users,
-  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3
+  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3, PackagePlus
 } from 'lucide-react';
 
 export type PageKey =
   | 'dashboard' | 'equipment' | 'inventory' | 'suppliers' | 'departments'
   | 'requests' | 'allocations' | 'exports' | 'imports' | 'users' | 'notifications'
-  | 'damage_reports' | 'profile' | 'reports';
+  | 'damage_reports' | 'profile' | 'reports' | 'import_requests';
 
 interface NavItem {
   key: PageKey;
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'NV_BV', 'TRUONG_KHOA', 'NV_KHO'] },
   { key: 'allocations', label: 'Phiếu cấp phát', icon: <ClipboardCheck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'import_requests', label: 'Yêu cầu nhập mới', icon: <PackagePlus className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'exports', label: 'Xuất kho', icon: <FileOutput className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
   { key: 'imports', label: 'Nhập kho', icon: <FileInput className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
   { key: 'damage_reports', label: 'Báo hư hỏng', icon: <AlertTriangle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },

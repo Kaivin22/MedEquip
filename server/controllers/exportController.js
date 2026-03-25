@@ -39,18 +39,28 @@ export async function createExport(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { maNhanVienKho, maThietBi, soLuong, lyDoXuat, ghiChu } = req.body;
+    const { maNhanVienKho, maThietBi, soLuong, lyDoXuat, ghiChu, maKhoaNhan } = req.body;
     const id = "XK-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
 
-    // Use a dummy department for standalone exports
-    const maKhoaNhan = req.body.maKhoaNhan || "N/A";
+    // Validate maKhoaNhan if provided
+    let validKhoa = null;
+    if (maKhoaNhan) {
+      const [k] = await conn.query("SELECT ma_khoa FROM khoa WHERE ma_khoa = ?", [maKhoaNhan]);
+      if (k.length > 0) validKhoa = maKhoaNhan;
+    }
 
     await conn.query(
       "INSERT INTO phieu_xuat_kho (ma_phieu, ma_nguoi_xuat, ma_khoa_nhan, ngay_xuat, ly_do, ghi_chu, trang_thai) VALUES (?, ?, ?, NOW(), ?, ?, 'DA_LAP')",
-      [id, maNhanVienKho || req.user.userId, maKhoaNhan, lyDoXuat || "", ghiChu || ""]
+      [id, maNhanVienKho || req.user.userId, validKhoa, lyDoXuat || "", ghiChu || ""]
     );
 
     if (maThietBi && soLuong) {
+      // Check inventory first
+      const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [maThietBi]);
+      if (inv.length === 0 || inv[0].so_luong_kho < soLuong) {
+        await conn.rollback();
+        return res.json({ success: false, message: `Không đủ tồn kho. Hiện có: ${inv[0]?.so_luong_kho || 0}` });
+      }
       await conn.query(
         "INSERT INTO chi_tiet_xuat_kho (ma_phieu_xuat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
         [id, maThietBi, soLuong]

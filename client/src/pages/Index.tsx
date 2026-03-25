@@ -16,6 +16,7 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import DamageReportsPage from '@/pages/DamageReportsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import ReportsPage from '@/pages/ReportsPage';
+import ImportRequestsPage from '@/pages/ImportRequestsPage';
 
 const pages: Record<PageKey, React.ComponentType> = {
   dashboard: DashboardPage,
@@ -32,6 +33,7 @@ const pages: Record<PageKey, React.ComponentType> = {
   damage_reports: DamageReportsPage,
   profile: ProfilePage,
   reports: ReportsPage,
+  import_requests: ImportRequestsPage,
 };
 
 function AppContent() {

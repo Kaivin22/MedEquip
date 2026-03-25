@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { store, generateId } from '@/lib/store';
+import { store } from '@/lib/store';
 import { apiCreateRequest, apiApproveRequest } from '@/lib/apiSync';
 import { PhieuYeuCauCapPhat } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -43,11 +43,12 @@ export default function RequestsPage() {
 
   const addNotification = (tieuDe: string, noiDung: string, loai: 'info' | 'success' | 'warning' | 'error', nguoiNhan: string) => {
     const notifs = store.getNotifications();
-    notifs.push({ id: generateId('TB-N'), tieuDe, noiDung, loai, nguoiNhan, daDoc: false, ngayTao: new Date().toISOString() });
+    const localId = 'TB-N-' + Date.now().toString(36);
+    notifs.push({ id: localId, tieuDe, noiDung, loai, nguoiNhan, daDoc: false, ngayTao: new Date().toISOString() });
     store.setNotifications(notifs);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.maThietBi || !form.maKhoa || !form.lyDo) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin', variant: 'destructive' }); return;
     }
@@ -57,52 +58,55 @@ export default function RequestsPage() {
     // Kiểm tra số lượng yêu cầu không vượt quá kho hiện có
     const invItem = inventory.find(i => i.maThietBi === form.maThietBi);
     if (invItem && form.soLuongYeuCau > invItem.soLuongKho) {
-      toast({ title: 'Quá số lượng kho hiện có', description: `Số lượng yêu cầu (${form.soLuongYeuCau}) vượt quá số lượng trong kho (${invItem.soLuongKho}). Không thể lập phiếu.`, variant: 'destructive' }); return;
+      toast({ title: 'Quá số lượng kho hiện có', description: `Số lượng yêu cầu (${form.soLuongYeuCau}) vượt quá số lượng trong kho (${invItem.soLuongKho}).`, variant: 'destructive' }); return;
     }
     if (!invItem) {
       toast({ title: 'Lỗi', description: 'Thiết bị chưa có trong kho', variant: 'destructive' }); return;
     }
-    const phieu: PhieuYeuCauCapPhat = {
-      maPhieu: generateId('YCCF'), maNguoiYeuCau: user!.maNguoiDung, ...form, trangThai: 'CHO_DUYET', ngayTao: new Date().toISOString()
-    };
-    const updated = [...requests, phieu];
-    store.setRequests(updated); setRequests(updated); setDialogOpen(false);
-    // Notify all TRUONG_KHOA and ADMIN
-    const approvers = store.getUsers().filter(u => u.vaiTro === 'TRUONG_KHOA' || u.vaiTro === 'ADMIN');
-    const tbName = equipment.find(e => e.maThietBi === form.maThietBi)?.tenThietBi;
-    approvers.forEach(a => {
-      addNotification('Phiếu yêu cầu mới', `Phiếu ${phieu.maPhieu} - ${tbName} (SL: ${form.soLuongYeuCau}) cần được duyệt`, 'info', a.maNguoiDung);
-    });
-    toast({ title: 'Thành công', description: `Đã tạo phiếu ${phieu.maPhieu}` });
+    try {
+      const result = await apiCreateRequest({ maNguoiYeuCau: user!.maNguoiDung, ...form });
+      if (result.success) {
+        setRequests(store.getRequests());
+        setDialogOpen(false);
+        toast({ title: 'Thành công', description: `Đã tạo phiếu yêu cầu` });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    }
   };
 
-  const handleApprove = (maPhieu: string) => {
-    const req = requests.find(r => r.maPhieu === maPhieu);
-    const updated = requests.map(r => r.maPhieu === maPhieu ? { ...r, trangThai: 'DA_DUYET' as const, ngayDuyet: new Date().toISOString() } : r);
-    store.setRequests(updated); setRequests(updated);
-    // Notify requester
-    if (req) {
-      const tbName = equipment.find(e => e.maThietBi === req.maThietBi)?.tenThietBi;
-      addNotification('Phiếu đã được duyệt', `Phiếu ${maPhieu} - ${tbName} đã được phê duyệt. Vui lòng liên hệ kho để nhận thiết bị.`, 'success', req.maNguoiYeuCau);
-      // Notify NV_KHO
-      const khoUsers = store.getUsers().filter(u => u.vaiTro === 'NV_KHO');
-      khoUsers.forEach(k => {
-        addNotification('Phiếu yêu cầu đã duyệt', `Phiếu ${maPhieu} - ${tbName} đã được duyệt, cần lập phiếu cấp phát`, 'info', k.maNguoiDung);
-      });
+  const handleApprove = async (maPhieu: string) => {
+    try {
+      const result = await apiApproveRequest(maPhieu, true);
+      if (result.success) {
+        setRequests(store.getRequests());
+        toast({ title: 'Đã phê duyệt' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Duyệt thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
     }
-    toast({ title: 'Đã phê duyệt' });
   };
 
-  const handleReject = () => {
-    const req = requests.find(r => r.maPhieu === rejectingId);
-    const updated = requests.map(r => r.maPhieu === rejectingId ? { ...r, trangThai: 'TU_CHOI' as const, ngayDuyet: new Date().toISOString(), lyDoTuChoi: rejectReason } : r);
-    store.setRequests(updated); setRequests(updated); setRejectOpen(false);
-    // Notify requester
-    if (req) {
-      const tbName = equipment.find(e => e.maThietBi === req.maThietBi)?.tenThietBi;
-      addNotification('Phiếu bị từ chối', `Phiếu ${rejectingId} - ${tbName} đã bị từ chối. Lý do: ${rejectReason}`, 'error', req.maNguoiYeuCau);
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập lý do từ chối', variant: 'destructive' }); return;
     }
-    toast({ title: 'Đã từ chối' });
+    try {
+      const result = await apiApproveRequest(rejectingId, false, rejectReason);
+      if (result.success) {
+        setRequests(store.getRequests());
+        setRejectOpen(false);
+        toast({ title: 'Đã từ chối' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Thao tác thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    }
   };
 
   return (

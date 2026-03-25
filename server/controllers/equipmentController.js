@@ -50,15 +50,47 @@ export async function createEquipment(req, res) {
   }
 }
 
-export async function deactivateEquipment(req, res) {
+export async function deleteEquipment(req, res) {
   try {
-    const [inv] = await pool.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [req.params.id]);
-    if (inv.length > 0 && inv[0].so_luong_kho > 0) {
-      return res.json({ success: false, message: `Không thể ngừng khi còn ${inv[0].so_luong_kho} đơn vị trong kho.` });
+    const id = req.params.id;
+    const [inv] = await pool.query("SELECT * FROM ton_kho WHERE ma_thiet_bi = ?", [id]);
+    if (inv.length > 0 && (inv[0].so_luong_kho > 0 || inv[0].so_luong_hu > 0 || inv[0].so_luong_dang_dung > 0)) {
+      return res.json({ success: false, message: "Không thể xóa thiết bị đang có số lượng tồn kho hoặc đang sử dụng." });
     }
-    await pool.query("UPDATE thiet_bi SET trang_thai = FALSE WHERE ma_thiet_bi = ?", [req.params.id]);
-    res.json({ success: true });
+    
+    // Delete from ton_kho first
+    await pool.query("DELETE FROM ton_kho WHERE ma_thiet_bi = ?", [id]);
+    
+    // Delete from thiet_bi
+    await pool.query("DELETE FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
+    
+    res.json({ success: true, message: "Đã xóa thiết bị." });
   } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.json({ success: false, message: "Không thể xóa do đã có dữ liệu giao dịch liên quan (xuất/nhập/cấp phát)." });
+    }
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function updateEquipment(req, res) {
+  try {
+    const { tenThietBi, loaiThietBi, donViTinh, moTa, maNhaCungCap, hinhAnh } = req.body;
+    const id = req.params.id;
+
+    const [existing] = await pool.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
+    if (existing.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy thiết bị." });
+
+    await pool.query(
+      "UPDATE thiet_bi SET ten_thiet_bi = ?, loai_thiet_bi = ?, don_vi_tinh = ?, mo_ta = ?, ma_nha_cung_cap = ?, hinh_anh = ? WHERE ma_thiet_bi = ?",
+      [tenThietBi, loaiThietBi, donViTinh, moTa || "", maNhaCungCap || null, hinhAnh || "", id]
+    );
+
+    const [rows] = await pool.query("SELECT * FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
+    res.json({ success: true, equipment: mapEquipment(rows[0]) });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
