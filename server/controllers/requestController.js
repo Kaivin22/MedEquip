@@ -106,7 +106,7 @@ export async function processRequest(req, res) {
     const [reqRows] = await conn.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [maPhieuYeuCau]);
     if (reqRows.length === 0) {
       await conn.rollback();
-      return res.json({ success: false, message: "Không tìm thấy phiếu yêu cầu." });
+      return res.json({ success: false, message: "Không thể tìm thấy phiếu yêu cầu." });
     }
     const request = reqRows[0];
 

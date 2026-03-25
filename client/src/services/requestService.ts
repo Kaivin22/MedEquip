@@ -54,7 +54,7 @@ export async function processExport(maPhieuYeuCau: string, data: { soLuongCapPha
   if (isMockMode()) {
     const requests = store.getRequests();
     const request = requests.find(r => r.maPhieu === maPhieuYeuCau);
-    if (!request) return delay({ success: false, message: 'Không tìm thấy phiếu yêu cầu.' });
+    if (!request) return delay({ success: false, message: 'Không thể tìm thấy phiếu yêu cầu.' });
     const inv = store.getInventory();
     const invIdx = inv.findIndex(i => i.maThietBi === request.maThietBi);
     if (invIdx === -1 || inv[invIdx].soLuongKho < data.soLuongCapPhat) return delay({ success: false, message: `Không đủ tồn kho. Hiện có: ${inv[invIdx]?.soLuongKho || 0}` });

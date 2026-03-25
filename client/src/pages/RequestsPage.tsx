@@ -225,7 +225,7 @@ export default function RequestsPage() {
       {/* View Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Chi tiết phiếu yêu cầu</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Chi tiết  các phiếu yêu cầu</DialogTitle></DialogHeader>
           {viewing && (
             <div className="space-y-2 text-sm">
               <p><span className="text-muted-foreground">Mã phiếu:</span> <strong>{viewing.maPhieu}</strong></p>
