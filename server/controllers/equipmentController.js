@@ -9,7 +9,7 @@ function mapEquipment(row) {
     moTa: row.mo_ta,
     maNhaCungCap: row.ma_nha_cung_cap,
     hinhAnh: row.hinh_anh || "",
-    trangThai: !!row.trang_thai,
+    trangThai: !!row.trang_thai, 
     ngayTao: row.ngay_tao
   };
 }

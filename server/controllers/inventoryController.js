@@ -16,6 +16,6 @@ export async function getAllInventory(req, res) {
     const [rows] = await pool.query("SELECT * FROM ton_kho");
     res.json(rows.map(mapInventory));
   } catch (err) {
-    res.status(500).json({ message: "Lỗi máy chủ." });
+    res.status(500).json({ message: "Lỗi của máy chủ." });
   }
 }

@@ -50,7 +50,7 @@ export async function createRequest(req, res) {
     res.json({ success: true, phieu: mapRequest(rows[0]) });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+    res.status(500).json({ success: false, message: "Lỗi của máy chủ." });
   }
 }
 

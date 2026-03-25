@@ -4,7 +4,7 @@ import { getAllEquipment, createEquipment, updateEquipment, deleteEquipment } fr
 
 const router = Router();
 
-router.get("/", authMiddleware, getAllEquipment);
+router.get("/", authMiddleware, getAllEquipment);  
 router.post("/", authMiddleware, roleMiddleware("ADMIN"), createEquipment);
 router.put("/:id", authMiddleware, roleMiddleware("ADMIN"), updateEquipment);
 router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteEquipment);
