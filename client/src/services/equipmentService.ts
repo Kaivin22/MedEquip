@@ -4,7 +4,7 @@
  */
 import { ThietBi, TonKho, PhieuNhapKho } from '@/types';
 import { store, generateId } from '@/lib/store';
-import { fetchApi, delay, isMockMode } from './api';
+import { delay, get, post, put, isMockMode } from './api';
 
 export async function createEquipment(data: Omit<ThietBi, 'maThietBi' | 'trangThai' | 'ngayTao'>): Promise<{ success: boolean; equipment?: ThietBi; message?: string }> {
   if (isMockMode()) {
@@ -18,7 +18,7 @@ export async function createEquipment(data: Omit<ThietBi, 'maThietBi' | 'trangTh
     store.setInventory(inv);
     return delay({ success: true, equipment: newItem });
   }
-  return fetchApi('/equipment', { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; equipment?: ThietBi; message?: string }>('/equipment', data);
 }
 
 export async function deactivateEquipment(maThietBi: string): Promise<{ success: boolean; message?: string }> {
@@ -29,17 +29,17 @@ export async function deactivateEquipment(maThietBi: string): Promise<{ success:
     store.setEquipment(equipment);
     return delay({ success: true });
   }
-  return fetchApi(`/equipment/${maThietBi}/deactivate`, { method: 'PUT' });
+  return put<{ success: boolean; message?: string }>(`/equipment/${maThietBi}/deactivate`);
 }
 
 export async function getEquipment(): Promise<ThietBi[]> {
   if (isMockMode()) return delay(store.getEquipment());
-  return fetchApi<ThietBi[]>('/equipment');
+  return get<ThietBi[]>('/equipment');
 }
 
 export async function getInventory(): Promise<TonKho[]> {
   if (isMockMode()) return delay(store.getInventory());
-  return fetchApi<TonKho[]>('/inventory');
+  return get<TonKho[]>('/inventory');
 }
 
 export async function createImport(data: Omit<PhieuNhapKho, 'maPhieu'>): Promise<{ success: boolean; phieu?: PhieuNhapKho; warnings?: string[] }> {
@@ -53,7 +53,7 @@ export async function createImport(data: Omit<PhieuNhapKho, 'maPhieu'>): Promise
     if (idx >= 0) { inv[idx].soLuongKho += data.soLuongNhap; inv[idx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv); }
     return delay({ success: true, phieu });
   }
-  return fetchApi('/imports', { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; phieu?: PhieuNhapKho; warnings?: string[] }>('/imports', data);
 }
 
 export async function getImports(filters?: { fromDate?: string; toDate?: string; maNhaCungCap?: string }): Promise<PhieuNhapKho[]> {
@@ -69,5 +69,5 @@ export async function getImports(filters?: { fromDate?: string; toDate?: string;
   if (filters?.toDate) params.append('toDate', filters.toDate);
   if (filters?.maNhaCungCap) params.append('maNhaCungCap', filters.maNhaCungCap);
   const query = params.toString();
-  return fetchApi<PhieuNhapKho[]>(`/imports${query ? `?${query}` : ''}`);
+  return get<PhieuNhapKho[]>(`/imports${query ? `?${query}` : ''}`);
 }

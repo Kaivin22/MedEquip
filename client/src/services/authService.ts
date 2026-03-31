@@ -8,7 +8,7 @@
  */
 import { NguoiDung } from '@/types';
 import { store } from '@/lib/store';
-import { fetchApi, delay, isMockMode } from './api';
+import { delay, post, put, isMockMode } from './api';
 
 export interface LoginRequest {
   email: string;
@@ -62,13 +62,13 @@ function mockLogin(req: LoginRequest): Promise<LoginResponse> {
 // US-001: Đăng nhập
 export async function loginApi(req: LoginRequest): Promise<LoginResponse> {
   if (isMockMode()) return mockLogin(req);
-  return fetchApi<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(req) });
+  return post<LoginResponse>('/auth/login', req);
 }
 
 // US-002: Đăng xuất
 export async function logoutApi(): Promise<{ success: boolean }> {
   if (isMockMode()) return delay({ success: true });
-  return fetchApi('/auth/logout', { method: 'POST' });
+  return post<{ success: boolean }>('/auth/logout');
 }
 
 // US-003: Đổi mật khẩu
@@ -84,5 +84,5 @@ export async function changePasswordApi(userId: string, req: ChangePasswordReque
     store.setUsers(updated);
     return delay({ success: true, message: 'Đổi mật khẩu thành công!' });
   }
-  return fetchApi(`/auth/change-password`, { method: 'PUT', body: JSON.stringify({ userId, ...req }) });
+  return put<{ success: boolean; message: string }>(`/auth/change-password`, { userId, ...req });
 }

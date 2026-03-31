@@ -4,7 +4,7 @@
  */
 import { PhieuBaoHuHong, ThongBao } from '@/types';
 import { store, generateId } from '@/lib/store';
-import { fetchApi, delay, isMockMode } from './api';
+import { delay, get, post, put, isMockMode } from './api';
 
 export async function createDamageReport(data: Omit<PhieuBaoHuHong, 'maPhieu' | 'trangThai' | 'ngayBao'>): Promise<{ success: boolean; report?: PhieuBaoHuHong }> {
   if (isMockMode()) {
@@ -18,7 +18,7 @@ export async function createDamageReport(data: Omit<PhieuBaoHuHong, 'maPhieu' | 
     store.setNotifications(notifications);
     return delay({ success: true, report });
   }
-  return fetchApi('/damage-reports', { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; report?: PhieuBaoHuHong }>('/damage-reports', data);
 }
 
 export async function resolveDamageReport(maPhieu: string, ghiChu: string): Promise<{ success: boolean }> {
@@ -26,17 +26,17 @@ export async function resolveDamageReport(maPhieu: string, ghiChu: string): Prom
     store.setDamageReports(store.getDamageReports().map(r => r.maPhieu === maPhieu ? { ...r, trangThai: 'DA_XU_LY' as const, ngayXuLy: new Date().toISOString(), ghiChu } : r));
     return delay({ success: true });
   }
-  return fetchApi(`/damage-reports/${maPhieu}/resolve`, { method: 'PUT', body: JSON.stringify({ ghiChu }) });
+  return put<{ success: boolean }>(`/damage-reports/${maPhieu}/resolve`, { ghiChu });
 }
 
 export async function getDamageReports(): Promise<PhieuBaoHuHong[]> {
   if (isMockMode()) return delay(store.getDamageReports());
-  return fetchApi<PhieuBaoHuHong[]>('/damage-reports');
+  return get<PhieuBaoHuHong[]>('/damage-reports');
 }
 
 export async function getNotifications(userId: string): Promise<ThongBao[]> {
   if (isMockMode()) return delay(store.getNotifications().filter(n => n.nguoiNhan === userId));
-  return fetchApi<ThongBao[]>(`/notifications?userId=${userId}`);
+  return get<ThongBao[]>(`/notifications?userId=${userId}`);
 }
 
 export async function markAsRead(notificationId: string): Promise<{ success: boolean }> {
@@ -44,7 +44,7 @@ export async function markAsRead(notificationId: string): Promise<{ success: boo
     store.setNotifications(store.getNotifications().map(n => n.id === notificationId ? { ...n, daDoc: true } : n));
     return delay({ success: true });
   }
-  return fetchApi(`/notifications/${notificationId}/read`, { method: 'PUT' });
+  return put<{ success: boolean }>(`/notifications/${notificationId}/read`);
 }
 
 export async function markAllAsRead(userId: string): Promise<{ success: boolean }> {
@@ -52,5 +52,5 @@ export async function markAllAsRead(userId: string): Promise<{ success: boolean 
     store.setNotifications(store.getNotifications().map(n => n.nguoiNhan === userId ? { ...n, daDoc: true } : n));
     return delay({ success: true });
   }
-  return fetchApi('/notifications/read-all', { method: 'PUT', body: JSON.stringify({ userId }) });
+  return put<{ success: boolean }>('/notifications/read-all', { userId });
 }

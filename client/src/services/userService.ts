@@ -4,7 +4,7 @@
  */
 import { NguoiDung, UserRole } from '@/types';
 import { store, generateId } from '@/lib/store';
-import { fetchApi, delay, isMockMode } from './api';
+import { delay, get, post, put, isMockMode } from './api';
 
 export interface CreateUserRequest {
   hoTen: string;
@@ -24,7 +24,7 @@ export async function createUser(req: CreateUserRequest): Promise<{ success: boo
     store.setUsers(users);
     return delay({ success: true, user: newUser });
   }
-  return fetchApi('/users', { method: 'POST', body: JSON.stringify(req) });
+  return post<{ success: boolean; user?: NguoiDung; message?: string }>('/users', req);
 }
 
 export async function updateUser(userId: string, updates: Partial<NguoiDung>): Promise<{ success: boolean; message?: string }> {
@@ -39,30 +39,30 @@ export async function updateUser(userId: string, updates: Partial<NguoiDung>): P
     store.setUsers(users);
     return delay({ success: true });
   }
-  return fetchApi(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(updates) });
+  return put<{ success: boolean; message?: string }>(`/users/${userId}`, updates);
 }
 
 export async function deactivateUser(userId: string): Promise<{ success: boolean; message?: string }> {
   if (isMockMode()) return updateUser(userId, { trangThai: false });
-  return fetchApi(`/users/${userId}/deactivate`, { method: 'PUT' });
+  return put<{ success: boolean; message?: string }>(`/users/${userId}/deactivate`);
 }
 
 export async function activateUser(userId: string): Promise<{ success: boolean; message?: string }> {
   if (isMockMode()) return updateUser(userId, { trangThai: true });
-  return fetchApi(`/users/${userId}/activate`, { method: 'PUT' });
+  return put<{ success: boolean; message?: string }>(`/users/${userId}/activate`);
 }
 
 export async function changeRole(userId: string, newRole: UserRole): Promise<{ success: boolean; message?: string }> {
   if (isMockMode()) return updateUser(userId, { vaiTro: newRole });
-  return fetchApi(`/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ vaiTro: newRole }) });
+  return put<{ success: boolean; message?: string }>(`/users/${userId}/role`, { vaiTro: newRole });
 }
 
 export async function getUsers(): Promise<NguoiDung[]> {
   if (isMockMode()) return delay(store.getUsers());
-  return fetchApi<NguoiDung[]>('/users');
+  return get<NguoiDung[]>('/users');
 }
 
 export async function getUserById(userId: string): Promise<NguoiDung | undefined> {
   if (isMockMode()) return delay(store.getUsers().find(u => u.maNguoiDung === userId));
-  return fetchApi<NguoiDung>(`/users/${userId}`);
+  return get<NguoiDung>(`/users/${userId}`);
 }

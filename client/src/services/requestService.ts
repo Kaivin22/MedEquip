@@ -4,7 +4,7 @@
  */
 import { PhieuYeuCauCapPhat, PhieuCapPhat, PhieuXuatKho } from '@/types';
 import { store, generateId } from '@/lib/store';
-import { fetchApi, delay, isMockMode } from './api';
+import { delay, get, post, put, isMockMode } from './api';
 
 export type RequestStatus = 'CHO_TRUONG_KHOA' | 'CHO_QUAN_LY' | 'CHO_THU_KHO' | 'DA_DUYET' | 'TU_CHOI' | 'DA_NHAN';
 
@@ -21,7 +21,7 @@ export async function createRequest(data: Omit<PhieuYeuCauCapPhat, 'maPhieu' | '
     store.setNotifications(notifications);
     return delay({ success: true, phieu });
   }
-  return fetchApi('/requests', { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; phieu?: PhieuYeuCauCapPhat; message?: string }>('/requests', data);
 }
 
 export async function approveByDeptHead(maPhieu: string, approved: boolean, lyDo?: string): Promise<ApprovalResult> {
@@ -36,7 +36,7 @@ export async function approveByDeptHead(maPhieu: string, approved: boolean, lyDo
     }
     requests[idx].trangThai = 'TU_CHOI'; requests[idx].lyDoTuChoi = lyDo; store.setRequests(requests); return delay({ success: true, newStatus: 'TU_CHOI', message: 'Đã từ chối.' });
   }
-  return fetchApi(`/requests/${maPhieu}/approve-dept`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
+  return put<ApprovalResult>(`/requests/${maPhieu}/approve-dept`, { approved, lyDo });
 }
 
 export async function approveByManager(maPhieu: string, approved: boolean, lyDo?: string): Promise<ApprovalResult> {
@@ -47,7 +47,7 @@ export async function approveByManager(maPhieu: string, approved: boolean, lyDo?
     if (approved) { requests[idx].trangThai = 'DA_DUYET'; requests[idx].ngayDuyet = new Date().toISOString(); store.setRequests(requests); return delay({ success: true, newStatus: 'CHO_THU_KHO', message: 'Đã duyệt.' }); }
     requests[idx].trangThai = 'TU_CHOI'; requests[idx].lyDoTuChoi = lyDo; store.setRequests(requests); return delay({ success: true, newStatus: 'TU_CHOI', message: 'Đã từ chối.' });
   }
-  return fetchApi(`/requests/${maPhieu}/approve-mgr`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
+  return put<ApprovalResult>(`/requests/${maPhieu}/approve-mgr`, { approved, lyDo });
 }
 
 export async function processExport(maPhieuYeuCau: string, data: { soLuongCapPhat: number; maNhanVienKho: string; ghiChu: string; }): Promise<{ success: boolean; message?: string }> {
@@ -63,12 +63,12 @@ export async function processExport(maPhieuYeuCau: string, data: { soLuongCapPha
     inv[invIdx].soLuongKho -= data.soLuongCapPhat; inv[invIdx].soLuongDangDung += data.soLuongCapPhat; inv[invIdx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv);
     return delay({ success: true, message: 'Đã xuất kho thành công.' });
   }
-  return fetchApi(`/requests/${maPhieuYeuCau}/process`, { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; message?: string }>(`/requests/${maPhieuYeuCau}/process`, data);
 }
 
 export async function confirmReceived(maPhieuCapPhat: string): Promise<{ success: boolean; message?: string }> {
   if (isMockMode()) return delay({ success: true, message: 'Đã xác nhận nhận hàng.' });
-  return fetchApi(`/requests/${maPhieuCapPhat}/confirm`, { method: 'PUT' });
+  return put<{ success: boolean; message?: string }>(`/requests/${maPhieuCapPhat}/confirm`);
 }
 
 export async function getRequests(filters?: { maKhoa?: string; trangThai?: string }): Promise<PhieuYeuCauCapPhat[]> {
@@ -82,7 +82,7 @@ export async function getRequests(filters?: { maKhoa?: string; trangThai?: strin
   if (filters?.maKhoa) params.append('maKhoa', filters.maKhoa);
   if (filters?.trangThai) params.append('trangThai', filters.trangThai);
   const query = params.toString();
-  return fetchApi<PhieuYeuCauCapPhat[]>(`/requests${query ? `?${query}` : ''}`);
+  return get<PhieuYeuCauCapPhat[]>(`/requests${query ? `?${query}` : ''}`);
 }
 
 export async function createExport(data: Omit<PhieuXuatKho, 'maPhieu'>): Promise<{ success: boolean; phieu?: PhieuXuatKho }> {
@@ -91,7 +91,7 @@ export async function createExport(data: Omit<PhieuXuatKho, 'maPhieu'>): Promise
     const exports = store.getExports(); exports.push(phieu); store.setExports(exports);
     return delay({ success: true, phieu });
   }
-  return fetchApi('/exports', { method: 'POST', body: JSON.stringify(data) });
+  return post<{ success: boolean; phieu?: PhieuXuatKho }>('/exports', data);
 }
 
 export async function confirmExport(maPhieu: string): Promise<{ success: boolean }> {
@@ -105,5 +105,5 @@ export async function confirmExport(maPhieu: string): Promise<{ success: boolean
     if (idx >= 0) { inv[idx].soLuongKho -= Math.min(phieu.soLuong, inv[idx].soLuongKho); inv[idx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv); }
     return delay({ success: true });
   }
-  return fetchApi(`/exports/${maPhieu}/confirm`, { method: 'PUT' });
+  return put<{ success: boolean }>(`/exports/${maPhieu}/confirm`);
 }
