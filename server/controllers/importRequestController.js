@@ -39,6 +39,16 @@ export async function createImportRequest(req, res) {
       [maPhieu, userId, tenThietBi, loaiThietBi || "", donViTinh || "Cái", soLuong || 1, mucDichSuDung || ""]
     );
     
+    // Gửi thông báo cho Admin và Trưởng khoa
+    const [managers] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro IN ('ADMIN', 'TRUONG_KHOA')");
+    for (const m of managers) {
+      const tbId = "TB-N-" + String(Date.now()).slice(-5) + Math.floor(Math.random() * 1000);
+      await pool.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'info', ?, FALSE)",
+        [tbId, "Yêu cầu nhập mới", `Có phiếu yêu cầu nhập thiết bị mới: ${maPhieu}`, m.ma_nguoi_dung]
+      );
+    }
+    
     res.status(201).json({ success: true, maPhieu });
   } catch (err) {
     console.error(err);
@@ -55,10 +65,25 @@ export async function approveImportRequest(req, res) {
     
     const trangThai = approved ? 'DA_DUYET' : 'TU_CHOI';
     
+    const [rows] = await pool.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau_nhap WHERE ma_phieu = ?", [id]);
+    const nguoiYeuCau = rows.length > 0 ? rows[0].ma_nguoi_yeu_cau : null;
+    
     await pool.query(
       "UPDATE phieu_yeu_cau_nhap SET trang_thai = ?, ngay_duyet = NOW(), nguoi_duyet = ?, ly_do_tu_choi = ? WHERE ma_phieu = ?",
       [trangThai, userId, lyDo || null, id]
     );
+
+    // Gửi thông báo cho nhân viên kho đã yêu cầu
+    if (nguoiYeuCau) {
+      const tbId = "TB-N-" + String(Date.now()).slice(-5) + Math.floor(Math.random() * 1000);
+      const tieuDe = approved ? "Yêu cầu nhập đã duyệt" : "Yêu cầu nhập bị từ chối";
+      const noiDung = approved ? `Phiếu yêu cầu nhập ${id} đã được duyệt.` : `Phiếu yêu cầu nhập ${id} đã bị từ chối.`;
+      const loai = approved ? 'success' : 'error';
+      await pool.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, ?, ?, FALSE)",
+        [tbId, tieuDe, noiDung, loai, nguoiYeuCau]
+      );
+    }
     
     res.json({ success: true, message: approved ? "Đã duyệt" : "Đã từ chối" });
   } catch (err) {

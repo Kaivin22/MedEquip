@@ -186,6 +186,23 @@ export async function apiCreateImportRequest(data: Omit<PhieuYeuCauNhap, 'maPhie
     const requests = store.getImportRequests();
     requests.push(phieu);
     store.setImportRequests(requests);
+    
+    const users = store.getUsers();
+    const managers = users.filter(u => ['ADMIN', 'TRUONG_KHOA'].includes(u.vaiTro));
+    const notifs = store.getNotifications();
+    managers.forEach(m => {
+      notifs.push({
+        id: generateId('TB-N'),
+        tieuDe: 'Yêu cầu nhập mới',
+        noiDung: `Có phiếu yêu cầu nhập thiết bị mới: ${phieu.maPhieu}`,
+        loai: 'info',
+        nguoiNhan: m.maNguoiDung,
+        daDoc: false,
+        ngayTao: new Date().toISOString()
+      });
+    });
+    store.setNotifications(notifs);
+
     return { success: true, phieu };
   }
   const result = await fetchApi<any>('/import-requests', { method: 'POST', body: JSON.stringify(data) });
@@ -196,6 +213,7 @@ export async function apiCreateImportRequest(data: Omit<PhieuYeuCauNhap, 'maPhie
 export async function apiApproveImportRequest(maPhieu: string, approved: boolean, lyDo?: string) {
   if (isMockMode()) {
     const requests = store.getImportRequests();
+    const phieu = requests.find(r => r.maPhieu === maPhieu);
     store.setImportRequests(requests.map(r => r.maPhieu === maPhieu ? {
       ...r,
       trangThai: approved ? 'DA_DUYET' as const : 'TU_CHOI' as const,
@@ -203,6 +221,21 @@ export async function apiApproveImportRequest(maPhieu: string, approved: boolean
       lyDoTuChoi: lyDo,
       nguoiDuyet: 'MOCK_ADMIN'
     } : r));
+
+    if (phieu && phieu.maNguoiYeuCau) {
+      const notifs = store.getNotifications();
+      notifs.push({
+        id: generateId('TB-N'),
+        tieuDe: approved ? 'Yêu cầu nhập đã duyệt' : 'Yêu cầu nhập bị từ chối',
+        noiDung: approved ? `Phiếu yêu cầu nhập ${maPhieu} đã được duyệt.` : `Phiếu yêu cầu nhập ${maPhieu} đã bị từ chối.`,
+        loai: approved ? 'success' : 'error',
+        nguoiNhan: phieu.maNguoiYeuCau,
+        daDoc: false,
+        ngayTao: new Date().toISOString()
+      });
+      store.setNotifications(notifs);
+    }
+
     return { success: true };
   }
   const result = await fetchApi<any>(`/import-requests/${maPhieu}/approve`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });

@@ -46,12 +46,13 @@ app.use((req, res, next) => {
       // Map base URLs to data types
       const url = req.originalUrl;
       const typesToRefresh = new Set();
-      if (url.includes("/requests")) { typesToRefresh.add("requests"); typesToRefresh.add("notifications"); typesToRefresh.add("inventory"); typesToRefresh.add("allocations"); }
-      if (url.includes("/damage-reports")) { typesToRefresh.add("damageReports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
-      if (url.includes("/exports")) { typesToRefresh.add("exports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
-      if (url.includes("/departments")) typesToRefresh.add("departments");
-      if (url.includes("/equipment")) { typesToRefresh.add("equipment"); typesToRefresh.add("inventory"); }
-      if (url.includes("/imports")) { typesToRefresh.add("imports"); typesToRefresh.add("inventory"); }
+      if (url.startsWith("/api/requests")) { typesToRefresh.add("requests"); typesToRefresh.add("notifications"); typesToRefresh.add("inventory"); typesToRefresh.add("allocations"); }
+      if (url.startsWith("/api/import-requests")) { typesToRefresh.add("importRequests"); typesToRefresh.add("notifications"); }
+      else if (url.startsWith("/api/imports")) { typesToRefresh.add("imports"); typesToRefresh.add("inventory"); }
+      if (url.startsWith("/api/damage-reports")) { typesToRefresh.add("damageReports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
+      if (url.startsWith("/api/exports")) { typesToRefresh.add("exports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
+      if (url.startsWith("/api/departments")) typesToRefresh.add("departments");
+      if (url.startsWith("/api/equipment")) { typesToRefresh.add("equipment"); typesToRefresh.add("inventory"); }
       
       if (typesToRefresh.size > 0) {
         io.emit("data_changed", { types: Array.from(typesToRefresh) });
