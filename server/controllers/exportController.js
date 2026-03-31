@@ -67,6 +67,12 @@ export async function createExport(req, res) {
       );
     }
 
+    const tbId = "TB-N-" + String(Date.now()).slice(-6);
+    await conn.query(
+      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'info', ?, FALSE)",
+      [tbId, "Phiếu xuất kho mới", `Có phiếu xuất kho mới ${id} cần xác nhận.`, "ND-002"]
+    );
+
     await conn.commit();
     res.json({ success: true, phieu: { maPhieu: id } });
   } catch (err) {

@@ -57,17 +57,28 @@ export async function createRequest(req, res) {
 export async function approveDept(req, res) {
   try {
     const { approved, lyDo } = req.body;
+    const [rows] = await pool.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau WHERE ma_phieu = ?", [req.params.id]);
+    const nguoiYeuCau = rows.length > 0 ? rows[0].ma_nguoi_yeu_cau : null;
+
     if (approved) {
       await pool.query(
         "UPDATE phieu_yeu_cau SET trang_thai = 'DA_DUYET', ngay_duyet = NOW(), nguoi_duyet = ? WHERE ma_phieu = ?",
         [req.user.userId, req.params.id]
       );
+      if (nguoiYeuCau) {
+        const tbId = "TB-N-" + String(Date.now()).slice(-6);
+        await pool.query("INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'success', ?, FALSE)", [tbId, "Yêu cầu đã duyệt", `Phiếu yêu cầu ${req.params.id} đã được Trưởng khoa duyệt.`, nguoiYeuCau]);
+      }
       res.json({ success: true, newStatus: "DA_DUYET", message: "Đã duyệt." });
     } else {
       await pool.query(
         "UPDATE phieu_yeu_cau SET trang_thai = 'TU_CHOI', ly_do_tu_choi = ?, nguoi_duyet = ? WHERE ma_phieu = ?",
         [lyDo || "", req.user.userId, req.params.id]
       );
+      if (nguoiYeuCau) {
+        const tbId = "TB-N-" + String(Date.now()).slice(-6);
+        await pool.query("INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'error', ?, FALSE)", [tbId, "Yêu cầu bị từ chối", `Phiếu yêu cầu ${req.params.id} đã bị từ chối.`, nguoiYeuCau]);
+      }
       res.json({ success: true, newStatus: "TU_CHOI", message: "Đã từ chối." });
     }
   } catch (err) {
@@ -78,17 +89,28 @@ export async function approveDept(req, res) {
 export async function approveManager(req, res) {
   try {
     const { approved, lyDo } = req.body;
+    const [rows] = await pool.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau WHERE ma_phieu = ?", [req.params.id]);
+    const nguoiYeuCau = rows.length > 0 ? rows[0].ma_nguoi_yeu_cau : null;
+
     if (approved) {
       await pool.query(
         "UPDATE phieu_yeu_cau SET trang_thai = 'DA_DUYET', ngay_duyet = NOW(), nguoi_duyet = ? WHERE ma_phieu = ?",
         [req.user.userId, req.params.id]
       );
+      if (nguoiYeuCau) {
+        const tbId = "TB-N-" + String(Date.now()).slice(-6);
+        await pool.query("INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'success', ?, FALSE)", [tbId, "Yêu cầu đã duyệt", `Phiếu yêu cầu ${req.params.id} đã được Quản lý duyệt.`, nguoiYeuCau]);
+      }
       res.json({ success: true, newStatus: "DA_DUYET", message: "Quản lý đã duyệt." });
     } else {
       await pool.query(
         "UPDATE phieu_yeu_cau SET trang_thai = 'TU_CHOI', ly_do_tu_choi = ?, nguoi_duyet = ? WHERE ma_phieu = ?",
         [lyDo || "", req.user.userId, req.params.id]
       );
+      if (nguoiYeuCau) {
+        const tbId = "TB-N-" + String(Date.now()).slice(-6);
+        await pool.query("INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'error', ?, FALSE)", [tbId, "Yêu cầu bị từ chối", `Phiếu yêu cầu ${req.params.id} đã bị Quản lý từ chối.`, nguoiYeuCau]);
+      }
       res.json({ success: true, newStatus: "TU_CHOI", message: "Đã từ chối." });
     }
   } catch (err) {

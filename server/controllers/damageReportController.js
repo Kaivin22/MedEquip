@@ -47,6 +47,12 @@ export async function createDamageReport(req, res) {
       );
     }
 
+    const tbId = "TB-N-" + String(Date.now()).slice(-6);
+    await pool.query(
+      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'warning', ?, FALSE)",
+      [tbId, "Báo cáo hư hỏng mới", `Thiết bị ${maThietBi} vừa được báo hư hỏng.`, "ND-002"]
+    );
+
     const [rows] = await pool.query("SELECT * FROM phieu_bao_hu_hong WHERE ma_phieu = ?", [id]);
     res.json({ success: true, report: mapDamageReport(rows[0]) });
   } catch (err) {
@@ -62,6 +68,16 @@ export async function resolveDamageReport(req, res) {
       "UPDATE phieu_bao_hu_hong SET trang_thai = 'DA_XU_LY', ngay_xu_ly = NOW(), nguoi_xu_ly = ?, ket_qua_xu_ly = ? WHERE ma_phieu = ?",
       [nguoiXuLy || req.user.userId, ketQuaXuLy || ghiChu || "", req.params.id]
     );
+
+    const [rows] = await pool.query("SELECT ma_nguoi_bao, ma_thiet_bi FROM phieu_bao_hu_hong WHERE ma_phieu = ?", [req.params.id]);
+    if (rows.length > 0) {
+      const tbId = "TB-N-" + String(Date.now()).slice(-6);
+      await pool.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'success', ?, FALSE)",
+        [tbId, "Hư hỏng đã xử lý", `Báo cáo hư hỏng thiết bị ${rows[0].ma_thiet_bi} của bạn đã được xử lý.`, rows[0].ma_nguoi_bao]
+      );
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);

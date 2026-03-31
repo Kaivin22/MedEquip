@@ -35,10 +35,26 @@ export async function createDepartment(req, res) {
 
 export async function updateDepartment(req, res) {
   try {
-    const { tenKhoa, moTa } = req.body;
-    await pool.query("UPDATE khoa SET ten_khoa = ?, mo_ta = ? WHERE ma_khoa = ?", [tenKhoa, moTa, req.params.id]);
+    const { tenKhoa, moTa, trangThai } = req.body;
+    await pool.query(
+      "UPDATE khoa SET ten_khoa = ?, mo_ta = ?, trang_thai = ? WHERE ma_khoa = ?",
+      [tenKhoa, moTa, trangThai === undefined ? true : !!trangThai, req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function deleteDepartment(req, res) {
+  try {
+    await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [req.params.id]);
+    res.json({ success: true, message: "Đã xóa khoa." });
+  } catch (err) {
+    if (err.code === "ER_ROW_IS_REFERENCED_2") {
+      res.status(400).json({ success: false, message: "Không thể xóa khoa này do đã có dữ liệu liên quan." });
+    } else {
+      res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+    }
   }
 }

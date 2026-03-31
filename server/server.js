@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { pool } from "./config/db.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
@@ -21,6 +23,45 @@ import importRequestRoutes from "./routes/importRequests.js";
 dotenv.config();
 
 const app = express();
+// Trigger nodemon restart
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: [process.env.CLIENT_URL || "http://localhost:5173", "http://localhost:8080"],
+    credentials: true,
+  }
+});
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("Client connected via socket:", socket.id);
+  socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
+});
+
+// Middleware to automatically emit data_changed after state-mutating requests
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function(data) {
+    if (data?.success && ["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) {
+      // Map base URLs to data types
+      const url = req.originalUrl;
+      const typesToRefresh = new Set();
+      if (url.includes("/requests")) { typesToRefresh.add("requests"); typesToRefresh.add("notifications"); typesToRefresh.add("inventory"); typesToRefresh.add("allocations"); }
+      if (url.includes("/damage-reports")) { typesToRefresh.add("damageReports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
+      if (url.includes("/exports")) { typesToRefresh.add("exports"); typesToRefresh.add("inventory"); typesToRefresh.add("notifications"); }
+      if (url.includes("/departments")) typesToRefresh.add("departments");
+      if (url.includes("/equipment")) { typesToRefresh.add("equipment"); typesToRefresh.add("inventory"); }
+      if (url.includes("/imports")) { typesToRefresh.add("imports"); typesToRefresh.add("inventory"); }
+      
+      if (typesToRefresh.size > 0) {
+        io.emit("data_changed", { types: Array.from(typesToRefresh) });
+      }
+    }
+    return originalJson.call(this, data);
+  };
+  next();
+});
+
 app.use(cors({
   origin: [process.env.CLIENT_URL || "http://localhost:5173", "http://localhost:8080"],
   credentials: true,
@@ -60,7 +101,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/import-requests", importRequestRoutes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 MedEquip API running on http://localhost:${PORT}`);
   console.log(`📋 API docs: http://localhost:${PORT}/api/test-db`);
 });

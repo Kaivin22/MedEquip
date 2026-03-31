@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateDepartment, apiUpdateDepartment } from '@/lib/apiSync';
+import { apiCreateDepartment, apiUpdateDepartment, apiDeleteDepartment } from '@/lib/apiSync';
 import { Khoa } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,27 +20,50 @@ export default function DepartmentsPage() {
   const canEdit = user?.vaiTro === 'ADMIN';
 
   const [form, setForm] = useState({ tenKhoa: '', moTa: '' });
+  const [saving, setSaving] = useState(false);
   const filtered = useMemo(() => data.filter(k => k.tenKhoa.toLowerCase().includes(search.toLowerCase())), [data, search]);
 
   const openAdd = () => { setEditing(null); setForm({ tenKhoa: '', moTa: '' }); setDialogOpen(true); };
   const openEdit = (k: Khoa) => { setEditing(k); setForm({ tenKhoa: k.tenKhoa, moTa: k.moTa }); setDialogOpen(true); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.tenKhoa) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên khoa', variant: 'destructive' }); return; }
-    let updated: Khoa[];
-    if (editing) {
-      updated = data.map(k => k.maKhoa === editing.maKhoa ? { ...k, ...form } : k);
-      toast({ title: 'Cập nhật thành công' });
-    } else {
-      updated = [...data, { maKhoa: generateId('K'), ...form, trangThai: true }];
-      toast({ title: 'Thêm thành công' });
+    setSaving(true);
+    try {
+      let result;
+      if (editing) {
+        result = await apiUpdateDepartment(editing.maKhoa, { ...form, trangThai: editing.trangThai });
+      } else {
+        result = await apiCreateDepartment(form);
+      }
+
+      if (result.success) {
+        setData(store.getDepartments());
+        setDialogOpen(false);
+        toast({ title: editing ? 'Cập nhật thành công' : 'Thêm thành công' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Thao tác thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Có lỗi xảy ra', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-    store.setDepartments(updated); setData(updated); setDialogOpen(false);
   };
 
-  const handleDelete = (k: Khoa) => {
-    const updated = data.filter(x => x.maKhoa !== k.maKhoa);
-    store.setDepartments(updated); setData(updated); toast({ title: 'Đã xóa' });
+  const handleDelete = async (k: Khoa) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa khoa ${k.tenKhoa}?`)) return;
+    try {
+      const res = await apiDeleteDepartment(k.maKhoa);
+      if (res.success) {
+        setData(store.getDepartments());
+        toast({ title: 'Đã xóa khoa thành công' });
+      } else {
+        toast({ title: 'Lỗi', description: res.message || 'Không thể xóa khoa', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Có lỗi xảy ra', variant: 'destructive' });
+    }
   };
 
   return (
@@ -96,8 +119,10 @@ export default function DepartmentsPage() {
             <div><Label>Mô tả</Label><Textarea value={form.moTa} onChange={e => setForm(f => ({ ...f, moTa: e.target.value }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleSave} className="gradient-primary text-primary-foreground">{editing ? 'Cập nhật' : 'Thêm'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Hủy</Button>
+            <Button onClick={handleSave} className="gradient-primary text-primary-foreground" disabled={saving}>
+              {saving ? 'Đang lưu...' : editing ? 'Cập nhật' : 'Thêm'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -3,6 +3,7 @@ import { NguoiDung } from '@/types';
 import { loginApi, logoutApi, LoginResponse } from '@/services/authService';
 import { loadAllData } from '@/lib/dataLoader';
 import { store } from '@/lib/store';
+import { initSocket, disconnectSocket } from '@/lib/socket';
 
 interface AuthContextType {
   user: NguoiDung | null;
@@ -25,7 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   React.useEffect(() => {
     if (user) {
       loadAllData(user.maNguoiDung).then(() => setDataLoaded(true));
+      initSocket(user.maNguoiDung);
     }
+    return () => {
+      disconnectSocket();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<LoginResponse> => {
@@ -38,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Load all data from API after login
       await loadAllData(result.user.maNguoiDung);
+      initSocket(result.user.maNguoiDung);
       setDataLoaded(true);
     }
     return result;
@@ -50,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('kho_currentUser');
     localStorage.removeItem('auth_token');
     store.clearCache();
+    disconnectSocket();
   }, []);
 
   return (

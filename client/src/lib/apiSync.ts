@@ -139,6 +139,16 @@ export async function apiUpdateDepartment(id: string, data: Partial<Khoa>) {
   return result;
 }
 
+export async function apiDeleteDepartment(id: string) {
+  if (isMockMode()) {
+    store.setDepartments(store.getDepartments().filter(d => d.maKhoa !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/departments/${id}`, { method: 'DELETE' });
+  if (result.success) await refreshData('departments');
+  return result;
+}
+
 // ---- Requests ----
 export async function apiCreateRequest(data: Omit<PhieuYeuCauCapPhat, 'maPhieu' | 'trangThai' | 'ngayTao'>) {
   if (isMockMode()) {
