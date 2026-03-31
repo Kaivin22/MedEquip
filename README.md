@@ -21,7 +21,9 @@ mysql -u root -p < database/medequip_database.sql
 cd server
 npm install
 # Cấu hình .env (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-npm run dev
+# npm run dev
+node migrate_db.js
+node server.js
 ```
 Backend chạy tại: http://localhost:5000
 

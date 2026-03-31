@@ -1,3 +1,4 @@
+//api dang nhap tra về jwt
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.js";
 import { login, logout, changePassword } from "../controllers/authController.js";
