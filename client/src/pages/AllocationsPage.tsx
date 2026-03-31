@@ -31,7 +31,7 @@ export default function AllocationsPage() {
 
   const selectedRequest = allRequests.find(r => r.maPhieu === form.maPhieuYeuCau);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.maPhieuYeuCau) { toast({ title: 'Lỗi', description: 'Chọn phiếu yêu cầu', variant: 'destructive' }); return; }
     const req = allRequests.find(r => r.maPhieu === form.maPhieuYeuCau);
     if (!req) return;
@@ -40,42 +40,33 @@ export default function AllocationsPage() {
       toast({ title: 'Lỗi', description: 'Số lượng phải lớn hơn 0', variant: 'destructive' }); return;
     }
 
-    // Validate stock
-    const inv = store.getInventory();
-    const invItem = inv.find(i => i.maThietBi === req.maThietBi);
+    // Checking max allocation in UI
+    const invItem = store.getInventory().find(i => i.maThietBi === req.maThietBi);
     if (invItem && form.soLuongCapPhat > invItem.soLuongKho) {
-      // Gửi thông báo cho người mượn
-      const tbName = equipment.find(e => e.maThietBi === req.maThietBi)?.tenThietBi || req.maThietBi;
-      const notifs = store.getNotifications();
-      notifs.push({
-        id: generateId('TB-N'), tieuDe: 'Không đủ số lượng trong kho',
-        noiDung: `Yêu cầu mượn ${tbName} (SL: ${form.soLuongCapPhat}) không thể thực hiện vì kho chỉ còn ${invItem.soLuongKho}. Vui lòng liên hệ kho để biết thêm.`,
-        loai: 'error', nguoiNhan: req.maNguoiYeuCau, daDoc: false, ngayTao: new Date().toISOString()
-      });
-      store.setNotifications(notifs);
-      toast({ title: 'Quá số lượng kho hiện có', description: `Số lượng mượn (${form.soLuongCapPhat}) vượt quá kho (${invItem.soLuongKho}). Đã gửi thông báo cho người mượn.`, variant: 'destructive' });
-      return;
+       toast({ title: 'Lỗi', description: `Số lượng mượn vượt quá kho hiện tại (${invItem.soLuongKho})`, variant: 'destructive' });
+       return;
     }
 
-    const phieu: PhieuCapPhat = {
-      maPhieu: generateId('CP'), maPhieuYeuCau: form.maPhieuYeuCau,
-      maNhanVienKho: user!.maNguoiDung, maThietBi: req.maThietBi,
-      maNguoiMuon: req.maNguoiYeuCau, maKhoa: req.maKhoa,
-      soLuongCapPhat: form.soLuongCapPhat, ngayCapPhat: new Date().toISOString(), ghiChu: form.ghiChu
-    };
-    const updated = [...data, phieu];
-    store.setAllocations(updated); setData(updated); setDialogOpen(false);
-    // Update inventory: kho giảm, đang dùng tăng
-    const idx = inv.findIndex(i => i.maThietBi === phieu.maThietBi);
-    if (idx >= 0) { inv[idx].soLuongKho -= phieu.soLuongCapPhat; inv[idx].soLuongDangDung += phieu.soLuongCapPhat; inv[idx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv); }
-
-    // Notify borrower
-    const tbName = equipment.find(e => e.maThietBi === phieu.maThietBi)?.tenThietBi;
-    const notifs = store.getNotifications();
-    notifs.push({ id: generateId('TB-N'), tieuDe: 'Đã cấp phát thiết bị', noiDung: `Phiếu cấp phát ${phieu.maPhieu} - ${tbName} (SL: ${phieu.soLuongCapPhat}) đã được lập`, loai: 'success', nguoiNhan: phieu.maNguoiMuon, daDoc: false, ngayTao: new Date().toISOString() });
-    store.setNotifications(notifs);
-
-    toast({ title: 'Thành công', description: `Đã lập phiếu cấp phát ${phieu.maPhieu}` });
+    try {
+      const result = await apiCreateAllocation({
+        maPhieuYeuCau: form.maPhieuYeuCau,
+        maNhanVienKho: user!.maNguoiDung,
+        maThietBi: req.maThietBi,
+        maNguoiMuon: req.maNguoiYeuCau,
+        maKhoa: req.maKhoa,
+        soLuongCapPhat: form.soLuongCapPhat,
+        ghiChu: form.ghiChu
+      });
+      if (result.success) {
+        setData(store.getAllocations());
+        setDialogOpen(false);
+        toast({ title: 'Thành công', description: `Đã lập phiếu cấp phát thành công.` });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
   return (

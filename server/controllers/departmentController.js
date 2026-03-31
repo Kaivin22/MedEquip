@@ -42,3 +42,17 @@ export async function updateDepartment(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+
+export async function deleteDepartment(req, res) {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
+    res.json({ success: true, message: "Đã xóa khoa" });
+  } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      res.status(400).json({ success: false, message: "Không thể xóa khoa vì đang có dữ liệu liên kết." });
+    } else {
+      res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+    }
+  }
+}

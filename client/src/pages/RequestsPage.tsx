@@ -12,8 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Check, X, Eye } from 'lucide-react';
 
-const STATUS_MAP = { CHO_DUYET: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Từ chối' } as const;
-const STATUS_COLORS = { CHO_DUYET: 'bg-warning/10 text-warning', DA_DUYET: 'bg-success/10 text-success', TU_CHOI: 'bg-destructive/10 text-destructive' };
+const STATUS_MAP = { CHO_DUYET: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Từ chối', DA_CAP_PHAT: 'Đã cấp phát', DA_NHAN: 'Đã nhận' } as const;
+const STATUS_COLORS = { CHO_DUYET: 'bg-warning/10 text-warning', DA_DUYET: 'bg-success/10 text-success', TU_CHOI: 'bg-destructive/10 text-destructive', DA_CAP_PHAT: 'bg-primary/10 text-primary', DA_NHAN: 'bg-success/20 text-success' };
 
 export default function RequestsPage() {
   const { user } = useAuth();

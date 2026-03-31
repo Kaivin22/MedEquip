@@ -34,6 +34,18 @@ export async function apiUpdateUser(userId: string, updates: Partial<NguoiDung>)
   return result;
 }
 
+export async function apiChangePassword(userId: string, data: { matKhauCu: string; matKhauMoi: string }) {
+  if (isMockMode()) {
+    const users = store.getUsers();
+    const user = users.find(u => u.maNguoiDung === userId);
+    if (!user) return { success: false, message: 'Lỗi' };
+    if (user.matKhau !== data.matKhauCu) return { success: false, message: 'Mật khẩu cũ không đúng' };
+    store.setUsers(users.map(u => u.maNguoiDung === userId ? { ...u, matKhau: data.matKhauMoi, ngayCapNhat: new Date().toISOString() } : u));
+    return { success: true };
+  }
+  return fetchApi<any>(`/users/${userId}/password`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
 export async function apiDeleteUser(userId: string) {
   if (isMockMode()) {
     store.setUsers(store.getUsers().filter(u => u.maNguoiDung !== userId));
@@ -115,6 +127,18 @@ export async function apiUpdateSupplier(id: string, data: Partial<NhaCungCap>) {
   return result;
 }
 
+export async function apiDeleteSupplier(id: string) {
+  if (isMockMode()) {
+    const eq = store.getEquipment().some(e => e.maNhaCungCap === id);
+    if (eq) return { success: false, message: 'Không thể xóa vì NCC đang có thiết bị liên kết' };
+    store.setSuppliers(store.getSuppliers().filter(s => s.maNhaCungCap !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/suppliers/${id}`, { method: 'DELETE' });
+  if (result.success) await refreshData('suppliers');
+  return result;
+}
+
 // ---- Departments ----
 export async function apiCreateDepartment(data: Omit<Khoa, 'maKhoa' | 'trangThai'>) {
   if (isMockMode()) {
@@ -135,6 +159,16 @@ export async function apiUpdateDepartment(id: string, data: Partial<Khoa>) {
     return { success: true };
   }
   const result = await fetchApi<any>(`/departments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  if (result.success) await refreshData('departments');
+  return result;
+}
+
+export async function apiDeleteDepartment(id: string) {
+  if (isMockMode()) {
+    store.setDepartments(store.getDepartments().filter(d => d.maKhoa !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/departments/${id}`, { method: 'DELETE' });
   if (result.success) await refreshData('departments');
   return result;
 }
@@ -271,6 +305,8 @@ export async function apiCreateAllocation(data: { maPhieuYeuCau: string; maNhanV
     const inv = store.getInventory();
     const idx = inv.findIndex(i => i.maThietBi === data.maThietBi);
     if (idx >= 0) { inv[idx].soLuongKho -= data.soLuongCapPhat; inv[idx].soLuongDangDung += data.soLuongCapPhat; inv[idx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv); }
+    const reqs = store.getRequests();
+    store.setRequests(reqs.map(r => r.maPhieu === data.maPhieuYeuCau ? { ...r, trangThai: 'DA_CAP_PHAT' as any } : r));
     return { success: true, phieu };
   }
   const result = await fetchApi<any>('/allocations', { method: 'POST', body: JSON.stringify(data) });

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateDepartment, apiUpdateDepartment } from '@/lib/apiSync';
+import { apiCreateDepartment, apiUpdateDepartment, apiDeleteDepartment } from '@/lib/apiSync';
 import { Khoa } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,22 +25,37 @@ export default function DepartmentsPage() {
   const openAdd = () => { setEditing(null); setForm({ tenKhoa: '', moTa: '' }); setDialogOpen(true); };
   const openEdit = (k: Khoa) => { setEditing(k); setForm({ tenKhoa: k.tenKhoa, moTa: k.moTa }); setDialogOpen(true); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.tenKhoa) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên khoa', variant: 'destructive' }); return; }
-    let updated: Khoa[];
-    if (editing) {
-      updated = data.map(k => k.maKhoa === editing.maKhoa ? { ...k, ...form } : k);
-      toast({ title: 'Cập nhật thành công' });
-    } else {
-      updated = [...data, { maKhoa: generateId('K'), ...form, trangThai: true }];
-      toast({ title: 'Thêm thành công' });
+    try {
+      if (editing) {
+        await apiUpdateDepartment(editing.maKhoa, form);
+        setData(store.getDepartments());
+        toast({ title: 'Cập nhật thành công' });
+      } else {
+        await apiCreateDepartment(form);
+        setData(store.getDepartments());
+        toast({ title: 'Thêm thành công' });
+      }
+      setDialogOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi hệ thống', variant: 'destructive' });
     }
-    store.setDepartments(updated); setData(updated); setDialogOpen(false);
   };
 
-  const handleDelete = (k: Khoa) => {
-    const updated = data.filter(x => x.maKhoa !== k.maKhoa);
-    store.setDepartments(updated); setData(updated); toast({ title: 'Đã xóa' });
+  const handleDelete = async (k: Khoa) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa khoa ${k.tenKhoa}?`)) return;
+    try {
+      const result = await apiDeleteDepartment(k.maKhoa);
+      if (result.success) {
+        setData(store.getDepartments());
+        toast({ title: 'Thành công', description: 'Đã xóa khoa.' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Lỗi khi xóa', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi hệ thống', variant: 'destructive' });
+    }
   };
 
   return (

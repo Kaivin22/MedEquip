@@ -38,6 +38,15 @@ export async function createImportRequest(req, res) {
       "INSERT INTO phieu_yeu_cau_nhap (ma_phieu, ma_nguoi_yeu_cau, ten_thiet_bi, loai_thiet_bi, don_vi_tinh, so_luong, muc_dich_su_dung, trang_thai) VALUES (?, ?, ?, ?, ?, ?, ?, 'CHO_DUYET')",
       [maPhieu, userId, tenThietBi, loaiThietBi || "", donViTinh || "Cái", soLuong || 1, mucDichSuDung || ""]
     );
+
+    const [admins] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro = 'ADMIN'");
+    for (const ad of admins) {
+      const tbId = "TB-N-" + String(Date.now()).slice(-6) + Math.floor(Math.random() * 10000);
+      await pool.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, 'info', ?, FALSE)",
+        [tbId, "Yêu cầu nhập mới", "Có yêu cầu nhập thiết bị mới " + maPhieu, ad.ma_nguoi_dung]
+      );
+    }
     
     res.status(201).json({ success: true, maPhieu });
   } catch (err) {
@@ -59,6 +68,18 @@ export async function approveImportRequest(req, res) {
       "UPDATE phieu_yeu_cau_nhap SET trang_thai = ?, ngay_duyet = NOW(), nguoi_duyet = ?, ly_do_tu_choi = ? WHERE ma_phieu = ?",
       [trangThai, userId, lyDo || null, id]
     );
+
+    const [reqRows] = await pool.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau_nhap WHERE ma_phieu = ?", [id]);
+    if (reqRows.length > 0) {
+      const tbId = "TB-N-" + String(Date.now()).slice(-6) + Math.floor(Math.random() * 10000);
+      const title = approved ? "Yêu cầu nhập đã duyệt" : "Yêu cầu nhập bị từ chối";
+      const noiDung = approved ? "Phiếu " + id + " đã được duyệt." : "Phiếu " + id + " đã bị từ chối.";
+      const loai = approved ? "success" : "warning";
+      await pool.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES (?, ?, ?, ?, ?, FALSE)",
+        [tbId, title, noiDung, loai, reqRows[0].ma_nguoi_yeu_cau]
+      );
+    }
     
     res.json({ success: true, message: approved ? "Đã duyệt" : "Đã từ chối" });
   } catch (err) {

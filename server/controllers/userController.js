@@ -97,3 +97,22 @@ export async function changeUserRole(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+
+export async function changePassword(req, res) {
+  try {
+    const { matKhauCu, matKhauMoi } = req.body;
+    const { id } = req.params;
+
+    const [rows] = await pool.query("SELECT mat_khau FROM nguoi_dung WHERE ma_nguoi_dung = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Người dùng không tồn tại." });
+
+    const valid = await bcrypt.compare(matKhauCu, rows[0].mat_khau);
+    if (!valid) return res.json({ success: false, message: "Mật khẩu cũ không đúng." });
+
+    const hash = await bcrypt.hash(matKhauMoi, 10);
+    await pool.query("UPDATE nguoi_dung SET mat_khau = ? WHERE ma_nguoi_dung = ?", [hash, id]);
+    res.json({ success: true, message: "Đổi mật khẩu thành công." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
+import { apiUpdateUser, apiChangePassword } from '@/lib/apiSync';
 import { ROLE_LABELS } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateUserContext } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     hoTen: user?.hoTen || '',
@@ -23,25 +24,38 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.hoTen || !form.email) {
       toast({ title: 'Lỗi', description: 'Họ tên và email không được để trống', variant: 'destructive' }); return;
     }
-    const users = store.getUsers();
-    const updated = users.map(u => u.maNguoiDung === user.maNguoiDung ? {
-      ...u, hoTen: form.hoTen, email: form.email,
-      soDienThoai: form.soDienThoai, diaChi: form.diaChi,
-      ngayCapNhat: new Date().toISOString()
-    } : u);
-    store.setUsers(updated);
-    localStorage.setItem('kho_currentUser', JSON.stringify({ ...user, ...form, ngayCapNhat: new Date().toISOString() }));
-    setEditing(false);
-    toast({ title: 'Thành công', description: 'Đã cập nhật thông tin cá nhân' });
+    
+    try {
+      const res = await apiUpdateUser(user.maNguoiDung, {
+        hoTen: form.hoTen, email: form.email,
+        soDienThoai: form.soDienThoai, diaChi: form.diaChi
+      });
+      
+      if (!res.success) {
+        toast({ title: 'Lỗi', description: res.message || 'Không thể cập nhật', variant: 'destructive' });
+        return;
+      }
+
+      updateUserContext({
+        hoTen: form.hoTen, email: form.email,
+        soDienThoai: form.soDienThoai, diaChi: form.diaChi,
+        ngayCapNhat: new Date().toISOString()
+      });
+      
+      setEditing(false);
+      toast({ title: 'Thành công', description: 'Đã cập nhật thông tin cá nhân' });
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
-  const handleChangePassword = () => {
-    if (passwordForm.matKhauCu !== user.matKhau) {
-      toast({ title: 'Lỗi', description: 'Mật khẩu cũ không đúng', variant: 'destructive' }); return;
+  const handleChangePassword = async () => {
+    if (!passwordForm.matKhauCu) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu cũ', variant: 'destructive' }); return;
     }
     if (passwordForm.matKhauMoi.length < 6) {
       toast({ title: 'Lỗi', description: 'Mật khẩu mới phải ít nhất 6 ký tự', variant: 'destructive' }); return;
@@ -49,13 +63,25 @@ export default function ProfilePage() {
     if (passwordForm.matKhauMoi !== passwordForm.xacNhan) {
       toast({ title: 'Lỗi', description: 'Mật khẩu xác nhận không khớp', variant: 'destructive' }); return;
     }
-    const users = store.getUsers();
-    const updated = users.map(u => u.maNguoiDung === user.maNguoiDung ? { ...u, matKhau: passwordForm.matKhauMoi, ngayCapNhat: new Date().toISOString() } : u);
-    store.setUsers(updated);
-    localStorage.setItem('kho_currentUser', JSON.stringify({ ...user, matKhau: passwordForm.matKhauMoi }));
-    setChangingPw(false);
-    setPasswordForm({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
-    toast({ title: 'Thành công', description: 'Đã đổi mật khẩu' });
+    
+    try {
+      const res = await apiChangePassword(user.maNguoiDung, {
+        matKhauCu: passwordForm.matKhauCu,
+        matKhauMoi: passwordForm.matKhauMoi
+      });
+      
+      if (!res.success) {
+        toast({ title: 'Lỗi', description: res.message || 'Đổi mật khẩu thất bại', variant: 'destructive' });
+        return;
+      }
+      
+      updateUserContext({ matKhau: passwordForm.matKhauMoi });
+      setChangingPw(false);
+      setPasswordForm({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
+      toast({ title: 'Thành công', description: 'Đã đổi mật khẩu' });
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
   return (

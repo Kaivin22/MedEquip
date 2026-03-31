@@ -28,6 +28,14 @@ export async function updateSupplier(maNhaCungCap: string, updates: Partial<NhaC
   return fetchApi(`/suppliers/${maNhaCungCap}`, { method: 'PUT', body: JSON.stringify(updates) });
 }
 
+export async function deleteSupplier(maNhaCungCap: string): Promise<{ success: boolean; message?: string }> {
+  if (isMockMode()) {
+    store.setSuppliers(store.getSuppliers().filter(s => s.maNhaCungCap !== maNhaCungCap));
+    return delay({ success: true });
+  }
+  return fetchApi(`/suppliers/${maNhaCungCap}`, { method: 'DELETE' });
+}
+
 export async function getDepartments(): Promise<Khoa[]> {
   if (isMockMode()) return delay(store.getDepartments());
   return fetchApi<Khoa[]>('/departments');

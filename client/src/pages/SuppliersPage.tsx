@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateSupplier, apiUpdateSupplier } from '@/lib/apiSync';
+import { apiCreateSupplier, apiUpdateSupplier, apiDeleteSupplier } from '@/lib/apiSync';
 import { NhaCungCap } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,11 +46,20 @@ export default function SuppliersPage() {
     }
   };
 
-  const handleDelete = (s: NhaCungCap) => {
+  const handleDelete = async (s: NhaCungCap) => {
     const eq = store.getEquipment().some(e => e.maNhaCungCap === s.maNhaCungCap);
     if (eq) { toast({ title: 'Không thể xóa', description: 'NCC đang có thiết bị liên kết', variant: 'destructive' }); return; }
-    const updated = data.filter(x => x.maNhaCungCap !== s.maNhaCungCap);
-    store.setSuppliers(updated); setData(updated); toast({ title: 'Đã xóa' });
+    try {
+      const res = await apiDeleteSupplier(s.maNhaCungCap);
+      if (!res.success) {
+        toast({ title: 'Không thể xóa', description: res.message || 'Lỗi xảy ra', variant: 'destructive' });
+        return;
+      }
+      setData(store.getSuppliers());
+      toast({ title: 'Đã xóa' });
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
   return (
@@ -102,7 +111,7 @@ export default function SuppliersPage() {
             <div><Label>Tên NCC *</Label><Input value={form.tenNhaCungCap} onChange={e => setForm(f => ({ ...f, tenNhaCungCap: e.target.value }))} /></div>
             <div><Label>Địa chỉ</Label><Input value={form.diaChi} onChange={e => setForm(f => ({ ...f, diaChi: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>SĐT</Label><Input value={form.soDienThoai} onChange={e => setForm(f => ({ ...f, soDienThoai: e.target.value }))} /></div>
+              <div><Label>SĐT</Label><Input value={form.soDienThoai} onChange={e => setForm(f => ({ ...f, soDienThoai: e.target.value.replace(/[^0-9 \-]/g, '') }))} /></div>
               <div><Label>Email</Label><Input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
             </div>
           </div>

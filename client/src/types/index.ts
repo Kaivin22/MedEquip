@@ -72,7 +72,7 @@ export interface PhieuYeuCauCapPhat {
   maKhoa: string;
   soLuongYeuCau: number;
   lyDo: string;
-  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI';
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_CAP_PHAT' | 'DA_NHAN';
   ngayTao: string;
   ngayDuyet?: string;
   lyDoTuChoi?: string;

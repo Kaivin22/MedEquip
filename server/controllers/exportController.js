@@ -87,10 +87,14 @@ export async function confirmExport(req, res) {
     // Get details
     const [details] = await conn.query("SELECT * FROM chi_tiet_xuat_kho WHERE ma_phieu_xuat = ?", [maPhieu]);
     for (const d of details) {
-      const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [d.ma_thiet_bi]);
+      const [inv] = await conn.query("SELECT so_luong_kho, so_luong_hu FROM ton_kho WHERE ma_thiet_bi = ?", [d.ma_thiet_bi]);
       if (inv.length > 0) {
-        const deduct = Math.min(d.so_luong, inv[0].so_luong_kho);
-        await conn.query("UPDATE ton_kho SET so_luong_kho = so_luong_kho - ? WHERE ma_thiet_bi = ?", [deduct, d.ma_thiet_bi]);
+        let remaining = d.so_luong;
+        const deductKho = Math.min(remaining, inv[0].so_luong_kho);
+        remaining -= deductKho;
+        const deductHu = Math.min(remaining, inv[0].so_luong_hu);
+        
+        await conn.query("UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_hu = so_luong_hu - ? WHERE ma_thiet_bi = ?", [deductKho, deductHu, d.ma_thiet_bi]);
       }
     }
 
