@@ -5,7 +5,7 @@ async function testConnection() {
     const pool = mysql.createPool({
       host: "localhost",
       user: "root",
-      password: "admin123",
+      password: "Mai12345",
       database: "medequip_db",
       port: 3306,
     });
