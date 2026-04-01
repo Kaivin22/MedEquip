@@ -10,6 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Pencil, Trash2, Eye } from 'lucide-react';
 
+const formatPhoneNumber = (value: string) => {
+  const nums = value.replace(/\D/g, '').slice(0, 10);
+  if (nums.length <= 4) return nums;
+  if (nums.length <= 7) return `${nums.slice(0, 4)}-${nums.slice(4)}`;
+  return `${nums.slice(0, 4)}-${nums.slice(4, 7)}-${nums.slice(7, 10)}`;
+};
+
 export default function SuppliersPage() {
   const { user } = useAuth();
   const [data, setData] = useState(store.getSuppliers());
@@ -30,6 +37,34 @@ export default function SuppliersPage() {
 
   const handleSave = async () => {
     if (!form.tenNhaCungCap) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên', variant: 'destructive' }); return; }
+
+    // Kiểm tra trùng lặp
+    const isDuplicateName = data.some(s => s.tenNhaCungCap.toLowerCase() === form.tenNhaCungCap.toLowerCase() && s.maNhaCungCap !== editing?.maNhaCungCap);
+    if (isDuplicateName) {
+      toast({ title: 'Lỗi', description: 'Tên nhà cung cấp đã tồn tại', variant: 'destructive' });
+      return;
+    }
+
+    if (form.soDienThoai) {
+      const isDuplicatePhone = data.some(s => s.soDienThoai === form.soDienThoai && s.maNhaCungCap !== editing?.maNhaCungCap);
+      if (isDuplicatePhone) {
+        toast({ title: 'Lỗi', description: 'Số điện thoại đã tồn tại', variant: 'destructive' });
+        return;
+      }
+    }
+
+    if (form.email) {
+      const isDuplicateEmail = data.some(s => s.email.toLowerCase() === form.email.toLowerCase() && s.maNhaCungCap !== editing?.maNhaCungCap);
+      if (isDuplicateEmail) {
+        toast({ title: 'Lỗi', description: 'Email đã tồn tại', variant: 'destructive' });
+        return;
+      }
+    }
+
+    if (editing) {
+      if (!window.confirm('Bạn có chắc chắn muốn lưu các thay đổi này không?')) return;
+    }
+
     try {
       if (editing) {
         await apiUpdateSupplier(editing.maNhaCungCap, form);
@@ -47,6 +82,8 @@ export default function SuppliersPage() {
   };
 
   const handleDelete = async (s: NhaCungCap) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhà cung cấp "${s.tenNhaCungCap}" không?`)) return;
+
     const eq = store.getEquipment().some(e => e.maNhaCungCap === s.maNhaCungCap);
     if (eq) { toast({ title: 'Không thể xóa', description: 'NCC đang có thiết bị liên kết', variant: 'destructive' }); return; }
     try {
@@ -111,7 +148,7 @@ export default function SuppliersPage() {
             <div><Label>Tên NCC *</Label><Input value={form.tenNhaCungCap} onChange={e => setForm(f => ({ ...f, tenNhaCungCap: e.target.value }))} /></div>
             <div><Label>Địa chỉ</Label><Input value={form.diaChi} onChange={e => setForm(f => ({ ...f, diaChi: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>SĐT</Label><Input value={form.soDienThoai} onChange={e => setForm(f => ({ ...f, soDienThoai: e.target.value.replace(/[^0-9 \-]/g, '') }))} /></div>
+              <div><Label>SĐT</Label><Input value={form.soDienThoai} onChange={e => setForm(f => ({ ...f, soDienThoai: formatPhoneNumber(e.target.value) }))} /></div>
               <div><Label>Email</Label><Input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
             </div>
           </div>
