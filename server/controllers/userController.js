@@ -25,6 +25,10 @@ export async function createUser(req, res) {
   try {
     const { hoTen, email, matKhau, vaiTro, soDienThoai, diaChi } = req.body;
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (có @ và .)." });
+    }
+
     const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ?", [email]);
     if (existing.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
 
@@ -65,6 +69,9 @@ export async function updateUser(req, res) {
 
     if (updates.hoTen) { fields.push("ho_ten = ?"); values.push(updates.hoTen); }
     if (updates.email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
+        return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (có @ và .)." });
+      }
       const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ? AND ma_nguoi_dung != ?", [updates.email, req.params.id]);
       if (existing.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
       fields.push("email = ?"); values.push(updates.email);
@@ -113,17 +120,25 @@ export async function changeUserRole(req, res) {
 
 export async function deleteUser(req, res) {
   try {
-    const [result] = await pool.query("DELETE FROM nguoi_dung WHERE ma_nguoi_dung = ?", [req.params.id]);
-    if (result.affectedRows === 0) {
+    const id = req.params.id;
+    
+    // Ngăn chặn xóa tài khoản đang đăng nhập
+    if (req.user && req.user.userId === id) {
+      return res.status(400).json({ success: false, message: "Tài khoản bạn đang đăng nhập nên không thể xóa tài khoản." });
+    }
+
+    const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE ma_nguoi_dung = ?", [id]);
+    
+    if (existing.length === 0) {
       return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
     }
-    res.json({ success: true, message: "Đã xóa người dùng thành công." });
+
+    // Luôn luôn vô hiệu hóa (Soft Delete) theo đúng yêu cầu
+    await pool.query("UPDATE nguoi_dung SET trang_thai = FALSE WHERE ma_nguoi_dung = ?", [id]);
+    return res.json({ success: true, message: "Đã chuyển tài khoản sang trạng thái Vô hiệu hóa." });
+
   } catch (err) {
     console.error(err);
-    // 1451 is the MySQL error code for foreign key constraint failure
-    if (err.errno === 1451) {
-      return res.status(400).json({ success: false, message: "Không thể xóa người dùng này vì có dữ liệu liên quan (phiếu mượn, báo hỏng...)." });
-    }
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }

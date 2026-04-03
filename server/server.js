@@ -60,6 +60,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/import-requests", importRequestRoutes);
 
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
   console.log(`🚀 MedEquip API running on http://localhost:${PORT}`);
   console.log(`📋 API docs: http://localhost:${PORT}/api/test-db`);
