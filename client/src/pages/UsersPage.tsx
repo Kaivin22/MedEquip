@@ -15,6 +15,8 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<NguoiDung | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<NguoiDung | null>(null);
 
   const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole });
   const filtered = useMemo(() => data.filter(u => u.hoTen.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search)), [data, search]);
@@ -40,11 +42,19 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (u: NguoiDung) => {
+  const handleDeleteClick = (u: NguoiDung) => {
+    setItemToDelete(u);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await apiDeleteUser(u.maNguoiDung);
+      await apiDeleteUser(itemToDelete.maNguoiDung);
       setData(store.getUsers());
       toast({ title: 'Đã xóa' });
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
@@ -81,7 +91,7 @@ export default function UsersPage() {
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteClick(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </td>
               </tr>
@@ -110,6 +120,23 @@ export default function UsersPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
             <Button onClick={handleSave} className="gradient-primary text-primary-foreground">{editing ? 'Cập nhật' : 'Thêm'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa tài khoản</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Bạn có chắc chắn muốn xóa tài khoản <strong>{itemToDelete?.hoTen}</strong> không? Hành động này không thể hoàn tác.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Hủy</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Xóa tài khoản</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
