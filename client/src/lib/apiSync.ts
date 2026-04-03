@@ -200,6 +200,16 @@ export async function apiApproveImportRequest(maPhieu: string, approved: boolean
   return result;
 }
 
+export async function apiDeleteImportRequest(maPhieu: string) {
+  if (isMockMode()) {
+    store.setImportRequests(store.getImportRequests().filter(r => r.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/import-requests/${maPhieu}`, { method: 'DELETE' });
+  if (result.success) await refreshData('importRequests');
+  return result;
+}
+
 // ---- Imports ----
 export async function apiCreateImport(data: { maThietBi: string; maNhaCungCap: string; soLuongNhap: number; maNhanVienKho: string; ghiChu: string }) {
   if (isMockMode()) {
@@ -217,6 +227,16 @@ export async function apiCreateImport(data: { maThietBi: string; maNhaCungCap: s
     await refreshData('imports');
     await refreshData('inventory');
   }
+  return result;
+}
+
+export async function apiDeleteImport(maPhieu: string) {
+  if (isMockMode()) {
+    store.setImports(store.getImports().filter(i => i.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/imports/${maPhieu}`, { method: 'DELETE' });
+  if (result.success) await refreshData('imports');
   return result;
 }
 
