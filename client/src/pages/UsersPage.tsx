@@ -33,9 +33,9 @@ export default function UsersPage() {
     }
     
     // Kiểm tra định dạng email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
     if (!emailRegex.test(form.email)) { 
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập email hợp lệ (phải có @ và .)', variant: 'destructive' }); 
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập định dạng email hợp lệ (ví dụ: abc@domain.com, domain phải có ít nhất 2 ký tự sau dấu .)', variant: 'destructive' }); 
       return; 
     }
 

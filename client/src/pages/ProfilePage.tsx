@@ -31,6 +31,10 @@ export default function ProfilePage() {
     if (!form.hoTen || !form.email) {
       toast({ title: 'Lỗi', description: 'Họ tên và email không được để trống', variant: 'destructive' }); return;
     }
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+    if (!emailRegex.test(form.email)) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập định dạng email hợp lệ (ví dụ: abc@domain.com, domain phải có ít nhất 2 ký tự sau dấu .)', variant: 'destructive' }); return;
+    }
     if (form.soDienThoai && !/^\d+$/.test(form.soDienThoai)) {
       toast({ title: 'Lỗi', description: 'Số điện thoại chỉ được nhập số', variant: 'destructive' }); return;
     }

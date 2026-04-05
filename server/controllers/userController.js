@@ -25,9 +25,9 @@ export async function createUser(req, res) {
   try {
     const { hoTen, email, matKhau, vaiTro, soDienThoai, diaChi } = req.body;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (có @ và .)." });
-    }
+    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) {
+      return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (ví dụ: abc@domain.com)." });
+    } 
 
     const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ?", [email]);
     if (existing.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
@@ -74,12 +74,13 @@ export async function updateUser(req, res) {
 
     if (updates.hoTen) { fields.push("ho_ten = ?"); values.push(updates.hoTen); }
     if (updates.email) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
-        return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (có @ và .)." });
+      const emailTrimmed = updates.email.trim();
+      if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(emailTrimmed)) {
+        return res.json({ success: false, message: "Email không hợp lệ. Vui lòng nhập đúng định dạng (ví dụ: abc@domain.com)." });
       }
-      const [emailCheck] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ? AND ma_nguoi_dung != ?", [updates.email, req.params.id]);
+      const [emailCheck] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ? AND ma_nguoi_dung != ?", [emailTrimmed, req.params.id]);
       if (emailCheck.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
-      fields.push("email = ?"); values.push(updates.email);
+      fields.push("email = ?"); values.push(emailTrimmed);
     }
     if (updates.soDienThoai !== undefined) {
       if (updates.soDienThoai && !/^\d+$/.test(updates.soDienThoai)) {
