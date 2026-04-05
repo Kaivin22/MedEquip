@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware, roleMiddleware } from "../middleware/auth.js";
-import { getAllImportRequests, createImportRequest, approveImportRequest } from "../controllers/importRequestController.js";
+import { getAllImportRequests, createImportRequest, approveImportRequest, deleteImportRequest } from "../controllers/importRequestController.js";
 
 const router = Router();
 
@@ -12,5 +12,8 @@ router.post("/", authMiddleware, roleMiddleware("NV_KHO", "ADMIN", "TRUONG_KHOA"
 
 // Trưởng khoa duyệt
 router.put("/:id/approve", authMiddleware, roleMiddleware("TRUONG_KHOA", "ADMIN"), approveImportRequest);
+
+// Xóa lịch sử (Admin)
+router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteImportRequest);
 
 export default router;

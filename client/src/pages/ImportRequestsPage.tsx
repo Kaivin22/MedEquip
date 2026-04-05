@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateImportRequest, apiApproveImportRequest } from '@/lib/apiSync';
+import { apiCreateImportRequest, apiApproveImportRequest, apiDeleteImportRequest } from '@/lib/apiSync';
 import { PhieuYeuCauNhap } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 
 export default function ImportRequestsPage() {
   const { user } = useAuth();
@@ -21,6 +21,7 @@ export default function ImportRequestsPage() {
   
   const canCreate = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
   const canApprove = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
+  const canDelete = user?.vaiTro === 'ADMIN';
 
   const [form, setForm] = useState({ tenThietBi: '', loaiThietBi: '', donViTinh: 'Cái', soLuong: 1, mucDichSuDung: '' });
 
@@ -58,6 +59,21 @@ export default function ImportRequestsPage() {
       if (result.success) {
         setData(store.getImportRequests());
         toast({ title: 'Thành công', description: approved ? 'Đã duyệt phiếu' : 'Đã từ chối phiếu' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (maPhieu: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa lịch sử này không?')) return;
+    try {
+      const result = await apiDeleteImportRequest(maPhieu);
+      if (result.success) {
+        setData(store.getImportRequests());
+        toast({ title: 'Đã xóa', description: `Đã xóa phiếu ${maPhieu}` });
       } else {
         toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
       }
@@ -115,19 +131,26 @@ export default function ImportRequestsPage() {
                   <div className="text-muted-foreground">{users.find(u => u.maNguoiDung === r.maNguoiYeuCau)?.hoTen}</div>
                 </td>
                 <td className="p-3 text-right">
-                  {canApprove && r.trangThai === 'CHO_DUYET' && (
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleApprove(r.maPhieu, true)}>
-                        <CheckCircle className="w-4 h-4 mr-1" /> Duyệt
+                  <div className="flex justify-end gap-2 items-center">
+                    {canApprove && r.trangThai === 'CHO_DUYET' && (
+                      <>
+                        <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleApprove(r.maPhieu, true)}>
+                          <CheckCircle className="w-4 h-4 mr-1" /> Duyệt
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleApprove(r.maPhieu, false)}>
+                          <XCircle className="w-4 h-4 mr-1" /> Từ chối
+                        </Button>
+                      </>
+                    )}
+                    {r.trangThai === 'TU_CHOI' && r.lyDoTuChoi && (
+                      <div className="text-xs text-red-500 italic max-w-[150px] ml-auto truncate" title={r.lyDoTuChoi}>Lý do: {r.lyDoTuChoi}</div>
+                    )}
+                    {canDelete && (
+                      <Button size="icon" variant="ghost" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8 ml-2" onClick={() => handleDelete(r.maPhieu)}>
+                        <Trash2 className="w-4 h-4" />
                       </Button>
-                      <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleApprove(r.maPhieu, false)}>
-                        <XCircle className="w-4 h-4 mr-1" /> Từ chối
-                      </Button>
-                    </div>
-                  )}
-                  {r.trangThai === 'TU_CHOI' && r.lyDoTuChoi && (
-                    <div className="text-xs text-red-500 italic max-w-[150px] ml-auto truncate" title={r.lyDoTuChoi}>Lý do: {r.lyDoTuChoi}</div>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
