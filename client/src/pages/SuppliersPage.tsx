@@ -29,7 +29,7 @@ export default function SuppliersPage() {
   const openEdit = (s: NhaCungCap) => { setEditing(s); setForm({ tenNhaCungCap: s.tenNhaCungCap, diaChi: s.diaChi, soDienThoai: s.soDienThoai, email: s.email }); setDialogOpen(true); };
 
   const handleSave = async () => {
-    if (!form.tenNhaCungCap) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên', variant: 'destructive' }); return; }
+    if (!form.tenNhaCungCap) { toast({ title: 'Lỗi', description: 'Vui lòng hãy nhập tên', variant: 'destructive' }); return; }
     try {
       if (editing) {
         await apiUpdateSupplier(editing.maNhaCungCap, form);
