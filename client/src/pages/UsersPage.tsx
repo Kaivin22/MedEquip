@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
 
 export default function UsersPage() {
   const { user } = useAuth();
@@ -19,15 +19,18 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<NguoiDung | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<NguoiDung | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole, trangThai: true });
+  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '', vaiTro: 'NV_BV' as UserRole, trangThai: true });
   const filtered = useMemo(() => data.filter(u => u.hoTen.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search)), [data, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV', trangThai: true }); setDialogOpen(true); };
-  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: '', vaiTro: u.vaiTro, trangThai: u.trangThai }); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '', vaiTro: 'NV_BV', trangThai: true }); setShowPassword(false); setDialogOpen(true); };
+  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: '', vaiTro: u.vaiTro, trangThai: u.trangThai }); setShowPassword(false); setDialogOpen(true); };
 
   const handleSave = async () => {
-    if (!form.hoTen || !form.email) { toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return; }
+    if (!form.hoTen || !form.email || (!editing && !form.matKhau)) { 
+      toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin, bao gồm cả mật khẩu cho tài khoản mới', variant: 'destructive' }); return; 
+    }
     
     // Kiểm tra định dạng email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,7 +57,11 @@ export default function UsersPage() {
 
   const handleDeleteClick = (u: NguoiDung) => {
     if (user?.maNguoiDung === u.maNguoiDung) {
-      toast({ title: 'Cảnh báo', description: 'Tài khoản bạn đang đăng nhập nên không thể xóa tài khoản', variant: 'destructive' });
+      toast({ title: 'Cảnh báo', description: 'Tài khoản bạn đang đăng nhập nên không thể xóa', variant: 'destructive' });
+      return;
+    }
+    if (u.vaiTro === 'ADMIN') {
+      toast({ title: 'Cảnh báo', description: 'Tài khoản Quản trị tĩnh cấp cao nhất hệ thống, không thể vô hiệu hóa.', variant: 'destructive' });
       return;
     }
     setItemToDelete(u);
@@ -120,7 +127,20 @@ export default function UsersPage() {
           <div className="space-y-3">
             <div><Label>Họ tên *</Label><Input value={form.hoTen} onChange={e => setForm(f => ({ ...f, hoTen: e.target.value }))} /></div>
             <div><Label>Email *</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-            <div><Label>Mật khẩu</Label><Input type="password" value={form.matKhau} onChange={e => setForm(f => ({ ...f, matKhau: e.target.value }))} /></div>
+            <div>
+              <Label>Mật khẩu</Label>
+              <div className="relative">
+                <Input type={showPassword ? "text" : "password"} value={form.matKhau} onChange={e => setForm(f => ({ ...f, matKhau: e.target.value }))} className="pr-10" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
             <div>
               <Label>Vai trò *</Label>
               <Select value={form.vaiTro} onValueChange={v => setForm(f => ({ ...f, vaiTro: v as UserRole }))}>

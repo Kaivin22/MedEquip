@@ -53,6 +53,19 @@ export async function apiDeleteUser(userId: string) {
   return result;
 }
 
+export async function apiChangePassword(data: { userId: string, currentPassword: string, newPassword: string }) {
+  if (isMockMode()) {
+    // In mock mode, handle it manually since we don't have backend bcrypt
+    const users = store.getUsers();
+    const user = users.find(u => u.maNguoiDung === data.userId);
+    if (!user) return { success: false, message: 'Không tìm thấy người dùng' };
+    if (user.matKhau !== data.currentPassword) return { success: false, message: 'Mật khẩu hiện tại không đúng, yêu cầu nhập lại' };
+    store.setUsers(users.map(u => u.maNguoiDung === data.userId ? { ...u, matKhau: data.newPassword, ngayCapNhat: new Date().toISOString() } : u));
+    return { success: true, message: 'Đổi mật khẩu thành công' };
+  }
+  return fetchApi<any>('/auth/change-password', { method: 'PUT', body: JSON.stringify(data) });
+}
+
 // ---- Equipment ----
 export async function apiCreateEquipment(data: Omit<ThietBi, 'maThietBi' | 'trangThai' | 'ngayTao'>) {
   if (isMockMode()) {

@@ -8,6 +8,7 @@ interface AuthContextType {
   user: NguoiDung | null;
   login: (email: string, password: string) => Promise<LoginResponse>;
   logout: () => void;
+  updateUserContext: (updates: Partial<NguoiDung>) => void;
   isLoggedIn: boolean;
   dataLoaded: boolean;
 }
@@ -52,8 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     store.clearCache();
   }, []);
 
+  const updateUserContext = useCallback((updates: Partial<NguoiDung>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem('kho_currentUser', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoggedIn: !!user, dataLoaded }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUserContext, isLoggedIn: !!user, dataLoaded }}>
       {children}
     </AuthContext.Provider>
   );

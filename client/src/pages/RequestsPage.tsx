@@ -143,7 +143,7 @@ export default function RequestsPage() {
               return (
                 <tr key={r.maPhieu} className="border-b hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">{r.maPhieu}</td>
-                  <td className="p-3">{nguoi?.hoTen || '-'}</td>
+                  <td className="p-3">{nguoi?.hoTen ? nguoi.hoTen : 'Người dùng (đã xóa)'}</td>
                   <td className="p-3">{tb?.tenThietBi || '-'}</td>
                   <td className="p-3">{khoa?.tenKhoa || '-'}</td>
                   <td className="p-3 text-center font-medium">{r.soLuongYeuCau}</td>
@@ -229,7 +229,7 @@ export default function RequestsPage() {
           {viewing && (
             <div className="space-y-2 text-sm">
               <p><span className="text-muted-foreground">Mã phiếu:</span> <strong>{viewing.maPhieu}</strong></p>
-              <p><span className="text-muted-foreground">Người yêu cầu:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen}</p>
+              <p><span className="text-muted-foreground">Người yêu cầu:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen || 'Người dùng (đã xóa)'}</p>
               <p><span className="text-muted-foreground">Thiết bị:</span> {equipment.find(e => e.maThietBi === viewing.maThietBi)?.tenThietBi}</p>
               <p><span className="text-muted-foreground">Khoa:</span> {departments.find(k => k.maKhoa === viewing.maKhoa)?.tenKhoa}</p>
               <p><span className="text-muted-foreground">Số lượng:</span> {viewing.soLuongYeuCau}</p>
