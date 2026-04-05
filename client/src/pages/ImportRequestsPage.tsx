@@ -1,3 +1,4 @@
+//update
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
@@ -112,7 +113,7 @@ export default function ImportRequestsPage() {
                 </td>
                 <td className="p-3 text-xs text-muted-foreground">
                   <div>{r.ngayTao.slice(0, 10)}</div>
-                  <div className="text-muted-foreground">{users.find(u => u.maNguoiDung === r.maNguoiYeuCau)?.hoTen}</div>
+                  <div className="text-muted-foreground">{users.find(u => u.maNguoiDung === r.maNguoiYeuCau)?.hoTen || 'Người dùng (đã xóa)'}</div>
                 </td>
                 <td className="p-3 text-right">
                   {canApprove && r.trangThai === 'CHO_DUYET' && (

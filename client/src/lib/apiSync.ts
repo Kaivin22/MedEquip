@@ -2,6 +2,7 @@
  * API Sync - Wrapper functions that sync store mutations to API
  * When in API mode, these call the API and then refresh store
  * When in mock mode, they just update store directly
+ * // update
  */
 import { isMockMode, fetchApi } from '@/services/api';
 import { store, generateId } from './store';
@@ -13,7 +14,16 @@ export async function apiCreateUser(data: { hoTen: string; email: string; matKha
   if (isMockMode()) {
     const users = store.getUsers();
     if (users.some(u => u.email === data.email)) return { success: false, message: 'Email đã tồn tại' };
-    const newUser: NguoiDung = { maNguoiDung: generateId('ND'), ...data, trangThai: true, ngayTao: new Date().toISOString(), ngayCapNhat: new Date().toISOString() };
+    
+    const nextIdNum = users
+      .map(u => {
+        const match = u.maNguoiDung.match(/^ND-(\d{3})$/);
+        return match ? Number(match[1]) : null;
+      })
+      .filter((n): n is number => n !== null)
+      .reduce((max, value) => Math.max(max, value), 0) + 1;
+      
+    const newUser: NguoiDung = { maNguoiDung: `ND-${String(nextIdNum).padStart(3, '0')}`, ...data, trangThai: true, ngayTao: new Date().toISOString(), ngayCapNhat: new Date().toISOString() };
     users.push(newUser);
     store.setUsers(users);
     return { success: true, user: newUser };
@@ -39,9 +49,22 @@ export async function apiDeleteUser(userId: string) {
     store.setUsers(store.getUsers().filter(u => u.maNguoiDung !== userId));
     return { success: true };
   }
-  const result = await fetchApi<any>(`/users/${userId}/deactivate`, { method: 'PUT' });
+  const result = await fetchApi<any>(`/users/${userId}`, { method: 'DELETE' });
   if (result.success) await refreshData('users');
   return result;
+}
+
+export async function apiChangePassword(data: { userId: string, currentPassword: string, newPassword: string }) {
+  if (isMockMode()) {
+    // In mock mode, handle it manually since we don't have backend bcrypt
+    const users = store.getUsers();
+    const user = users.find(u => u.maNguoiDung === data.userId);
+    if (!user) return { success: false, message: 'Không tìm thấy người dùng' };
+    if (user.matKhau !== data.currentPassword) return { success: false, message: 'Mật khẩu hiện tại không đúng, yêu cầu nhập lại' };
+    store.setUsers(users.map(u => u.maNguoiDung === data.userId ? { ...u, matKhau: data.newPassword, ngayCapNhat: new Date().toISOString() } : u));
+    return { success: true, message: 'Đổi mật khẩu thành công' };
+  }
+  return fetchApi<any>('/auth/change-password', { method: 'PUT', body: JSON.stringify(data) });
 }
 
 // ---- Equipment ----

@@ -1,3 +1,5 @@
+//update
+
 import { pool } from "../config/db.js";
 
 function mapDept(row) {
@@ -69,16 +71,23 @@ export async function deleteDepartment(req, res) {
       return res.status(404).json({ success: false, message: "Không tìm thấy khoa." });
     }
 
-    try {
-      await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
-      return res.json({ success: true, message: "Đã xóa khoa." });
-    } catch (err) {
-      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-        await pool.query("UPDATE khoa SET trang_thai = FALSE WHERE ma_khoa = ?", [id]);
-        return res.json({ success: true, message: "Khoa đang có dữ liệu liên quan nên đã bị vô hiệu hóa." });
-      }
-      throw err;
+    const [requests] = await pool.query("SELECT trang_thai FROM phieu_yeu_cau WHERE ma_khoa = ?", [id]);
+    const hasActive = requests.some(r => r.trang_thai !== 'TU_CHOI');
+    
+    if (hasActive) {
+      return res.json({ success: false, message: "Khoa đang có thiết bị sử dụng hoặc có yêu cầu cấp phát chưa bị từ chối, do đó không thể xóa." });
     }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.query("SET FOREIGN_KEY_CHECKS=0");
+      await conn.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
+      await conn.query("SET FOREIGN_KEY_CHECKS=1");
+    } finally {
+      conn.release();
+    }
+    
+    return res.json({ success: true, message: "Đã xóa khoa thành công." });
   } catch (err) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }

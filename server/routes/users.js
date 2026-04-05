@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware, roleMiddleware } from "../middleware/auth.js";
-import { getAllUsers, getUserById, createUser, updateUser, deactivateUser, activateUser, changeUserRole } from "../controllers/userController.js";
+import { getAllUsers, getUserById, createUser, updateUser, deactivateUser, activateUser, changeUserRole, deleteUser } from "../controllers/userController.js";
 
 const router = Router();
 
@@ -11,5 +11,6 @@ router.put("/:id", authMiddleware, updateUser);
 router.put("/:id/deactivate", authMiddleware, roleMiddleware("ADMIN"), deactivateUser);
 router.put("/:id/activate", authMiddleware, roleMiddleware("ADMIN"), activateUser);
 router.put("/:id/role", authMiddleware, roleMiddleware("ADMIN"), changeUserRole);
+router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteUser);
 
 export default router;
