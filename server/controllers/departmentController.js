@@ -1,3 +1,5 @@
+//update
+
 import { pool } from "../config/db.js";
 
 function mapDept(row) {
