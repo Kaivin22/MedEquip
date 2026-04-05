@@ -2,6 +2,7 @@
  * API Sync - Wrapper functions that sync store mutations to API
  * When in API mode, these call the API and then refresh store
  * When in mock mode, they just update store directly
+ * // update
  */
 import { isMockMode, fetchApi } from '@/services/api';
 import { store, generateId } from './store';
