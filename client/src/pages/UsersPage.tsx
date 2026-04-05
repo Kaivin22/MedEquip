@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { apiCreateUser, apiUpdateUser, apiDeleteUser } from '@/lib/apiSync';
 import { NguoiDung, UserRole, ROLE_LABELS, ROLE_COLORS } from '@/types';
@@ -11,19 +12,30 @@ import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 
 export default function UsersPage() {
+  const { user } = useAuth();
   const [data, setData] = useState(store.getUsers());
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<NguoiDung | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<NguoiDung | null>(null);
 
-  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole });
+  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole, trangThai: true });
   const filtered = useMemo(() => data.filter(u => u.hoTen.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search)), [data, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' }); setDialogOpen(true); };
-  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: u.matKhau, vaiTro: u.vaiTro }); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV', trangThai: true }); setDialogOpen(true); };
+  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: '', vaiTro: u.vaiTro, trangThai: u.trangThai }); setDialogOpen(true); };
 
   const handleSave = async () => {
     if (!form.hoTen || !form.email) { toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return; }
+    
+    // Kiểm tra định dạng email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) { 
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập email hợp lệ (phải có @ và .)', variant: 'destructive' }); 
+      return; 
+    }
+
     try {
       if (editing) {
         const result = await apiUpdateUser(editing.maNguoiDung, form);
@@ -40,11 +52,23 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (u: NguoiDung) => {
+  const handleDeleteClick = (u: NguoiDung) => {
+    if (user?.maNguoiDung === u.maNguoiDung) {
+      toast({ title: 'Cảnh báo', description: 'Tài khoản bạn đang đăng nhập nên không thể xóa tài khoản', variant: 'destructive' });
+      return;
+    }
+    setItemToDelete(u);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      await apiDeleteUser(u.maNguoiDung);
+      await apiDeleteUser(itemToDelete.maNguoiDung);
       setData(store.getUsers());
       toast({ title: 'Đã xóa' });
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
@@ -81,7 +105,7 @@ export default function UsersPage() {
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteClick(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </td>
               </tr>
@@ -106,10 +130,39 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {editing && (
+              <div>
+                <Label>Trạng thái</Label>
+                <Select value={form.trangThai ? 'true' : 'false'} onValueChange={v => setForm(f => ({ ...f, trangThai: v === 'true' }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Hoạt động</SelectItem>
+                    <SelectItem value="false">Vô hiệu hóa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
             <Button onClick={handleSave} className="gradient-primary text-primary-foreground">{editing ? 'Cập nhật' : 'Thêm'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa tài khoản</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Bạn có chắc chắn muốn xóa tài khoản <strong>{itemToDelete?.hoTen}</strong> không? Hành động này không thể hoàn tác.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Hủy</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Xóa tài khoản</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

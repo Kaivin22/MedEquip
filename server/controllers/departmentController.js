@@ -71,11 +71,10 @@ export async function deleteDepartment(req, res) {
 
     try {
       await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
-      return res.json({ success: true, message: "Đã xóa khoa." });
+      return res.json({ success: true, message: "Đã xóa khoa thành công." });
     } catch (err) {
-      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-        await pool.query("UPDATE khoa SET trang_thai = FALSE WHERE ma_khoa = ?", [id]);
-        return res.json({ success: true, message: "Khoa đang có dữ liệu liên quan nên đã bị vô hiệu hóa." });
+      if (err.errno === 1451 || err.code === 'ER_ROW_IS_REFERENCED_2') {
+        return res.json({ success: false, message: "Khoa này đang có thiết bị hoặc nhân viên sử dụng nên không thể xóa được." });
       }
       throw err;
     }

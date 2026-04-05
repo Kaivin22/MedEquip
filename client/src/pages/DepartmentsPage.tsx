@@ -17,6 +17,8 @@ export default function DepartmentsPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Khoa | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<Khoa | null>(null);
   const canEdit = user?.vaiTro === 'ADMIN';
 
   const [form, setForm] = useState({ tenKhoa: '', moTa: '' });
@@ -52,13 +54,21 @@ export default function DepartmentsPage() {
     }
   };
 
-  const handleDelete = async (k: Khoa) => {
+  const handleDeleteClick = (k: Khoa) => {
+    setItemToDelete(k);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
-      const result = await apiDeleteDepartment(k.maKhoa);
+      const result = await apiDeleteDepartment(itemToDelete.maKhoa);
       if (result.success) {
         const updated = store.getDepartments();
         setData(updated);
         toast({ title: 'Đã xóa' });
+        setDeleteConfirmOpen(false);
+        setItemToDelete(null);
       } else {
         toast({ title: 'Lỗi', description: result.message || 'Xóa thất bại', variant: 'destructive' });
       }
@@ -101,7 +111,7 @@ export default function DepartmentsPage() {
                   {canEdit && (
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(k)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(k)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDeleteClick(k)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   )}
                 </td>
@@ -122,6 +132,23 @@ export default function DepartmentsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
             <Button onClick={handleSave} className="gradient-primary text-primary-foreground">{editing ? 'Cập nhật' : 'Thêm'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa khoa</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Bạn có chắc chắn muốn xóa khoa <strong>{itemToDelete?.tenKhoa}</strong> không? Hành động này không thể hoàn tác.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Hủy</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Xóa khoa</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

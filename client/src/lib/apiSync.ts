@@ -13,7 +13,16 @@ export async function apiCreateUser(data: { hoTen: string; email: string; matKha
   if (isMockMode()) {
     const users = store.getUsers();
     if (users.some(u => u.email === data.email)) return { success: false, message: 'Email đã tồn tại' };
-    const newUser: NguoiDung = { maNguoiDung: generateId('ND'), ...data, trangThai: true, ngayTao: new Date().toISOString(), ngayCapNhat: new Date().toISOString() };
+    
+    const nextIdNum = users
+      .map(u => {
+        const match = u.maNguoiDung.match(/^ND-(\d{3})$/);
+        return match ? Number(match[1]) : null;
+      })
+      .filter((n): n is number => n !== null)
+      .reduce((max, value) => Math.max(max, value), 0) + 1;
+      
+    const newUser: NguoiDung = { maNguoiDung: `ND-${String(nextIdNum).padStart(3, '0')}`, ...data, trangThai: true, ngayTao: new Date().toISOString(), ngayCapNhat: new Date().toISOString() };
     users.push(newUser);
     store.setUsers(users);
     return { success: true, user: newUser };
@@ -39,7 +48,7 @@ export async function apiDeleteUser(userId: string) {
     store.setUsers(store.getUsers().filter(u => u.maNguoiDung !== userId));
     return { success: true };
   }
-  const result = await fetchApi<any>(`/users/${userId}/deactivate`, { method: 'PUT' });
+  const result = await fetchApi<any>(`/users/${userId}`, { method: 'DELETE' });
   if (result.success) await refreshData('users');
   return result;
 }
