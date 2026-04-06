@@ -20,16 +20,19 @@ export default function NotificationsPage() {
     .filter(n => n.nguoiNhan === user?.maNguoiDung)
     .sort((a, b) => new Date(b.ngayTao).getTime() - new Date(a.ngayTao).getTime());
 
-  const markAllRead = () => {
-    const updated = notifications.map(n => n.nguoiNhan === user?.maNguoiDung ? { ...n, daDoc: true } : n);
+  const markAllRead = async () => {
+    if (!user) return;
+    const updated = notifications.map(n => n.nguoiNhan === user.maNguoiDung ? { ...n, daDoc: true } : n);
     store.setNotifications(updated);
     setNotifications(updated);
+    await apiMarkAllAsRead(user.maNguoiDung);
   };
 
   const markRead = async (id: string) => {
     const updated = notifications.map(n => n.id === id ? { ...n, daDoc: true } : n);
     store.setNotifications(updated);
     setNotifications(updated);
+    await apiMarkAsRead(id);
   };
 
   return (

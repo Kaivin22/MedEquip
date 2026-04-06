@@ -102,10 +102,18 @@ export default function EquipmentPage() {
 
   const handleDelete = async (tb: ThietBi) => {
     const inv = inventory.find(i => i.maThietBi === tb.maThietBi);
-    if (inv && (inv.soLuongDangDung > 0 || inv.soLuongKho > 0)) {
-      toast({ title: 'Không thể xóa', description: 'Thiết bị đang được sử dụng hoặc còn tồn kho', variant: 'destructive' });
+    // Tính tổng số lượng tồn kho (bao gồm kho, đang dùng, hư hỏng)
+    const totalStock = inv ? (inv.soLuongKho + inv.soLuongDangDung + inv.soLuongHu) : 0;
+    
+    if (totalStock > 0) {
+      toast({ title: 'Không thể xóa', description: 'Không thể xóa vì thiết bị vẫn còn tồn trong hệ thống (tồn kho > 0).', variant: 'destructive' });
       return;
     }
+    
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa thiết bị "${tb.tenThietBi}" không?`)) {
+      return;
+    }
+
     try {
       const result = await apiDeleteEquipment(tb.maThietBi);
       if (!result.success) {

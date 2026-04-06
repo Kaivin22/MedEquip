@@ -108,7 +108,7 @@ export default function AllocationsPage() {
                 <tr key={d.maPhieu} className="border-b hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">{d.maPhieu}</td>
                   <td className="p-3 text-xs">{d.maPhieuYeuCau}</td>
-                  <td className="p-3">{equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
+                  <td className="p-3">{(d as any).tenThietBi || equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
                   <td className="p-3">{nguoiMuon?.hoTen || '-'}</td>
                   <td className="p-3">{khoa?.tenKhoa || '-'}</td>
                   <td className="p-3">{users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen}</td>

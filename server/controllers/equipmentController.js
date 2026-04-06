@@ -16,7 +16,8 @@ function mapEquipment(row) {
 
 export async function getAllEquipment(req, res) {
   try {
-    const [rows] = await pool.query("SELECT * FROM thiet_bi ORDER BY ngay_tao DESC");
+    // Chỉ lấy các thiết bị chưa bị xóa (soft-delete)
+    const [rows] = await pool.query("SELECT * FROM thiet_bi WHERE da_xoa = FALSE ORDER BY ngay_tao DESC");
     res.json(rows.map(mapEquipment));
   } catch (err) {
     res.status(500).json({ message: "Lỗi máy chủ." });
@@ -57,18 +58,15 @@ export async function deleteEquipment(req, res) {
     if (inv.length > 0 && (inv[0].so_luong_kho > 0 || inv[0].so_luong_hu > 0 || inv[0].so_luong_dang_dung > 0)) {
       return res.json({ success: false, message: "Không thể xóa thiết bị đang có số lượng tồn kho hoặc đang sử dụng." });
     }
-    
-    // Delete from ton_kho first
+
+    // Soft-delete: chỉ đánh dấu da_xoa = TRUE, GIỮ NGUYÊN toàn bộ lịch sử nhập/xuất/cấp phát
+    await pool.query("UPDATE thiet_bi SET da_xoa = TRUE WHERE ma_thiet_bi = ?", [id]);
+
+    // Chỉ xóa bản ghi tồn kho (số lượng đã bằng 0)
     await pool.query("DELETE FROM ton_kho WHERE ma_thiet_bi = ?", [id]);
-    
-    // Delete from thiet_bi
-    await pool.query("DELETE FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
     
     res.json({ success: true, message: "Đã xóa thiết bị." });
   } catch (err) {
-    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-      return res.json({ success: false, message: "Không thể xóa do đã có dữ liệu giao dịch liên quan (xuất/nhập/cấp phát)." });
-    }
     console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }

@@ -29,7 +29,6 @@ export interface TonKho {
   maTonKho: string;
   maThietBi: string;
   soLuongKho: number;
-  soLuongHu: number;
   soLuongDangDung: number;
   ngayCapNhat: string;
 }
@@ -63,6 +62,9 @@ export interface PhieuYeuCauNhap {
   ngayDuyet?: string;
   nguoiDuyet?: string;
   lyDoTuChoi?: string;
+  hinhAnh?: string;
+  maNhaCungCap?: string;
+  moTa?: string;
 }
 
 export interface PhieuYeuCauCapPhat {
@@ -72,7 +74,7 @@ export interface PhieuYeuCauCapPhat {
   maKhoa: string;
   soLuongYeuCau: number;
   lyDo: string;
-  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI';
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_CAP_PHAT';
   ngayTao: string;
   ngayDuyet?: string;
   lyDoTuChoi?: string;

@@ -17,19 +17,18 @@ export default function DashboardPage() {
 
   const pendingRequests = requests.filter(r => r.trangThai === 'CHO_DUYET').length;
   const totalStock = inventory.reduce((s, i) => s + i.soLuongKho, 0);
-  const totalDamaged = inventory.reduce((s, i) => s + i.soLuongHu, 0);
   const totalInUse = inventory.reduce((s, i) => s + i.soLuongDangDung, 0);
 
-  const stats = [
-    { label: 'Thiết bị', value: equipment.length, icon: Package, color: 'text-primary bg-primary/10' },
-    { label: 'Tồn kho', value: totalStock, icon: Archive, color: 'text-accent bg-accent/10' },
-    { label: 'Đang dùng', value: totalInUse, icon: TrendingUp, color: 'text-info bg-info/10' },
-    { label: 'Hư hỏng', value: totalDamaged, icon: AlertTriangle, color: 'text-warning bg-warning/10' },
-    { label: 'Nhà cung cấp', value: suppliers.length, icon: Truck, color: 'text-primary bg-primary/10' },
-    { label: 'Khoa', value: departments.length, icon: Building2, color: 'text-accent bg-accent/10' },
-    { label: 'Phiếu chờ duyệt', value: pendingRequests, icon: FileText, color: 'text-warning bg-warning/10' },
-    { label: 'Người dùng', value: users.length, icon: Users, color: 'text-primary bg-primary/10' },
-  ];
+  const filteredStats = [
+    { label: 'Thiết bị', value: equipment.length, icon: Package, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Tồn kho', value: totalStock, icon: Archive, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'NV_BV'] },
+    { label: 'Đang dùng', value: totalInUse, icon: TrendingUp, color: 'text-info bg-info/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Nhà cung cấp', value: suppliers.length, icon: Truck, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Khoa', value: departments.length, icon: Building2, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Phiếu chờ duyệt', value: pendingRequests, icon: FileText, color: 'text-warning bg-warning/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'NV_BV'] },
+    { label: 'Phiếu yêu cầu', value: requests.length, icon: FileText, color: 'text-primary bg-primary/10', roles: ['NV_BV'] },
+    { label: 'Người dùng', value: users.length, icon: Users, color: 'text-primary bg-primary/10', roles: ['ADMIN'] },
+  ].filter(s => s.roles.includes(user.vaiTro));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -39,7 +38,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {stats.map(stat => (
+        {filteredStats.map(stat => (
           <Card key={stat.label} className="shadow-card hover:shadow-card-hover transition-shadow">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -96,7 +95,6 @@ export default function DashboardPage() {
                   <div className="flex gap-3 text-xs">
                     <span className="text-primary font-medium">Kho: {inv.soLuongKho}</span>
                     <span className="text-accent font-medium">Dùng: {inv.soLuongDangDung}</span>
-                    <span className="text-warning font-medium">Hư: {inv.soLuongHu}</span>
                   </div>
                 </div>
               );

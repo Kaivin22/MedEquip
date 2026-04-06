@@ -20,6 +20,8 @@ export default function ExportsPage() {
   const [data, setData] = useState(store.getExports());
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const equipment = store.getEquipment();
   const canCreate = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
   const canCancel = user?.vaiTro === 'ADMIN';
@@ -28,7 +30,7 @@ export default function ExportsPage() {
 
   const getMaxExport = (maThietBi: string) => {
     const inv = store.getInventory().find(i => i.maThietBi === maThietBi);
-    return inv ? inv.soLuongKho + inv.soLuongHu : 0;
+    return inv ? inv.soLuongKho : 0;
   };
 
   const handleCreate = async () => {
@@ -77,7 +79,12 @@ export default function ExportsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Tìm phiếu xuất..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
-        {canCreate && <Button onClick={() => { setForm({ maThietBi: '', soLuong: 1, ghiChu: '', lyDoXuat: '' }); setDialogOpen(true); }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu xuất</Button>}
+        {canCreate && <Button onClick={() => { 
+          setForm({ maThietBi: '', soLuong: 1, ghiChu: '', lyDoXuat: '' }); 
+          setEquipmentSearch('');
+          setShowSuggestions(false);
+          setDialogOpen(true); 
+        }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu xuất</Button>}
       </div>
 
       <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
@@ -99,7 +106,7 @@ export default function ExportsPage() {
             {data.filter(d => d.maPhieu.toLowerCase().includes(search.toLowerCase())).map(d => (
               <tr key={d.maPhieu} className="border-b hover:bg-muted/30">
                 <td className="p-3 font-mono text-xs">{d.maPhieu}</td>
-                <td className="p-3">{equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
+                <td className="p-3">{(d as any).tenThietBi || equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
                 <td className="p-3 text-sm">{d.lyDoXuat || '-'}</td>
                 <td className="p-3 text-center font-medium">{d.soLuong}</td>
                 <td className="p-3 text-center"><span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[d.trangThai]}`}>{STATUS_MAP[d.trangThai]}</span></td>
@@ -122,35 +129,85 @@ export default function ExportsPage() {
       {data.length === 0 && <div className="text-center py-12 text-muted-foreground">Chưa có phiếu xuất kho</div>}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Lập phiếu xuất kho (ra khỏi bệnh viện)</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Thiết bị *</Label>
-              <Select value={form.maThietBi} onValueChange={v => setForm(f => ({ ...f, maThietBi: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn thiết bị" /></SelectTrigger>
-                <SelectContent>{equipment.filter(e => e.trangThai).map(e => {
-                  const max = getMaxExport(e.maThietBi);
-                  return <SelectItem key={e.maThietBi} value={e.maThietBi}>{e.tenThietBi} (tối đa: {max})</SelectItem>;
-                })}</SelectContent>
-              </Select>
+          <div className="space-y-4">
+            <div className="relative">
+              <Label>Tìm kiếm thiết bị *</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Nhập tên hoặc mã thiết bị..." 
+                  className="pl-10"
+                  value={equipmentSearch}
+                  onChange={e => {
+                    setEquipmentSearch(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                />
+              </div>
+              
+              {showSuggestions && (equipmentSearch.length > 0 || equipment.length > 0) && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-200">
+                  {equipment
+                    .filter(e => e.trangThai && (
+                      e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) ||
+                      e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase())
+                    ))
+                    .map(e => {
+                      const max = getMaxExport(e.maThietBi);
+                      return (
+                        <div 
+                          key={e.maThietBi}
+                          className="flex justify-between items-center p-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                          onClick={() => {
+                            setForm(f => ({ ...f, maThietBi: e.maThietBi }));
+                            setEquipmentSearch(e.tenThietBi);
+                            setShowSuggestions(false);
+                          }}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{e.tenThietBi}</span>
+                            <span className="text-xs text-muted-foreground">{e.maThietBi}</span>
+                          </div>
+                          <div className="text-xs font-semibold bg-muted px-2 py-1 rounded">
+                            Kho: {max}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
+
             <div>
               <Label>Lý do xuất *</Label>
-              <Textarea placeholder="VD: Thiết bị hết hạn sử dụng, thanh lý, chuyển viện..." value={form.lyDoXuat} onChange={e => setForm(f => ({ ...f, lyDoXuat: e.target.value }))} />
+              <Textarea placeholder="VD: Thiết bị hết hạn sử dụng, thanh lý, chuyển viện..." value={form.lyDoXuat} className="mt-1" onChange={e => setForm(f => ({ ...f, lyDoXuat: e.target.value }))} />
             </div>
-            <div>
-              <Label>Số lượng * {form.maThietBi && <span className="text-xs text-muted-foreground">(Tối đa: {getMaxExport(form.maThietBi)})</span>}</Label>
-              <Input type="number" min={1} max={form.maThietBi ? getMaxExport(form.maThietBi) : undefined} value={form.soLuong} onChange={e => {
-                const val = parseInt(e.target.value) || 0;
-                setForm(f => ({ ...f, soLuong: val < 0 ? 0 : val }));
-              }} />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Số lượng *</Label>
+                <Input type="number" min={1} max={form.maThietBi ? getMaxExport(form.maThietBi) : undefined} value={form.soLuong} className="mt-1" onChange={e => {
+                  const val = parseInt(e.target.value) || 0;
+                  setForm(f => ({ ...f, soLuong: val < 0 ? 0 : val }));
+                }} />
+              </div>
+              <div className="flex flex-col justify-end">
+                {form.maThietBi && (
+                  <div className="text-xs text-muted-foreground pb-2 italic">
+                    Tối đa có thể xuất: {getMaxExport(form.maThietBi)}
+                  </div>
+                )}
+              </div>
             </div>
-            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
+
+            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} className="mt-1" onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate} className="gradient-primary text-primary-foreground">Lập phiếu</Button>
+            <Button onClick={handleCreate} disabled={!form.maThietBi} className="gradient-primary text-primary-foreground">Lập phiếu</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

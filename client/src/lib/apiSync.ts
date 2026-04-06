@@ -115,6 +115,16 @@ export async function apiUpdateSupplier(id: string, data: Partial<NhaCungCap>) {
   return result;
 }
 
+export async function apiDeleteSupplier(id: string) {
+  if (isMockMode()) {
+    store.setSuppliers(store.getSuppliers().filter(s => s.maNhaCungCap !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/suppliers/${id}`, { method: 'DELETE' });
+  if (result.success) await refreshData('suppliers');
+  return result;
+}
+
 // ---- Departments ----
 export async function apiCreateDepartment(data: Omit<Khoa, 'maKhoa' | 'trangThai'>) {
   if (isMockMode()) {
@@ -186,6 +196,42 @@ export async function apiCreateImportRequest(data: Omit<PhieuYeuCauNhap, 'maPhie
 export async function apiApproveImportRequest(maPhieu: string, approved: boolean, lyDo?: string) {
   if (isMockMode()) {
     const requests = store.getImportRequests();
+    const reqIndex = requests.findIndex(r => r.maPhieu === maPhieu);
+    if (reqIndex === -1) return { success: false, message: 'Không tìm thấy phiếu' };
+    
+    const request = requests[reqIndex];
+    
+    if (approved) {
+      // Create Equipment automatically
+      const equipment = store.getEquipment();
+      const newMaThietBi = generateId('TB');
+      const newItem: ThietBi = {
+        maThietBi: newMaThietBi,
+        tenThietBi: request.tenThietBi,
+        loaiThietBi: request.loaiThietBi,
+        donViTinh: request.donViTinh,
+        moTa: request.moTa || request.mucDichSuDung || '',
+        maNhaCungCap: request.maNhaCungCap || 'NCC001', // Fallback
+        hinhAnh: request.hinhAnh,
+        trangThai: true,
+        ngayTao: new Date().toISOString()
+      };
+      equipment.push(newItem);
+      store.setEquipment(equipment);
+
+      // Create Inventory automatically
+      const inv = store.getInventory();
+      inv.push({
+        maTonKho: generateId('TK'),
+        maThietBi: newMaThietBi,
+        soLuongKho: request.soLuong,
+        soLuongHu: 0,
+        soLuongDangDung: 0,
+        ngayCapNhat: new Date().toISOString()
+      });
+      store.setInventory(inv);
+    }
+
     store.setImportRequests(requests.map(r => r.maPhieu === maPhieu ? {
       ...r,
       trangThai: approved ? 'DA_DUYET' as const : 'TU_CHOI' as const,
@@ -193,10 +239,17 @@ export async function apiApproveImportRequest(maPhieu: string, approved: boolean
       lyDoTuChoi: lyDo,
       nguoiDuyet: 'MOCK_ADMIN'
     } : r));
+    
     return { success: true };
   }
   const result = await fetchApi<any>(`/import-requests/${maPhieu}/approve`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
-  if (result.success) await refreshData('importRequests');
+  if (result.success) {
+    await refreshData('importRequests');
+    if (approved) {
+      await refreshData('equipment');
+      await refreshData('inventory');
+    }
+  }
   return result;
 }
 
@@ -288,9 +341,19 @@ export async function apiCreateAllocation(data: { maPhieuYeuCau: string; maNhanV
     const allocations = store.getAllocations();
     allocations.push(phieu);
     store.setAllocations(allocations);
+    
+    // Update Request status to DA_CAP_PHAT
+    const requests = store.getRequests();
+    store.setRequests(requests.map(r => r.maPhieu === data.maPhieuYeuCau ? { ...r, trangThai: 'DA_CAP_PHAT' as const } : r));
+
     const inv = store.getInventory();
     const idx = inv.findIndex(i => i.maThietBi === data.maThietBi);
-    if (idx >= 0) { inv[idx].soLuongKho -= data.soLuongCapPhat; inv[idx].soLuongDangDung += data.soLuongCapPhat; inv[idx].ngayCapNhat = new Date().toISOString(); store.setInventory(inv); }
+    if (idx >= 0) { 
+      inv[idx].soLuongKho -= data.soLuongCapPhat; 
+      inv[idx].soLuongDangDung += data.soLuongCapPhat; 
+      inv[idx].ngayCapNhat = new Date().toISOString(); 
+      store.setInventory(inv); 
+    }
     return { success: true, phieu };
   }
   const result = await fetchApi<any>('/allocations', { method: 'POST', body: JSON.stringify(data) });

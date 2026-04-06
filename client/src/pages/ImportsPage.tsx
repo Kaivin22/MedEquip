@@ -33,6 +33,8 @@ export default function ImportsPage() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const equipment = store.getEquipment();
   const suppliers = store.getSuppliers();
   const users = store.getUsers();
@@ -131,7 +133,12 @@ export default function ImportsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Tìm phiếu nhập..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
-        {canCreate && <Button onClick={() => { setForm({ maThietBi: '', maNhaCungCap: '', soLuongNhap: 1, ghiChu: '' }); setDialogOpen(true); }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu nhập</Button>}
+        {canCreate && <Button onClick={() => { 
+          setForm({ maThietBi: '', maNhaCungCap: '', soLuongNhap: 1, ghiChu: '' }); 
+          setEquipmentSearch('');
+          setShowSuggestions(false);
+          setDialogOpen(true); 
+        }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu nhập</Button>}
       </div>
 
       <div className="p-3 rounded-lg bg-info/10 border border-info/20 text-sm text-info">
@@ -195,38 +202,81 @@ export default function ImportsPage() {
 
       {/* Dialog lập phiếu nhập */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Lập phiếu nhập kho</DialogTitle></DialogHeader>
           <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
             ⚠️ Phiếu sẽ ở trạng thái <strong>Chờ duyệt</strong>. Tồn kho chỉ được cập nhật sau khi Trưởng khoa / Admin phê duyệt.
           </div>
-          <div className="space-y-3">
-            <div>
-              <Label>Thiết bị *</Label>
-              <Select value={form.maThietBi} onValueChange={v => setForm(f => ({ ...f, maThietBi: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn thiết bị" /></SelectTrigger>
-                <SelectContent>{equipment.filter(e => e.trangThai).map(e => <SelectItem key={e.maThietBi} value={e.maThietBi}>{e.tenThietBi}</SelectItem>)}</SelectContent>
-              </Select>
+          <div className="space-y-4">
+            <div className="relative">
+              <Label>Tìm kiếm thiết bị *</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Nhập tên hoặc mã thiết bị..." 
+                  className="pl-10"
+                  value={equipmentSearch}
+                  onChange={e => {
+                    setEquipmentSearch(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                />
+              </div>
+              
+              {showSuggestions && (equipmentSearch.length > 0 || equipment.length > 0) && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-200">
+                  {equipment
+                    .filter(e => e.trangThai && (
+                      e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) ||
+                      e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase())
+                    ))
+                    .map(e => (
+                      <div 
+                        key={e.maThietBi}
+                        className="flex flex-col p-2 hover:bg-accent cursor-pointer border-b last:border-0"
+                        onClick={() => {
+                          if (!e.maNhaCungCap) {
+                            toast({ title: 'Thiếu thông tin', description: 'Thiết bị này chưa được gán Nhà cung cấp. Vui lòng cập nhật thông tin thiết bị trước khi nhập.', variant: 'destructive' });
+                            return;
+                          }
+                          setForm(f => ({ ...f, maThietBi: e.maThietBi, maNhaCungCap: e.maNhaCungCap as string }));
+                          setEquipmentSearch(e.tenThietBi);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        <span className="font-medium text-sm">{e.tenThietBi}</span>
+                        <span className="text-xs text-muted-foreground">{e.maThietBi}</span>
+                      </div>
+                    ))}
+                  {equipment.filter(e => e.trangThai && (e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) || e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()))).length === 0 && (
+                    <div className="p-4 text-center text-sm text-muted-foreground">Không tìm thấy thiết bị</div>
+                  )}
+                </div>
+              )}
             </div>
-            <div>
-              <Label>Nhà cung cấp *</Label>
-              <Select value={form.maNhaCungCap} onValueChange={v => setForm(f => ({ ...f, maNhaCungCap: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn NCC" /></SelectTrigger>
-                <SelectContent>{suppliers.filter(s => s.trangThai).map(s => <SelectItem key={s.maNhaCungCap} value={s.maNhaCungCap}>{s.tenNhaCungCap}</SelectItem>)}</SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nhà cung cấp (Tự động)</Label>
+                <div className="mt-1 p-2 bg-muted/50 border rounded-md text-sm font-medium text-muted-foreground italic">
+                  {suppliers.find(s => s.maNhaCungCap === form.maNhaCungCap)?.tenNhaCungCap || '(Chưa chọn thiết bị)'}
+                </div>
+              </div>
+              <div>
+                <Label>Số lượng nhập *</Label>
+                <Input type="number" min={1} value={form.soLuongNhap} className="mt-1" onChange={e => {
+                  const val = parseInt(e.target.value) || 0;
+                  setForm(f => ({ ...f, soLuongNhap: val < 0 ? 0 : val }));
+                }} />
+              </div>
             </div>
-            <div>
-              <Label>Số lượng nhập *</Label>
-              <Input type="number" min={1} value={form.soLuongNhap} onChange={e => {
-                const val = parseInt(e.target.value) || 0;
-                setForm(f => ({ ...f, soLuongNhap: val < 0 ? 0 : val }));
-              }} />
-            </div>
-            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
+
+            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} className="mt-1" onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate} className="gradient-primary text-primary-foreground">Gửi yêu cầu nhập</Button>
+            <Button onClick={handleCreate} disabled={!form.maThietBi} className="gradient-primary text-primary-foreground">Gửi yêu cầu nhập</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

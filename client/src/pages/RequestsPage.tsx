@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateRequest, apiApproveRequest } from '@/lib/apiSync';
+import { apiCreateRequest, apiApproveRequest, apiCreateAllocation } from '@/lib/apiSync';
 import { PhieuYeuCauCapPhat } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Check, X, Eye } from 'lucide-react';
+import { Plus, Search, Check, X, Eye, CheckCheck } from 'lucide-react';
 
-const STATUS_MAP = { CHO_DUYET: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Từ chối' } as const;
-const STATUS_COLORS = { CHO_DUYET: 'bg-warning/10 text-warning', DA_DUYET: 'bg-success/10 text-success', TU_CHOI: 'bg-destructive/10 text-destructive' };
+const STATUS_MAP = { 
+  CHO_DUYET: 'Chờ duyệt', 
+  DA_DUYET: 'Đã duyệt', 
+  TU_CHOI: 'Từ chối',
+  DA_CAP_PHAT: 'Đã cấp phát'
+} as const;
+
+const STATUS_COLORS = { 
+  CHO_DUYET: 'bg-warning/10 text-warning', 
+  DA_DUYET: 'bg-success/10 text-success', 
+  TU_CHOI: 'bg-destructive/10 text-destructive',
+  DA_CAP_PHAT: 'bg-indigo-100 text-indigo-700'
+};
 
 export default function RequestsPage() {
   const { user } = useAuth();
@@ -30,8 +41,9 @@ export default function RequestsPage() {
   const users = store.getUsers();
   const inventory = store.getInventory();
 
-  const canCreate = user?.vaiTro === 'NV_BV';
+  const canCreate = user?.vaiTro === 'NV_BV' || user?.vaiTro === 'ADMIN';
   const canApprove = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
+  const canAllocate = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'NV_KHO';
 
   const [form, setForm] = useState({ maThietBi: '', maKhoa: '', soLuongYeuCau: 1, lyDo: '' });
 
@@ -91,6 +103,31 @@ export default function RequestsPage() {
     }
   };
 
+  const handleAllocate = async (r: PhieuYeuCauCapPhat) => {
+    if (!window.confirm('Bạn có muốn in phiếu hay không?')) return;
+    
+    try {
+      const result = await apiCreateAllocation({
+        maPhieuYeuCau: r.maPhieu,
+        maNhanVienKho: user!.maNguoiDung,
+        maThietBi: r.maThietBi,
+        maNguoiMuon: r.maNguoiYeuCau,
+        maKhoa: r.maKhoa,
+        soLuongCapPhat: r.soLuongYeuCau,
+        ghiChu: 'Cấp phát trực tiếp từ yêu cầu'
+      });
+
+      if (result.success) {
+        setRequests(store.getRequests());
+        toast({ title: 'Thành công', description: 'Đã cấp phát thiết bị và cập nhật tồn kho' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Cấp phát thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    }
+  };
+
   const handleReject = async () => {
     if (!rejectReason.trim()) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập lý do từ chối', variant: 'destructive' }); return;
@@ -132,6 +169,7 @@ export default function RequestsPage() {
             <th className="text-left p-3 font-medium text-muted-foreground">Khoa</th>
             <th className="text-center p-3 font-medium text-muted-foreground">SL</th>
             <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
+            <th className="text-center p-3 font-medium text-muted-foreground">Cấp phát</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Ngày tạo</th>
             <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
           </tr></thead>
@@ -151,6 +189,13 @@ export default function RequestsPage() {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.trangThai]}`}>
                       {STATUS_MAP[r.trangThai]}
                     </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    {r.trangThai === 'DA_CAP_PHAT' ? (
+                      <div className="flex justify-center"><div className="bg-emerald-100 text-emerald-700 p-1 rounded-full border border-emerald-200"><CheckCheck className="w-4 h-4" /></div></div>
+                    ) : r.trangThai === 'DA_DUYET' && canAllocate ? (
+                      <div className="flex justify-center"><Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/20" onClick={() => handleAllocate(r)}><Check className="w-4 h-4" /></Button></div>
+                    ) : <span className="text-muted-foreground/30">—</span>}
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">{r.ngayTao.slice(0, 10)}</td>
                   <td className="p-3 text-right">

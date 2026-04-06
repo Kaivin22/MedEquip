@@ -47,3 +47,21 @@ export async function updateSupplier(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+
+export async function deleteSupplier(req, res) {
+  try {
+    const { id } = req.params;
+    
+    // Check for associated equipment
+    const [equipment] = await pool.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ma_nha_cung_cap = ? AND da_xoa = FALSE", [id]);
+    if (equipment.length > 0) {
+      return res.json({ success: false, message: "Không thể xóa nhà cung cấp đang có thiết bị liên kết. Hãy xóa hoặc chuyển đổi thiết bị trước." });
+    }
+
+    await pool.query("DELETE FROM nha_cung_cap WHERE ma_nha_cung_cap = ?", [id]);
+    res.json({ success: true, message: "Đã xóa nhà cung cấp." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}

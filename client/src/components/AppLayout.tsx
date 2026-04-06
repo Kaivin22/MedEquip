@@ -12,9 +12,9 @@ import {
 } from 'lucide-react';
 
 export type PageKey =
-  | 'dashboard' | 'equipment' | 'inventory' | 'suppliers' | 'departments'
-  | 'requests' | 'allocations' | 'exports' | 'imports' | 'users' | 'notifications'
-  | 'damage_reports' | 'profile' | 'reports' | 'import_requests';
+  | 'dashboard' | 'inventory' | 'suppliers' | 'departments'
+  | 'requests' | 'users' | 'notifications'
+  | 'profile' | 'reports';
 
 interface NavItem {
   key: PageKey;
@@ -25,16 +25,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
-  { key: 'equipment', label: 'Thiết bị', icon: <Package className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
-  { key: 'inventory', label: 'Tồn kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'NV_BV', 'TRUONG_KHOA', 'NV_KHO'] },
-  { key: 'allocations', label: 'Phiếu cấp phát', icon: <ClipboardCheck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'import_requests', label: 'Yêu cầu nhập mới', icon: <PackagePlus className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'exports', label: 'Xuất kho', icon: <FileOutput className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
-  { key: 'imports', label: 'Nhập kho', icon: <FileInput className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
-  { key: 'damage_reports', label: 'Báo hư hỏng', icon: <AlertTriangle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
   { key: 'reports', label: 'Báo cáo thống kê', icon: <BarChart3 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'users', label: 'Quản lý Tài khoản', icon: <Users className="w-5 h-5" />, roles: ['ADMIN'] },
   { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
