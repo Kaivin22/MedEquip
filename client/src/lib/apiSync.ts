@@ -141,10 +141,30 @@ export async function apiCreateDepartment(data: Omit<Khoa, 'maKhoa' | 'trangThai
 
 export async function apiUpdateDepartment(id: string, data: Partial<Khoa>) {
   if (isMockMode()) {
+    if (data.trangThai === false) {
+      const allocations = store.getAllocations();
+      if (allocations.some(a => a.maKhoa === id)) {
+        return { success: false, message: 'Không thể ngừng hoạt động khoa khi có thiết bị đang sử dụng' };
+      }
+    }
     store.setDepartments(store.getDepartments().map(d => d.maKhoa === id ? { ...d, ...data } : d));
     return { success: true };
   }
   const result = await fetchApi<any>(`/departments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  if (result.success) await refreshData('departments');
+  return result;
+}
+
+export async function apiDeleteDepartment(id: string) {
+  if (isMockMode()) {
+    const allocations = store.getAllocations();
+    if (allocations.some(a => a.maKhoa === id)) {
+      return { success: false, message: 'Không thể xóa khoa khi có thiết bị đang sử dụng' };
+    }
+    store.setDepartments(store.getDepartments().filter(d => d.maKhoa !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/departments/${id}`, { method: 'DELETE' });
   if (result.success) await refreshData('departments');
   return result;
 }
