@@ -39,9 +39,21 @@ export async function apiDeleteUser(userId: string) {
     store.setUsers(store.getUsers().filter(u => u.maNguoiDung !== userId));
     return { success: true };
   }
-  const result = await fetchApi<any>(`/users/${userId}/deactivate`, { method: 'PUT' });
+  const result = await fetchApi<any>(`/users/${userId}`, { method: 'DELETE' });
   if (result.success) await refreshData('users');
   return result;
+}
+
+export async function apiChangePassword(userId: string, currentPassword: string, newPassword: string) {
+  if (isMockMode()) {
+    const users = store.getUsers();
+    const user = users.find(u => u.maNguoiDung === userId);
+    if (!user) return { success: false, message: 'Không tìm thấy người dùng.' };
+    if (user.matKhau !== currentPassword) return { success: false, message: 'Mật khẩu hiện tại không đúng!' };
+    store.setUsers(users.map(u => u.maNguoiDung === userId ? { ...u, matKhau: newPassword, ngayCapNhat: new Date().toISOString() } : u));
+    return { success: true, message: 'Đổi mật khẩu thành công!' };
+  }
+  return fetchApi<any>('/auth/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) });
 }
 
 // ---- Equipment ----
