@@ -30,6 +30,7 @@ export interface TonKho {
   maThietBi: string;
   soLuongKho: number;
   soLuongDangDung: number;
+  soLuongHu: number;
   ngayCapNhat: string;
 }
 

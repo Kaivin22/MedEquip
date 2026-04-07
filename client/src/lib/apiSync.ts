@@ -93,9 +93,9 @@ export async function apiDeleteEquipment(maThietBi: string) {
   return result;
 }
 
-export async function apiUpdateEquipment(maThietBi: string, data: Partial<Omit<ThietBi, 'maThietBi' | 'trangThai' | 'ngayTao'>>) {
+export async function apiUpdateEquipment(maThietBi: string, data: Partial<Omit<ThietBi, 'maThietBi' | 'ngayTao'>>) {
   if (isMockMode()) {
-    store.setEquipment(store.getEquipment().map(e => e.maThietBi === maThietBi ? { ...e, ...data } : e));
+    store.setEquipment(store.getEquipment().map(e => e.maThietBi === maThietBi ? { ...e, ...data } as ThietBi : e));
     return { success: true };
   }
   const result = await fetchApi<any>(`/equipment/${maThietBi}`, { method: 'PUT', body: JSON.stringify(data) });
