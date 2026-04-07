@@ -21,6 +21,11 @@ export async function getAllDepartments(req, res) {
 export async function createDepartment(req, res) {
   try {
     const { tenKhoa, moTa } = req.body;
+    const [existing] = await pool.query("SELECT * FROM khoa WHERE ten_khoa = ?", [tenKhoa]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: "Tên khoa đã tồn tại." });
+    }
+
     const id = "K-" + String(Date.now()).slice(-6);
     await pool.query(
       "INSERT INTO khoa (ma_khoa, ten_khoa, mo_ta, trang_thai) VALUES (?, ?, ?, TRUE)",
@@ -35,10 +40,45 @@ export async function createDepartment(req, res) {
 
 export async function updateDepartment(req, res) {
   try {
-    const { tenKhoa, moTa } = req.body;
-    await pool.query("UPDATE khoa SET ten_khoa = ?, mo_ta = ? WHERE ma_khoa = ?", [tenKhoa, moTa, req.params.id]);
+    const { tenKhoa, moTa, trangThai } = req.body;
+    const id = req.params.id;
+
+    const [existing] = await pool.query("SELECT * FROM khoa WHERE ten_khoa = ? AND ma_khoa != ?", [tenKhoa, id]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: "Tên khoa bị trùng lặp." });
+    }
+
+    if (trangThai === false) {
+      const [allocations] = await pool.query("SELECT * FROM phieu_cap_phat WHERE ma_khoa_nhan = ?", [id]);
+      if (allocations.length > 0) {
+        return res.status(400).json({ success: false, message: "Không thể ngừng hoạt động khoa khi có thiết bị đang sử dụng." });
+      }
+    }
+
+    const t = trangThai !== undefined ? trangThai : true;
+    await pool.query("UPDATE khoa SET ten_khoa = ?, mo_ta = ?, trang_thai = ? WHERE ma_khoa = ?", [tenKhoa, moTa, t, id]);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function deleteDepartment(req, res) {
+  try {
+    const id = req.params.id;
+    // Check if any allocations exist for this department (active usage)
+    const [allocations] = await pool.query("SELECT * FROM phieu_cap_phat WHERE ma_khoa_nhan = ?", [id]);
+    if (allocations.length > 0) {
+      return res.status(400).json({ success: false, message: "Không thể xóa khoa khi có thiết bị đang sử dụng." });
+    }
+
+    await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
+    res.json({ success: true });
+  } catch (err) {
+    // ER_ROW_IS_REFERENCED_2 error mapping for MySql
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(400).json({ success: false, message: "Không thể xóa khoa vì đã có dữ liệu hoạt động lịch sử. Quý khách có thể chọn 'Ngừng hoạt động'." });
+    }
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
