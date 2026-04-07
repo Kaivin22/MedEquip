@@ -38,7 +38,7 @@ export async function createImportRequest(req, res) {
     const maPhieu = "YCN-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
     
     // Check if equipment already exists in thiet_bi table
-    const [existing] = await pool.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ten_thiet_bi = ? AND da_xoa = FALSE", [tenThietBi]);
+    const [existing] = await pool.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ten_thiet_bi = ? AND trang_thai = TRUE", [tenThietBi]);
     if (existing.length > 0) {
       return res.json({ success: false, message: "Thiết bị này đã tồn tại trong kho." });
     }
@@ -96,7 +96,7 @@ export async function approveImportRequest(req, res) {
     
     if (approved) {
       // Check if equipment exists (again, for safety)
-      const [existing] = await connection.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ten_thiet_bi = ? AND da_xoa = FALSE", [request.ten_thiet_bi]);
+      const [existing] = await connection.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ten_thiet_bi = ? AND trang_thai = TRUE", [request.ten_thiet_bi]);
       
       let maThietBi;
       if (existing.length === 0) {

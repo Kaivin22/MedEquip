@@ -5,8 +5,8 @@ function mapInventory(row) {
     maTonKho: row.ma_ton_kho,
     maThietBi: row.ma_thiet_bi,
     soLuongKho: row.so_luong_kho,
-    soLuongKho: row.so_luong_kho,
     soLuongDangDung: row.so_luong_dang_dung,
+    soLuongHu: row.so_luong_hu || 0,
     ngayCapNhat: row.ngay_cap_nhat
   };
 }

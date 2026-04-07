@@ -17,6 +17,7 @@ import ImportRequestsPage from './ImportRequestsPage';
 
 function StockView({ onRefresh }: { onRefresh: () => void }) {
   const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -27,21 +28,29 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
   const suppliers = store.getSuppliers();
 
   const [form, setForm] = useState({
-    tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: ''
+    tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '', trangThai: true
   });
 
   const data = useMemo(() =>
     inventory.map(inv => ({
       ...inv,
       thietBi: equipment.find(e => e.maThietBi === inv.maThietBi),
-    })).filter(d =>
-      d.thietBi?.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
-      d.maThietBi.toLowerCase().includes(search.toLowerCase())
-    ), [inventory, equipment, search]);
+    })).filter(d => {
+      const matchSearch = d.thietBi?.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
+                          d.maThietBi.toLowerCase().includes(search.toLowerCase());
+      if (!matchSearch) return false;
+      
+      if (filterStatus === 'TRONG_KHO') return d.soLuongKho > 0;
+      if (filterStatus === 'DANG_DUNG') return d.soLuongDangDung > 0;
+      if (filterStatus === 'HU_HONG') return d.soLuongHu > 0;
+      if (filterStatus === 'HET_HANG') return (d.soLuongKho === 0 && d.soLuongDangDung === 0 && d.soLuongHu === 0);
+      
+      return true;
+    }), [inventory, equipment, search, filterStatus]);
 
   const openAdd = () => {
     setSelectedItem(null);
-    setForm({ tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '' });
+    setForm({ tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '', trangThai: true });
     setEditOpen(true);
   };
 
@@ -49,7 +58,7 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
     setSelectedItem(tb);
     setForm({
       tenThietBi: tb.tenThietBi, loaiThietBi: tb.loaiThietBi, donViTinh: tb.donViTinh || '',
-      moTa: tb.moTa || '', maNhaCungCap: tb.maNhaCungCap || '', hinhAnh: tb.hinhAnh || ''
+      moTa: tb.moTa || '', maNhaCungCap: tb.maNhaCungCap || '', hinhAnh: tb.hinhAnh || '', trangThai: tb.trangThai
     });
     setEditOpen(true);
     setDetailOpen(false);
@@ -108,13 +117,24 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm kiếm tồn kho..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+        <div className="flex-1 flex flex-col sm:flex-row gap-3 w-full max-w-2xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Tìm tên, mã thiết bị..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 w-full" />
+          </div>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Lọc thiết bị" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Tất cả thiết bị</SelectItem>
+              <SelectItem value="TRONG_KHO">Đang có trong kho</SelectItem>
+              <SelectItem value="DANG_DUNG">Đang được sử dụng</SelectItem>
+              <SelectItem value="HU_HONG">Có thiết bị hư hỏng</SelectItem>
+              <SelectItem value="HET_HANG">Đã hết sạch hàng</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Button onClick={openAdd} className="gradient-primary text-white">
-          <Plus className="w-4 h-4 mr-2" /> Thêm thiết bị
-        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/30">
@@ -124,6 +144,7 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
               <th className="text-left p-4 font-medium text-muted-foreground">Thiết bị</th>
               <th className="text-center p-4 font-medium text-muted-foreground">Trong kho</th>
               <th className="text-center p-4 font-medium text-muted-foreground">Đang dùng</th>
+              <th className="text-center p-4 font-medium text-muted-foreground">Hư hỏng</th>
               <th className="text-center p-4 font-medium text-muted-foreground">Tổng cộng</th>
               <th className="text-center p-4 font-medium text-muted-foreground">Xóa</th>
             </tr>
@@ -150,8 +171,13 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
                   </span>
                 </td>
                 <td className="p-4 text-center">
+                  <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-warning/10 text-warning font-semibold">
+                    {d.soLuongHu}
+                  </span>
+                </td>
+                <td className="p-4 text-center">
                   <span className="text-base font-bold text-foreground">
-                    {d.soLuongKho + d.soLuongDangDung}
+                    {d.soLuongKho + d.soLuongDangDung + d.soLuongHu}
                   </span>
                 </td>
                 <td className="p-4 text-center">
@@ -196,6 +222,12 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
                   <span className="text-muted-foreground">Nhà cung cấp:</span>
                   <span>{suppliers.find(s => s.maNhaCungCap === selectedItem.maNhaCungCap)?.tenNhaCungCap || '—'}</span>
                 </div>
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-muted-foreground">Trạng thái:</span>
+                  <span className={selectedItem.trangThai ? 'text-success font-medium' : 'text-destructive font-medium'}>
+                    {selectedItem.trangThai ? 'Đang sử dụng' : 'Ngừng sử dụng'}
+                  </span>
+                </div>
                 <div className="pt-2">
                   <span className="text-muted-foreground block mb-1">Mô tả chức năng:</span>
                   <p className="text-foreground leading-relaxed italic">{selectedItem.moTa || 'Chưa có mô tả'}</p>
@@ -232,14 +264,26 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
               </div>
               <div><Label>Đơn vị tính</Label><Input value={form.donViTinh} onChange={e => setForm(f => ({ ...f, donViTinh: e.target.value }))} /></div>
             </div>
-            <div>
-              <Label>Nhà cung cấp</Label>
-              <Select value={form.maNhaCungCap} onValueChange={v => setForm(f => ({ ...f, maNhaCungCap: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn NCC" /></SelectTrigger>
-                <SelectContent>
-                  {suppliers.map(s => <SelectItem key={s.maNhaCungCap} value={s.maNhaCungCap}>{s.tenNhaCungCap}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nhà cung cấp</Label>
+                <Select value={form.maNhaCungCap} onValueChange={v => setForm(f => ({ ...f, maNhaCungCap: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Chọn NCC" /></SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map(s => <SelectItem key={s.maNhaCungCap} value={s.maNhaCungCap}>{s.tenNhaCungCap}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Trạng thái</Label>
+                <Select value={form.trangThai ? 'TRUE' : 'FALSE'} onValueChange={v => setForm(f => ({ ...f, trangThai: v === 'TRUE' }))}>
+                  <SelectTrigger><SelectValue placeholder="Chọn trạng thái" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TRUE">Đang sử dụng</SelectItem>
+                    <SelectItem value="FALSE">Ngừng sử dụng</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div><Label>Mô tả chức năng</Label><Textarea value={form.moTa} onChange={e => setForm(f => ({ ...f, moTa: e.target.value }))} /></div>
             <div>
