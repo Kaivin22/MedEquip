@@ -49,19 +49,32 @@ export default function SuppliersPage() {
   const openEdit = (s: NhaCungCap) => { setEditing(s); setForm({ tenNhaCungCap: s.tenNhaCungCap, diaChi: s.diaChi, soDienThoai: s.soDienThoai, email: s.email }); setDialogOpen(true); };
 
   const handleSave = async () => {
-    if (!form.tenNhaCungCap) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên', variant: 'destructive' }); return; }
+    if (!form.tenNhaCungCap) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên nhà cung cấp', variant: 'destructive' }); return; }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      toast({ title: 'Lỗi', description: 'Email không hợp lệ', variant: 'destructive' }); return;
+    }
+    if (form.soDienThoai && !/^\d+$/.test(form.soDienThoai)) {
+      toast({ title: 'Lỗi', description: 'Số điện thoại không hợp lệ (chỉ được chứa số)', variant: 'destructive' }); return;
+    }
+
     try {
+      let res;
       if (editing) {
-        await apiUpdateSupplier(editing.maNhaCungCap, form);
-        toast({ title: 'Cập nhật thành công' });
+        res = await apiUpdateSupplier(editing.maNhaCungCap, form);
       } else {
-        await apiCreateSupplier(form);
-        toast({ title: 'Thêm thành công' });
+        res = await apiCreateSupplier(form);
       }
+
+      if (res && res.success === false) {
+        toast({ title: 'Lỗi', description: res.message, variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: editing ? 'Cập nhật thành công' : 'Thêm thành công' });
       reloadData();
       setDialogOpen(false);
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err.message || 'Có lỗi xảy ra', variant: 'destructive' });
     }
   };
 
@@ -180,9 +193,6 @@ export default function SuppliersPage() {
                           <h3 className="font-bold text-base flex items-center gap-2">
                             <ImageIcon className="w-4 h-4 text-primary" /> Danh sách sản phẩm của {s.tenNhaCungCap}
                           </h3>
-                          <Button size="sm" onClick={() => openAddEq(s.maNhaCungCap)} className="gradient-primary text-white text-xs h-8">
-                            <Plus className="w-3.5 h-3.5 mr-1" /> Thêm sản phẩm
-                          </Button>
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
