@@ -53,7 +53,7 @@ export async function apiCreateEquipment(data: Omit<ThietBi, 'maThietBi' | 'tran
     equipment.push(newItem);
     store.setEquipment(equipment);
     const inv = store.getInventory();
-    inv.push({ maTonKho: generateId('TK'), maThietBi: newItem.maThietBi, soLuongKho: 0, soLuongHu: 0, soLuongDangDung: 0, ngayCapNhat: new Date().toISOString() });
+    inv.push({ maTonKho: generateId('TK'), maThietBi: newItem.maThietBi, soLuongKho: 0, soLuongDangDung: 0, ngayCapNhat: new Date().toISOString() });
     store.setInventory(inv);
     return { success: true, equipment: newItem };
   }
@@ -179,6 +179,16 @@ export async function apiApproveRequest(maPhieu: string, approved: boolean, lyDo
   return result;
 }
 
+export async function apiDeleteRequest(maPhieu: string) {
+  if (isMockMode()) {
+    store.setRequests(store.getRequests().filter(r => r.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/requests/${maPhieu}`, { method: 'DELETE' });
+  if (result.success) await refreshData('requests');
+  return result;
+}
+
 // ---- Import Requests ----
 export async function apiCreateImportRequest(data: Omit<PhieuYeuCauNhap, 'maPhieu' | 'trangThai' | 'ngayTao' | 'ngayDuyet' | 'nguoiDuyet' | 'lyDoTuChoi'>) {
   if (isMockMode()) {
@@ -225,7 +235,6 @@ export async function apiApproveImportRequest(maPhieu: string, approved: boolean
         maTonKho: generateId('TK'),
         maThietBi: newMaThietBi,
         soLuongKho: request.soLuong,
-        soLuongHu: 0,
         soLuongDangDung: 0,
         ngayCapNhat: new Date().toISOString()
       });
@@ -320,7 +329,6 @@ export async function apiConfirmExport(maPhieu: string) {
       const fromKho = Math.min(remaining, inv[idx].soLuongKho);
       inv[idx].soLuongKho -= fromKho;
       remaining -= fromKho;
-      if (remaining > 0) inv[idx].soLuongHu -= Math.min(remaining, inv[idx].soLuongHu);
       inv[idx].ngayCapNhat = new Date().toISOString();
       store.setInventory(inv);
     }
@@ -377,7 +385,6 @@ export async function apiCreateDamageReport(data: { maNguoiBao: string; maThietB
     if (idx >= 0) {
       const moveQty = Math.min(data.soLuongHu, inv[idx].soLuongDangDung);
       inv[idx].soLuongDangDung -= moveQty;
-      inv[idx].soLuongHu += data.soLuongHu;
       inv[idx].ngayCapNhat = new Date().toISOString();
       store.setInventory(inv);
     }
