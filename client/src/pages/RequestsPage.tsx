@@ -367,7 +367,7 @@ export default function RequestsPage() {
                 <p><span className="text-muted-foreground">Số lượng:</span> {viewing.soLuongYeuCau}</p>
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1">Lý do cấp phát:</p>
-                  <div className="bg-muted p-3 rounded-md text-foreground italic border-l-4 border-primary">
+                  <div className="bg-muted p-3 rounded-md text-foreground italic border-l-4 border-primary break-all whitespace-pre-wrap">
                     {viewing.lyDo || 'Không có lý do chi tiết'}
                   </div>
                 </div>
@@ -375,7 +375,14 @@ export default function RequestsPage() {
                   <p><span className="text-muted-foreground">Trạng thái:</span> <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[viewing.trangThai]}`}>{STATUS_MAP[viewing.trangThai]}</span></p>
                   {viewing.ngayDuyet && <p><span className="text-muted-foreground">Ngày duyệt:</span> {viewing.ngayDuyet.slice(0, 10)}</p>}
                   {viewing.nguoiDuyet && <p><span className="text-muted-foreground">Người duyệt:</span> {users.find(u => u.maNguoiDung === viewing.nguoiDuyet)?.hoTen || viewing.nguoiDuyet}</p>}
-                  {viewing.lyDoTuChoi && <p><span className="text-muted-foreground">Lý do từ chối:</span> <span className="text-destructive">{viewing.lyDoTuChoi}</span></p>}
+                  {viewing.lyDoTuChoi && (
+                    <div className="pt-2 border-t mt-2">
+                       <p className="text-xs uppercase tracking-wider font-semibold text-destructive mb-1">Lý do từ chối:</p>
+                       <div className="bg-rose-50 p-2 rounded text-rose-700 italic break-all whitespace-pre-wrap text-sm border-l-4 border-rose-400">
+                         {viewing.lyDoTuChoi}
+                       </div>
+                    </div>
+                  )}
                 </div>
               </div>
               
