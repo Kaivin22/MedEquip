@@ -26,7 +26,7 @@ export async function createUser(req, res) {
     const { hoTen, email, matKhau, vaiTro, soDienThoai, diaChi } = req.body;
 
     const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ?", [email]);
-    if (existing.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
+    if (existing.length > 0) return res.json({ success: false, message: "Email đã tồn tại và yêu cầu nhập email khác." });
 
     const hash = await bcrypt.hash(matKhau, 10);
     const id = "ND-" + String(Date.now()).slice(-6);
@@ -53,7 +53,7 @@ export async function updateUser(req, res) {
     if (updates.hoTen) { fields.push("ho_ten = ?"); values.push(updates.hoTen); }
     if (updates.email) {
       const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ? AND ma_nguoi_dung != ?", [updates.email, req.params.id]);
-      if (existing.length > 0) return res.json({ success: false, message: "Email đã được sử dụng." });
+      if (existing.length > 0) return res.json({ success: false, message: "Email đã tồn tại và yêu cầu nhập email khác." });
       fields.push("email = ?"); values.push(updates.email);
     }
     if (updates.soDienThoai !== undefined) { fields.push("so_dien_thoai = ?"); values.push(updates.soDienThoai); }
@@ -94,6 +94,22 @@ export async function changeUserRole(req, res) {
     await pool.query("UPDATE nguoi_dung SET vai_tro = ? WHERE ma_nguoi_dung = ?", [req.body.vaiTro, req.params.id]);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function deleteUser(req, res) {
+  try {
+    const requesterId = req.user?.userId;
+    if (requesterId === req.params.id) {
+      return res.json({ success: false, message: "Không thể xóa tài khoản của chính mình." });
+    }
+    const [rows] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE ma_nguoi_dung = ?", [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
+    await pool.query("DELETE FROM nguoi_dung WHERE ma_nguoi_dung = ?", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
