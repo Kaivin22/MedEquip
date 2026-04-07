@@ -13,21 +13,13 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Plus, Search, CheckCircle, XCircle, Trash2, Image as ImageIcon, X } from 'lucide-react';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Plus, Search, CheckCircle, XCircle, Trash2, Image as ImageIcon } from 'lucide-react';
 
 export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => void }) {
   const { user } = useAuth();
   const [data, setData] = useState(store.getImportRequests());
   const [search, setSearch] = useState('');
-  const [idSearch, setIdSearch] = useState('');
-  const [equipmentFilter, setEquipmentFilter] = useState('ALL');
-  const [supplierFilter, setSupplierFilter] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('');
-  
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
-  const [viewingRequest, setViewingRequest] = useState<PhieuYeuCauNhap | null>(null);
   
   const suppliers = store.getSuppliers();
   const users = store.getUsers();
@@ -48,14 +40,8 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
   });
 
   const filtered = useMemo(() => {
-    return data.filter(r => {
-      const matchId = !idSearch || r.maPhieu.toLowerCase().includes(idSearch.toLowerCase());
-      const matchEq = equipmentFilter === 'ALL' || r.tenThietBi === equipmentFilter;
-      const matchSup = supplierFilter === 'ALL' || r.maNhaCungCap === supplierFilter;
-      const matchDate = !dateFilter || r.ngayTao.slice(0, 10) === dateFilter;
-      return matchId && matchEq && matchSup && matchDate;
-    });
-  }, [data, idSearch, equipmentFilter, supplierFilter, dateFilter]);
+    return data.filter(r => r.maPhieu.toLowerCase().includes(search.toLowerCase()) || r.tenThietBi.toLowerCase().includes(search.toLowerCase()));
+  }, [data, search]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,46 +112,19 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Mã phiếu..." value={idSearch} onChange={e => setIdSearch(e.target.value)} className="pl-10" />
-            </div>
-            
-            <SearchableSelect 
-              options={Array.from(new Set(data.map(r => r.tenThietBi))).map(t => ({ value: t, label: t }))} 
-              value={equipmentFilter} 
-              onValueChange={setEquipmentFilter} 
-              placeholder="Thiết bị..." 
-            />
-
-            <SearchableSelect 
-              options={suppliers.map(s => ({ value: s.maNhaCungCap, label: s.tenNhaCungCap }))} 
-              value={supplierFilter} 
-              onValueChange={setSupplierFilter} 
-              placeholder="Nhà cung cấp..." 
-            />
-
-            <div className="flex gap-2">
-              <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="flex-1" />
-              {(idSearch || equipmentFilter !== 'ALL' || supplierFilter !== 'ALL' || dateFilter) && (
-                <Button variant="ghost" size="icon" onClick={() => { setIdSearch(''); setEquipmentFilter('ALL'); setSupplierFilter('ALL'); setDateFilter(''); }} className="shrink-0">
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-          {canCreate && (
-            <Button onClick={() => { 
-              setForm({ tenThietBi: '', loaiThietBi: 'Máy móc', donViTinh: 'Cái', soLuong: 1, mucDichSuDung: '', maNhaCungCap: '', moTa: '', hinhAnh: '' }); 
-              setDialogOpen(true); 
-            }} className="gradient-primary text-primary-foreground shrink-0 w-full md:w-auto">
-              <Plus className="w-4 h-4 mr-2" /> Tạo YC Nhập
-            </Button>
-          )}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Tìm mã phiếu, tên thiết bị..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
+        {canCreate && (
+          <Button onClick={() => { 
+            setForm({ tenThietBi: '', loaiThietBi: 'Máy móc', donViTinh: 'Cái', soLuong: 1, mucDichSuDung: '', maNhaCungCap: '', moTa: '', hinhAnh: '' }); 
+            setDialogOpen(true); 
+          }} className="gradient-primary text-primary-foreground">
+            <Plus className="w-4 h-4 mr-2" /> Tạo YC Nhập
+          </Button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/30">
@@ -183,7 +142,7 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
           </thead>
           <tbody className="divide-y divide-border/50">
             {filtered.map(r => (
-              <tr key={r.maPhieu} className="hover:bg-muted/30 transition-colors cursor-pointer group" onClick={() => { setViewingRequest(r); setViewOpen(true); }}>
+              <tr key={r.maPhieu} className="hover:bg-muted/30 transition-colors">
                 <td className="p-4 font-mono text-xs">{r.maPhieu}</td>
                 <td className="p-4">
                   <div className="flex items-center gap-3">
@@ -221,7 +180,7 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
                   {format(new Date(r.ngayTao), 'yyyy-MM-dd', { locale: vi })}
                   <div className="text-xs">{users.find(u => u.maNguoiDung === r.maNguoiYeuCau)?.hoTen || '—'}</div>
                 </td>
-                <td className="p-4 text-right" onClick={e => e.stopPropagation()}>
+                <td className="p-4 text-right">
                   <div className="flex justify-end gap-2 items-center">
                     {canApprove && r.trangThai === 'CHO_DUYET' && (
                       <>
@@ -232,6 +191,9 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
                           <XCircle className="w-4 h-4 mr-1" /> Từ chối
                         </Button>
                       </>
+                    )}
+                    {r.trangThai === 'TU_CHOI' && r.lyDoTuChoi && (
+                      <div className="text-xs text-red-500 italic max-w-[150px] ml-auto truncate" title={r.lyDoTuChoi}>Lý do: {r.lyDoTuChoi}</div>
                     )}
                     {canDelete && (
                       <Button size="icon" variant="ghost" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8 ml-2" onClick={() => handleDelete(r.maPhieu)}>
@@ -298,79 +260,6 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
             <Button onClick={handleCreate} className="gradient-primary text-white">Tạo Yêu Cầu</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Detail Dialog */}
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-md lg:max-w-lg">
-          <DialogHeader><DialogTitle>Chi tiết Yêu cầu Nhập Thiết bị</DialogTitle></DialogHeader>
-          {viewingRequest && (
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="max-h-[300px] rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
-                  {viewingRequest.hinhAnh ? (
-                    <img src={viewingRequest.hinhAnh} className="w-full h-full object-contain" />
-                  ) : (
-                    <ImageIcon className="w-12 h-12 text-muted-foreground/20" />
-                  )}
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <Label className="text-muted-foreground">Mã phiếu y/c:</Label>
-                    <div className="font-mono text-xs">{viewingRequest.maPhieu}</div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Tên thiết bị:</Label>
-                    <div className="font-bold text-base">{viewingRequest.tenThietBi}</div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Phân loại & ĐVT:</Label>
-                    <div>{viewingRequest.loaiThietBi} ({viewingRequest.donViTinh})</div>
-                  </div>
-                  <div className="flex justify-between">
-                    <div>
-                      <Label className="text-muted-foreground">Số lượng:</Label>
-                      <div className="font-bold">{viewingRequest.soLuong}</div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Nhà cung cấp:</Label>
-                      <div>{suppliers.find(s => s.maNhaCungCap === viewingRequest.maNhaCungCap)?.tenNhaCungCap || '—'}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="border-t pt-3">
-                  <Label className="text-primary font-bold text-xs uppercase tracking-widest">Mô tả chi tiết / Chức năng:</Label>
-                  <div className="mt-1 bg-muted/40 p-3 rounded-md text-foreground italic border-l-4 border-primary break-all whitespace-pre-wrap">
-                    {viewingRequest.moTa || 'Không có mô tả chi tiết'}
-                  </div>
-                </div>
-                <div className="border-t pt-3">
-                  <Label className="text-primary font-bold text-xs uppercase tracking-widest">Mục đích sử dụng:</Label>
-                  <div className="mt-1 bg-muted/40 p-3 rounded-md text-foreground italic border-l-4 border-primary break-all whitespace-pre-wrap">
-                    {viewingRequest.mucDichSuDung || 'Không có mục đích sử dụng'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-3 grid grid-cols-2 text-xs text-muted-foreground">
-                <div>
-                  <p>Người đề xuất: {users.find(u => u.maNguoiDung === viewingRequest.maNguoiYeuCau)?.hoTen || '—'}</p>
-                  <p>Ngày tạo: {format(new Date(viewingRequest.ngayTao), 'dd/MM/yyyy HH:mm')}</p>
-                </div>
-                <div className="text-right">
-                  <p>Trạng thái: <span className="font-bold">{viewingRequest.trangThai}</span></p>
-                  {viewingRequest.lyDoTuChoi && <p className="text-rose-500 font-bold">Lý do từ chối: {viewingRequest.lyDoTuChoi}</p>}
-                </div>
-              </div>
-              <div className="pt-4 flex justify-end">
-                <Button variant="outline" onClick={() => setViewOpen(false)}>Đóng</Button>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>
