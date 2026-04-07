@@ -13,12 +13,18 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Plus, Search, CheckCircle, XCircle, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Trash2, Image as ImageIcon, X } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => void }) {
   const { user } = useAuth();
   const [data, setData] = useState(store.getImportRequests());
   const [search, setSearch] = useState('');
+  const [idSearch, setIdSearch] = useState('');
+  const [equipmentFilter, setEquipmentFilter] = useState('ALL');
+  const [supplierFilter, setSupplierFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('');
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingRequest, setViewingRequest] = useState<PhieuYeuCauNhap | null>(null);
@@ -42,8 +48,14 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
   });
 
   const filtered = useMemo(() => {
-    return data.filter(r => r.maPhieu.toLowerCase().includes(search.toLowerCase()) || r.tenThietBi.toLowerCase().includes(search.toLowerCase()));
-  }, [data, search]);
+    return data.filter(r => {
+      const matchId = !idSearch || r.maPhieu.toLowerCase().includes(idSearch.toLowerCase());
+      const matchEq = equipmentFilter === 'ALL' || r.tenThietBi === equipmentFilter;
+      const matchSup = supplierFilter === 'ALL' || r.maNhaCungCap === supplierFilter;
+      const matchDate = !dateFilter || r.ngayTao.slice(0, 10) === dateFilter;
+      return matchId && matchEq && matchSup && matchDate;
+    });
+  }, [data, idSearch, equipmentFilter, supplierFilter, dateFilter]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,19 +126,46 @@ export default function ImportRequestsPage({ onRefresh }: { onRefresh: () => voi
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm mã phiếu, tên thiết bị..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Mã phiếu..." value={idSearch} onChange={e => setIdSearch(e.target.value)} className="pl-10" />
+            </div>
+            
+            <SearchableSelect 
+              options={Array.from(new Set(data.map(r => r.tenThietBi))).map(t => ({ value: t, label: t }))} 
+              value={equipmentFilter} 
+              onValueChange={setEquipmentFilter} 
+              placeholder="Thiết bị..." 
+            />
+
+            <SearchableSelect 
+              options={suppliers.map(s => ({ value: s.maNhaCungCap, label: s.tenNhaCungCap }))} 
+              value={supplierFilter} 
+              onValueChange={setSupplierFilter} 
+              placeholder="Nhà cung cấp..." 
+            />
+
+            <div className="flex gap-2">
+              <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="flex-1" />
+              {(idSearch || equipmentFilter !== 'ALL' || supplierFilter !== 'ALL' || dateFilter) && (
+                <Button variant="ghost" size="icon" onClick={() => { setIdSearch(''); setEquipmentFilter('ALL'); setSupplierFilter('ALL'); setDateFilter(''); }} className="shrink-0">
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {canCreate && (
+            <Button onClick={() => { 
+              setForm({ tenThietBi: '', loaiThietBi: 'Máy móc', donViTinh: 'Cái', soLuong: 1, mucDichSuDung: '', maNhaCungCap: '', moTa: '', hinhAnh: '' }); 
+              setDialogOpen(true); 
+            }} className="gradient-primary text-primary-foreground shrink-0 w-full md:w-auto">
+              <Plus className="w-4 h-4 mr-2" /> Tạo YC Nhập
+            </Button>
+          )}
         </div>
-        {canCreate && (
-          <Button onClick={() => { 
-            setForm({ tenThietBi: '', loaiThietBi: 'Máy móc', donViTinh: 'Cái', soLuong: 1, mucDichSuDung: '', maNhaCungCap: '', moTa: '', hinhAnh: '' }); 
-            setDialogOpen(true); 
-          }} className="gradient-primary text-primary-foreground">
-            <Plus className="w-4 h-4 mr-2" /> Tạo YC Nhập
-          </Button>
-        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/30">
