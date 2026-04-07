@@ -77,6 +77,7 @@ export interface PhieuYeuCauCapPhat {
   trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_CAP_PHAT';
   ngayTao: string;
   ngayDuyet?: string;
+  nguoiDuyet?: string;
   lyDoTuChoi?: string;
 }
 

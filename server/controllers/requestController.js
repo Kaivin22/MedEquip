@@ -190,3 +190,20 @@ export async function confirmReceived(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+export async function deleteRequest(req, res) {
+  try {
+    const { id } = req.params;
+    
+    // Check if request is referenced in phieu_cap_phat
+    const [allocations] = await pool.query("SELECT * FROM phieu_cap_phat WHERE ma_phieu_yeu_cau = ?", [id]);
+    if (allocations.length > 0) {
+      return res.status(400).json({ success: false, message: "Không thể xóa phiếu yêu cầu đã được cấp phát." });
+    }
+
+    await pool.query("DELETE FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
+    res.json({ success: true, message: "Đã xóa phiếu yêu cầu." });
+  } catch (err) {
+    console.error("Delete Request Error:", err);
+    res.status(500).json({ success: false, message: `Lỗi máy chủ: ${err.message}` });
+  }
+}
