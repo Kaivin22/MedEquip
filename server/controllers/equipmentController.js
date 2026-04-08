@@ -16,8 +16,8 @@ function mapEquipment(row) {
 
 export async function getAllEquipment(req, res) {
   try {
-    // Chỉ lấy các thiết bị chưa bị xóa (soft-delete)
-    const [rows] = await pool.query("SELECT * FROM thiet_bi WHERE da_xoa = FALSE ORDER BY ngay_tao DESC");
+    // Lấy tất cả thiết bị (sửa lại để lấy cả khi chưa có kho)
+    const [rows] = await pool.query("SELECT * FROM thiet_bi ORDER BY ngay_tao DESC");
     res.json(rows.map(mapEquipment));
   } catch (err) {
     res.status(500).json({ message: "Lỗi máy chủ." });
@@ -59,12 +59,8 @@ export async function deleteEquipment(req, res) {
       return res.json({ success: false, message: "Không thể xóa thiết bị đang có số lượng tồn kho hoặc đang sử dụng." });
     }
 
-    // Soft-delete: chỉ đánh dấu da_xoa = TRUE, GIỮ NGUYÊN toàn bộ lịch sử nhập/xuất/cấp phát
-    await pool.query("UPDATE thiet_bi SET da_xoa = TRUE WHERE ma_thiet_bi = ?", [id]);
-
-    // Chỉ xóa bản ghi tồn kho (số lượng đã bằng 0)
     await pool.query("DELETE FROM ton_kho WHERE ma_thiet_bi = ?", [id]);
-    
+    await pool.query("DELETE FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
     res.json({ success: true, message: "Đã xóa thiết bị." });
   } catch (err) {
     console.error(err);

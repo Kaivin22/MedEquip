@@ -334,6 +334,16 @@ export async function apiConfirmExport(maPhieu: string) {
   return result;
 }
 
+export async function apiDeleteExport(maPhieu: string) {
+  if (isMockMode()) {
+    store.setExports(store.getExports().filter(e => e.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/exports/${maPhieu}`, { method: 'DELETE' });
+  if (result.success) await refreshData('exports');
+  return result;
+}
+
 // ---- Allocations ----
 export async function apiCreateAllocation(data: { maPhieuYeuCau: string; maNhanVienKho: string; maThietBi: string; maNguoiMuon: string; maKhoa: string; soLuongCapPhat: number; ghiChu: string }) {
   if (isMockMode()) {

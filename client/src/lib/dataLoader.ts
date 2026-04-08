@@ -7,36 +7,25 @@ import { isMockMode, fetchApi } from '@/services/api';
 import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong, PhieuYeuCauNhap } from '@/types';
 
 export async function loadAllData(userId?: string): Promise<void> {
-  if (isMockMode()) return; // Mock mode uses localStorage defaults
+  if (isMockMode()) return;
 
   try {
-    const [equipment, inventory, suppliers, departments, requests, imports, exports, allocations, damageReports, importRequests] = await Promise.all([
-      fetchApi<ThietBi[]>('/equipment').catch(() => []),
-      fetchApi<TonKho[]>('/inventory').catch(() => []),
-      fetchApi<NhaCungCap[]>('/suppliers').catch(() => []),
-      fetchApi<Khoa[]>('/departments').catch(() => []),
-      fetchApi<PhieuYeuCauCapPhat[]>('/requests').catch(() => []),
-      fetchApi<PhieuNhapKho[]>('/imports').catch(() => []),
-      fetchApi<PhieuXuatKho[]>('/exports').catch(() => []),
-      fetchApi<PhieuCapPhat[]>('/allocations').catch(() => []),
-      fetchApi<PhieuBaoHuHong[]>('/damage-reports').catch(() => []),
-      fetchApi<PhieuYeuCauNhap[]>('/import-requests').catch(() => []),
+    const [equipment, inventory, requests, allocations, users] = await Promise.all([
+      fetchApi<ThietBi[]>('/equipment'),
+      fetchApi<TonKho[]>('/inventory'),
+      fetchApi<PhieuYeuCauCapPhat[]>('/requests'),
+      fetchApi<PhieuCapPhat[]>('/allocations'),
+      fetchApi<NguoiDung[]>('/users')
     ]);
 
-    // Optionally load users (admin only) and notifications
-    let users: NguoiDung[] = [];
-    let notifications: ThongBao[] = [];
-    try { users = await fetchApi<NguoiDung[]>('/users'); } catch {}
-    if (userId) {
-      try { notifications = await fetchApi<ThongBao[]>(`/notifications?userId=${userId}`); } catch {}
-    }
-
     store.initFromApi({
-      users, equipment, inventory, suppliers, departments,
-      notifications, requests, imports, exports, allocations, damageReports, importRequests
+      equipment,
+      inventory,
+      requests,
+      allocations,
+      users
     });
-
-    console.log('✅ Data loaded from API');
+    console.log('✅ All data loaded from API');
   } catch (err) {
     console.error('❌ Failed to load data from API:', err);
   }
