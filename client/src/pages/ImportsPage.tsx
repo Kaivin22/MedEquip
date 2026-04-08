@@ -124,7 +124,12 @@ export default function ImportsPage() {
     }
   };
 
-  const filtered = data.filter(d => d.maPhieu.toLowerCase().includes(search.toLowerCase()));
+  const filtered = data.filter(d => 
+    d.maPhieu.toLowerCase().includes(search.toLowerCase()) ||
+    (d as any).tenThietBi?.toLowerCase().includes(search.toLowerCase()) ||
+    ((d as any).tenNhaCungCap || suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap)?.toLowerCase().includes(search.toLowerCase()) ||
+    ((d as any).tenNhanVienKho || users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen)?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-4 animate-fade-in">
