@@ -212,11 +212,11 @@ INSERT INTO khoa VALUES
 ('K-005', 'Khoa Cấp cứu', 'Khoa Cấp cứu và hồi sức', TRUE, NOW(), NOW());
 
 INSERT INTO thiet_bi VALUES
-('TB-001', 'Máy đo huyết áp', 'Máy móc', 'Cái', 'Máy đo huyết áp tự động', 'NCC-001', 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-002', 'Ống nghe y khoa', 'Dụng cụ', 'Cái', 'Ống nghe chuyên khoa nội', 'NCC-001', 'https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-003', 'Máy siêu âm', 'Máy móc', 'Bộ', 'Máy siêu âm 4D', 'NCC-002', 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-004', 'Kim tiêm', 'Vật tư', 'Hộp', 'Kim tiêm 5ml vô trùng', 'NCC-003', 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-005', 'Máy đo SpO2', 'Máy móc', 'Cái', 'Máy đo nồng độ oxy máu', 'NCC-001', 'https://images.unsplash.com/photo-1585435557343-3b092031a831?w=400&h=300&fit=crop', TRUE, NOW(), NOW());
+('TB-001', 'Máy đo huyết áp', 'Máy móc', 'Cái', 'Máy đo huyết áp tự động', 'NCC-001', 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-002', 'Ống nghe y khoa', 'Dụng cụ', 'Cái', 'Ống nghe chuyên khoa nội', 'NCC-001', 'https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-003', 'Máy siêu âm', 'Máy móc', 'Bộ', 'Máy siêu âm 4D', 'NCC-002', 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-004', 'Kim tiêm', 'Vật tư', 'Hộp', 'Kim tiêm 5ml vô trùng', 'NCC-003', 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-005', 'Máy đo SpO2', 'Máy móc', 'Cái', 'Máy đo nồng độ oxy máu', 'NCC-001', 'https://images.unsplash.com/photo-1585435557343-3b092031a831?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW());
 
 INSERT INTO ton_kho VALUES
 ('TK-001', 'TB-001', 50, 2, 30, NOW()),

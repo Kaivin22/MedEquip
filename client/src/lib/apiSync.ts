@@ -6,7 +6,7 @@
 import { isMockMode, fetchApi } from '@/services/api';
 import { store, generateId } from './store';
 import { refreshData } from './dataLoader';
-import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole, PhieuYeuCauNhap } from '@/types';
+import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole, PhieuYeuCauNhap, PhieuTra } from '@/types';
 
 // ---- Users ----
 export async function apiCreateUser(data: { hoTen: string; email: string; matKhau: string; vaiTro: UserRole }) {
@@ -455,4 +455,55 @@ export async function apiMarkAllAsRead(userId: string) {
     return { success: true };
   }
   return fetchApi<any>('/notifications/read-all', { method: 'PUT', body: JSON.stringify({ userId }) });
+}
+
+// ---- Returns ----
+export async function apiCreateReturn(data: { maNguoiTra: string; maKhoa: string; chiTiet: { maThietBi: string; soLuongTra: number }[] }) {
+  if (isMockMode()) {
+    const maPhieu = generateId('PT');
+    const qrCode = `RETURN:${maPhieu}`;
+    const phieu: PhieuTra = {
+      maPhieu,
+      ...data,
+      trangThai: 'CHO_NHAN',
+      ngayTao: new Date().toISOString(),
+      qrCode,
+    };
+    const returns = store.getReturns();
+    returns.push(phieu);
+    store.setReturns(returns);
+    return { success: true, phieu: { ...phieu, qrCode } };
+  }
+  const result = await fetchApi<any>('/returns', { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) await refreshData('returns');
+  return result;
+}
+
+export async function apiAcceptReturn(data: { maPhieuTra: string; maNguoiNhan: string }) {
+  if (isMockMode()) {
+    const returns = store.getReturns();
+    const phieu = returns.find(r => r.maPhieu === data.maPhieuTra);
+    if (!phieu) return { success: false, message: 'Không tìm thấy phiếu trả.' };
+    if (phieu.trangThai !== 'CHO_NHAN') return { success: false, message: 'Phiếu này đã được xử lý.' };
+
+    // Update tồn kho: cộng lại số lượng trả về kho
+    const inv = store.getInventory();
+    for (const ct of phieu.chiTiet) {
+      const idx = inv.findIndex(i => i.maThietBi === ct.maThietBi);
+      if (idx >= 0) {
+        inv[idx].soLuongKho += ct.soLuongTra;
+        inv[idx].soLuongDangDung = Math.max(0, inv[idx].soLuongDangDung - ct.soLuongTra);
+        inv[idx].ngayCapNhat = new Date().toISOString();
+      }
+    }
+    store.setInventory(inv);
+    store.setReturns(returns.map(r => r.maPhieu === data.maPhieuTra ? { ...r, trangThai: 'DA_NHAN' as const } : r));
+    return { success: true };
+  }
+  const result = await fetchApi<any>('/returns/accept', { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) {
+    await refreshData('returns');
+    await refreshData('inventory');
+  }
+  return result;
 }
