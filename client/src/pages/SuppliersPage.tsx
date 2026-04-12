@@ -153,7 +153,7 @@ export default function SuppliersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Tìm nhà cung cấp..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
-        {canEdit && <Button onClick={openAdd} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Thêm NCC</Button>}
+        {/* Removed Thêm NCC button */}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/30">
@@ -181,7 +181,7 @@ export default function SuppliersPage() {
                     <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setViewing(s); setViewOpen(true); }}><Eye className="w-4 h-4" /></Button>
                       {canEdit && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}><Pencil className="w-4 h-4" /></Button>}
-                      {canEdit && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(s)}><Trash2 className="w-4 h-4" /></Button>}
+                      {/* Removed Delete button */}
                     </div>
                   </td>
                 </tr>

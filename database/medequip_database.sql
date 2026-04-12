@@ -75,19 +75,26 @@ CREATE TABLE ton_kho (
 CREATE TABLE phieu_yeu_cau (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_nguoi_yeu_cau VARCHAR(20) NOT NULL,
-    ma_thiet_bi VARCHAR(20) NOT NULL,
     ma_khoa VARCHAR(20) NOT NULL,
-    so_luong_yeu_cau INT NOT NULL,
     ly_do TEXT,
-    trang_thai ENUM('CHO_DUYET','DA_DUYET','TU_CHOI','DA_CAP_PHAT') DEFAULT 'CHO_DUYET',
+    trang_thai ENUM('CHO_DUYET','DA_DUYET','TU_CHOI','DA_CAP_PHAT','DA_TRA_DU') DEFAULT 'CHO_DUYET',
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
     ngay_duyet DATETIME NULL,
     nguoi_duyet VARCHAR(20) NULL,
     ly_do_tu_choi TEXT NULL,
     FOREIGN KEY (ma_nguoi_yeu_cau) REFERENCES nguoi_dung(ma_nguoi_dung),
-    FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi),
     FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa),
     FOREIGN KEY (nguoi_duyet) REFERENCES nguoi_dung(ma_nguoi_dung)
+);
+
+CREATE TABLE chi_tiet_yeu_cau (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ma_phieu_yeu_cau VARCHAR(30) NOT NULL,
+    ma_thiet_bi VARCHAR(20) NOT NULL,
+    so_luong_yeu_cau INT NOT NULL,
+    han_muon DATETIME NULL,
+    FOREIGN KEY (ma_phieu_yeu_cau) REFERENCES phieu_yeu_cau(ma_phieu),
+    FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
 
 -- 7. Bảng Phiếu cấp phát
@@ -108,7 +115,31 @@ CREATE TABLE chi_tiet_cap_phat (
     ma_phieu_cap_phat VARCHAR(30) NOT NULL,
     ma_thiet_bi VARCHAR(20) NOT NULL,
     so_luong INT NOT NULL,
-    FOREIGN KEY (ma_phieu_cap_phat) REFERENCES phieu_cap_phat(ma_phieu),
+     FOREIGN KEY (ma_phieu_cap_phat) REFERENCES phieu_cap_phat(ma_phieu),
+    FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
+);
+
+-- 7.5 Bảng Phiếu trả hàng
+CREATE TABLE phieu_tra_hang (
+    ma_phieu VARCHAR(30) PRIMARY KEY,
+    ma_nguoi_tra VARCHAR(20) NOT NULL,
+    ma_khoa VARCHAR(20) NOT NULL,
+    qr_code TEXT,
+    trang_thai ENUM('CHO_NHAN','DA_NHAN','TU_CHOI') DEFAULT 'CHO_NHAN',
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_nhan DATETIME NULL,
+    nguoi_nhan VARCHAR(20) NULL,
+    FOREIGN KEY (ma_nguoi_tra) REFERENCES nguoi_dung(ma_nguoi_dung),
+    FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa),
+    FOREIGN KEY (nguoi_nhan) REFERENCES nguoi_dung(ma_nguoi_dung)
+);
+
+CREATE TABLE chi_tiet_tra_hang (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ma_phieu_tra VARCHAR(30) NOT NULL,
+    ma_thiet_bi VARCHAR(20) NOT NULL,
+    so_luong_tra INT NOT NULL,
+    FOREIGN KEY (ma_phieu_tra) REFERENCES phieu_tra_hang(ma_phieu),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
 
@@ -212,11 +243,11 @@ INSERT INTO khoa VALUES
 ('K-005', 'Khoa Cấp cứu', 'Khoa Cấp cứu và hồi sức', TRUE, NOW(), NOW());
 
 INSERT INTO thiet_bi VALUES
-('TB-001', 'Máy đo huyết áp', 'Máy móc', 'Cái', 'Máy đo huyết áp tự động', 'NCC-001', 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-002', 'Ống nghe y khoa', 'Dụng cụ', 'Cái', 'Ống nghe chuyên khoa nội', 'NCC-001', 'https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-003', 'Máy siêu âm', 'Máy móc', 'Bộ', 'Máy siêu âm 4D', 'NCC-002', 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-004', 'Kim tiêm', 'Vật tư', 'Hộp', 'Kim tiêm 5ml vô trùng', 'NCC-003', 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400&h=300&fit=crop', TRUE, NOW(), NOW()),
-('TB-005', 'Máy đo SpO2', 'Máy móc', 'Cái', 'Máy đo nồng độ oxy máu', 'NCC-001', 'https://images.unsplash.com/photo-1585435557343-3b092031a831?w=400&h=300&fit=crop', TRUE, NOW(), NOW());
+('TB-001', 'Máy đo huyết áp', 'Máy móc', 'Cái', 'Máy đo huyết áp tự động', 'NCC-001', 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-002', 'Ống nghe y khoa', 'Dụng cụ', 'Cái', 'Ống nghe chuyên khoa nội', 'NCC-001', 'https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-003', 'Máy siêu âm', 'Máy móc', 'Bộ', 'Máy siêu âm 4D', 'NCC-002', 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-004', 'Kim tiêm', 'Vật tư', 'Hộp', 'Kim tiêm 5ml vô trùng', 'NCC-003', 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW()),
+('TB-005', 'Máy đo SpO2', 'Máy móc', 'Cái', 'Máy đo nồng độ oxy máu', 'NCC-001', 'https://images.unsplash.com/photo-1585435557343-3b092031a831?w=400&h=300&fit=crop', TRUE, FALSE, NOW(), NOW());
 
 INSERT INTO ton_kho VALUES
 ('TK-001', 'TB-001', 50, 2, 30, NOW()),
@@ -226,8 +257,12 @@ INSERT INTO ton_kho VALUES
 ('TK-005', 'TB-005', 30, 1, 20, NOW());
 
 INSERT INTO phieu_yeu_cau VALUES
-('YCCF-20260320-001', 'ND-004', 'TB-001', 'K-001', 5, 'Phục vụ khám bệnh thường quy', 'CHO_DUYET', NOW(), NULL, NULL, NULL),
-('YCCF-20260318-002', 'ND-004', 'TB-004', 'K-005', 50, 'Bổ sung vật tư tiêm chủng', 'DA_DUYET', '2026-03-18', '2026-03-19', 'ND-003', NULL);
+('YCCF-20260320-001', 'ND-004', 'K-001', 'Phục vụ khám bệnh thường quy', 'CHO_DUYET', NOW(), NULL, NULL, NULL),
+('YCCF-20260318-002', 'ND-004', 'K-005', 'Bổ sung vật tư tiêm chủng', 'DA_DUYET', '2026-03-18', '2026-03-19', 'ND-003', NULL);
+
+INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong_yeu_cau) VALUES
+('YCCF-20260320-001', 'TB-001', 5),
+('YCCF-20260318-002', 'TB-004', 50);
 
 INSERT INTO thong_bao VALUES
 ('TB-N-001', 'Phiếu yêu cầu mới', 'Có phiếu yêu cầu cấp phát mới từ NV Bệnh viện cần duyệt', 'info', 'ND-003', FALSE, NOW()),

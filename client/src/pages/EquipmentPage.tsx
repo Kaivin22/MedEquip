@@ -222,7 +222,8 @@ export default function EquipmentPage() {
                   <SelectContent>
                     <SelectItem value="Máy móc">Máy móc</SelectItem>
                     <SelectItem value="Dụng cụ">Dụng cụ</SelectItem>
-                    <SelectItem value="Vật tư">Vật tư</SelectItem>
+                    <SelectItem value="Vật tư tiêu hao">Vật tư tiêu hao</SelectItem>
+                    <SelectItem value="Vật tư tái sử dụng">Vật tư tái sử dụng</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

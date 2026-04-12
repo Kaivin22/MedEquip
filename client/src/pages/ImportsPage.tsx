@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { apiCreateImport, apiDeleteImport } from '@/lib/apiSync';
@@ -28,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ImportsPage() {
   const { user } = useAuth();
   const [data, setData] = useState(store.getImports());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -139,11 +140,8 @@ export default function ImportsPage() {
           <Input placeholder="Tìm phiếu nhập..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
         {canCreate && <Button onClick={() => { 
-          setForm({ maThietBi: '', maNhaCungCap: '', soLuongNhap: 1, ghiChu: '' }); 
-          setEquipmentSearch('');
-          setShowSuggestions(false);
-          setDialogOpen(true); 
-        }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu nhập</Button>}
+          toast({ title: 'Chưa hỗ trợ', description: 'Chức năng Import file Excel đang được phát triển.' });
+        }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Nhập file Excel</Button>}
       </div>
 
       <div className="p-3 rounded-lg bg-info/10 border border-info/20 text-sm text-info">
@@ -164,127 +162,116 @@ export default function ImportsPage() {
           </tr></thead>
           <tbody>
             {filtered.map(d => (
-              <tr key={d.maPhieu} className="border-b hover:bg-muted/30">
-                <td className="p-3 font-mono text-xs">{d.maPhieu}</td>
-                <td className="p-3">{(d as any).tenThietBi || equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
-                <td className="p-3">{suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap}</td>
-                <td className="p-3">{users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen}</td>
-                <td className="p-3 text-center font-medium">{d.soLuongNhap}</td>
-                <td className="p-3 text-center">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[(d as any).trangThai || 'DA_DUYET']}`}>
-                    {STATUS_MAP[(d as any).trangThai || 'DA_DUYET']}
-                  </span>
-                  {(d as any).trangThai === 'TU_CHOI' && (d as any).lyDoTuChoi && (
-                    <p className="text-xs text-destructive mt-1">Lý do: {(d as any).lyDoTuChoi}</p>
-                  )}
-                </td>
-                <td className="p-3 text-xs text-muted-foreground">{d.ngayNhap.slice(0, 10)}</td>
-                <td className="p-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    {canApprove && (d as any).trangThai === 'CHO_DUYET' && (
-                      <>
-                        <Button size="sm" variant="ghost" className="text-success hover:text-success hover:bg-success/10" onClick={() => handleApprove(d.maPhieu)}>
-                          <Check className="w-3.5 h-3.5 mr-1" /> Duyệt
+              <Fragment key={d.maPhieu}>
+                <tr 
+                  className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${expandedId === d.maPhieu ? 'bg-muted/50' : ''}`}
+                  onClick={() => setExpandedId(expandedId === d.maPhieu ? null : d.maPhieu)}
+                >
+                  <td className="p-3 font-mono text-xs">{d.maPhieu}</td>
+                  <td className="p-3">{(d as any).tenThietBi || equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
+                  <td className="p-3">{suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap}</td>
+                  <td className="p-3">{users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen}</td>
+                  <td className="p-3 text-center font-medium">{d.soLuongNhap}</td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[(d as any).trangThai || 'DA_DUYET']}`}>
+                      {STATUS_MAP[(d as any).trangThai || 'DA_DUYET']}
+                    </span>
+                  </td>
+                  <td className="p-3 text-xs text-muted-foreground">{d.ngayNhap.slice(0, 10)}</td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      {canApprove && (d as any).trangThai === 'CHO_DUYET' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-success hover:text-success hover:bg-success/10" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(d.maPhieu);
+                            }}
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" /> Duyệt
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRejectOpen(d.maPhieu);
+                            }}
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" /> Từ chối
+                          </Button>
+                        </>
+                      )}
+                      {canDelete && (
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(d.maPhieu);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleRejectOpen(d.maPhieu)}>
-                          <X className="w-3.5 h-3.5 mr-1" /> Từ chối
-                        </Button>
-                      </>
-                    )}
-                    {canDelete && (
-                      <Button size="icon" variant="ghost" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8" onClick={() => handleDelete(d.maPhieu)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                {expandedId === d.maPhieu && (
+                  <tr className="bg-muted/20">
+                    <td colSpan={8} className="p-4 animate-in slide-in-from-top-2 duration-200">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-background/50 p-4 rounded-lg border border-border/50 shadow-sm">
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            Ghi chú nhập kho
+                          </h4>
+                          <div className="text-sm bg-muted/30 p-3 rounded border border-border/50 min-h-[60px] whitespace-pre-wrap break-words">
+                            {d.ghiChu || <span className="text-muted-foreground italic">(Không có ghi chú)</span>}
+                          </div>
+                        </div>
+                        
+                        {((d as any).trangThai === 'TU_CHOI' || (d as any).lyDoTuChoi) && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+                              Lý do từ chối
+                            </h4>
+                            <div className="text-sm bg-destructive/5 text-destructive p-3 rounded border border-destructive/20 min-h-[60px] whitespace-pre-wrap break-words">
+                              {(d as any).lyDoTuChoi || <span className="italic">(Chưa có lý do chi tiết)</span>}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {(d as any).trangThai === 'DA_DUYET' && (d as any).nguoiDuyet && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                              Thông tin phê duyệt
+                            </h4>
+                            <div className="text-sm bg-success/5 text-success p-3 rounded border border-success/20">
+                              <p>Người duyệt: <span className="font-medium">{(d as any).nguoiDuyet}</span></p>
+                              {(d as any).ngayDuyet && <p>Ngày duyệt: <span className="font-medium">{(d as any).ngayDuyet.slice(0, 10)}</span></p>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
       {data.length === 0 && <div className="text-center py-12 text-muted-foreground">Chưa có phiếu nhập kho</div>}
 
-      {/* Dialog lập phiếu nhập */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Lập phiếu nhập kho</DialogTitle></DialogHeader>
-          <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
-            ⚠️ Phiếu sẽ ở trạng thái <strong>Chờ duyệt</strong>. Tồn kho chỉ được cập nhật sau khi Trưởng khoa / Admin phê duyệt.
-          </div>
-          <div className="space-y-4">
-            <div className="relative">
-              <Label>Tìm kiếm thiết bị *</Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Nhập tên hoặc mã thiết bị..." 
-                  className="pl-10"
-                  value={equipmentSearch}
-                  onChange={e => {
-                    setEquipmentSearch(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
-                />
-              </div>
-              
-              {showSuggestions && (equipmentSearch.length > 0 || equipment.length > 0) && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-200">
-                  {equipment
-                    .filter(e => e.trangThai && (
-                      e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) ||
-                      e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase())
-                    ))
-                    .map(e => (
-                      <div 
-                        key={e.maThietBi}
-                        className="flex flex-col p-2 hover:bg-accent cursor-pointer border-b last:border-0"
-                        onClick={() => {
-                          if (!e.maNhaCungCap) {
-                            toast({ title: 'Thiếu thông tin', description: 'Thiết bị này chưa được gán Nhà cung cấp. Vui lòng cập nhật thông tin thiết bị trước khi nhập.', variant: 'destructive' });
-                            return;
-                          }
-                          setForm(f => ({ ...f, maThietBi: e.maThietBi, maNhaCungCap: e.maNhaCungCap as string }));
-                          setEquipmentSearch(e.tenThietBi);
-                          setShowSuggestions(false);
-                        }}
-                      >
-                        <span className="font-medium text-sm">{e.tenThietBi}</span>
-                        <span className="text-xs text-muted-foreground">{e.maThietBi}</span>
-                      </div>
-                    ))}
-                  {equipment.filter(e => e.trangThai && (e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) || e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()))).length === 0 && (
-                    <div className="p-4 text-center text-sm text-muted-foreground">Không tìm thấy thiết bị</div>
-                  )}
-                </div>
-              )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Nhà cung cấp (Tự động)</Label>
-                <div className="mt-1 p-2 bg-muted/50 border rounded-md text-sm font-medium text-muted-foreground italic">
-                  {suppliers.find(s => s.maNhaCungCap === form.maNhaCungCap)?.tenNhaCungCap || '(Chưa chọn thiết bị)'}
-                </div>
-              </div>
-              <div>
-                <Label>Số lượng nhập *</Label>
-                <Input type="number" min={1} value={form.soLuongNhap} className="mt-1" onChange={e => {
-                  const val = parseInt(e.target.value) || 0;
-                  setForm(f => ({ ...f, soLuongNhap: val < 0 ? 0 : val }));
-                }} />
-              </div>
-            </div>
-
-            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} className="mt-1" onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate} disabled={!form.maThietBi} className="gradient-primary text-primary-foreground">Gửi yêu cầu nhập</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog từ chối */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>

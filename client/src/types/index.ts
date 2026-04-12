@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA' | 'NV_BV';
+export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA';
 
 export interface NguoiDung {
   maNguoiDung: string;
@@ -68,18 +68,44 @@ export interface PhieuYeuCauNhap {
   moTa?: string;
 }
 
+export interface ChiTietYeuCau {
+  id?: number;
+  maPhieuYeuCau: string;
+  maThietBi: string;
+  soLuongYeuCau: number;
+  hanMuon?: string;
+}
+
 export interface PhieuYeuCauCapPhat {
   maPhieu: string;
   maNguoiYeuCau: string;
-  maThietBi: string;
   maKhoa: string;
-  soLuongYeuCau: number;
   lyDo: string;
-  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_CAP_PHAT';
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_CAP_PHAT' | 'DA_TRA_DU';
   ngayTao: string;
   ngayDuyet?: string;
   nguoiDuyet?: string;
   lyDoTuChoi?: string;
+  chiTiet?: ChiTietYeuCau[];
+}
+
+export interface ChiTietTraHang {
+  id?: number;
+  maPhieuTra: string;
+  maThietBi: string;
+  soLuongTra: number;
+}
+
+export interface PhieuTraHang {
+  maPhieu: string;
+  maNguoiTra: string;
+  maKhoa: string;
+  qrCode?: string;
+  trangThai: 'CHO_NHAN' | 'DA_NHAN' | 'TU_CHOI';
+  ngayTao: string;
+  ngayNhan?: string;
+  nguoiNhan?: string;
+  chiTiet?: ChiTietTraHang[];
 }
 
 export interface PhieuCapPhat {
@@ -150,12 +176,10 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',
   NV_KHO: 'Nhân viên Kho',
   TRUONG_KHOA: 'Trưởng Khoa',
-  NV_BV: 'Nhân viên Bệnh viện',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
   ADMIN: 'bg-destructive/10 text-destructive',
   NV_KHO: 'bg-primary/10 text-primary',
   TRUONG_KHOA: 'bg-warning/10 text-warning',
-  NV_BV: 'bg-accent/10 text-accent',
 };

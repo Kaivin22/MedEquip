@@ -28,8 +28,8 @@ export async function getAllImports(req, res) {
       params.push(keyword, keyword, keyword, keyword);
     }
 
-    // Sort ASC (oldest first, newest at the bottom)
-    sql += " ORDER BY p.ngay_nhap ASC, p.ma_phieu ASC";
+    // Sort DESC (newest first)
+    sql += " ORDER BY p.ngay_nhap DESC, p.ma_phieu DESC";
     const [rows] = await pool.query(sql, params);
 
     const result = [];

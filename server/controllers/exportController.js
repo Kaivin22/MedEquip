@@ -35,7 +35,7 @@ export async function createExport(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { maNhanVienKho, maThietBi, soLuong, lyDoXuat, ghiChu, maKhoaNhan } = req.body;
+    const { maNhanVienKho, lyDoXuat, ghiChu, maKhoaNhan, chiTiet } = req.body;
     const id = "XK-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
 
     let validKhoa = null;
@@ -49,16 +49,19 @@ export async function createExport(req, res) {
       [id, maNhanVienKho || req.user.userId, validKhoa, lyDoXuat || "", ghiChu || ""]
     );
 
-    if (maThietBi && soLuong) {
-      const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [maThietBi]);
-      if (inv.length === 0 || inv[0].so_luong_kho < soLuong) {
-        await conn.rollback();
-        return res.json({ success: false, message: `Không đủ tồn kho. Hiện có: ${inv[0]?.so_luong_kho || 0}` });
+    if (chiTiet && chiTiet.length > 0) {
+      for (const item of chiTiet) {
+        if (!item.maThietBi || !item.soLuong) continue; // Skip invalid
+        const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [item.maThietBi]);
+        if (inv.length === 0 || inv[0].so_luong_kho < item.soLuong) {
+          await conn.rollback();
+          return res.json({ success: false, message: `Không đủ tồn kho thiết bị ${item.maThietBi}. Hiện có: ${inv[0]?.so_luong_kho || 0}` });
+        }
+        await conn.query(
+          "INSERT INTO chi_tiet_xuat_kho (ma_phieu_xuat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
+          [id, item.maThietBi, item.soLuong]
+        );
       }
-      await conn.query(
-        "INSERT INTO chi_tiet_xuat_kho (ma_phieu_xuat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
-        [id, maThietBi, soLuong]
-      );
     }
 
     await conn.commit();
@@ -90,6 +93,23 @@ export async function confirmExport(req, res) {
     await conn.query("UPDATE phieu_xuat_kho SET trang_thai = 'DA_XUAT' WHERE ma_phieu = ?", [maPhieu]);
     await conn.commit();
     res.json({ success: true });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  } finally {
+    conn.release();
+  }
+}
+export async function deleteExport(req, res) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const { id } = req.params;
+    await conn.query("DELETE FROM chi_tiet_xuat_kho WHERE ma_phieu_xuat = ?", [id]);
+    await conn.query("DELETE FROM phieu_xuat_kho WHERE ma_phieu = ?", [id]);
+    await conn.commit();
+    res.json({ success: true, message: "Đã xóa lịch sử xuất kho." });
   } catch (err) {
     await conn.rollback();
     console.error(err);

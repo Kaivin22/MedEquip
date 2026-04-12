@@ -13,7 +13,7 @@ import { apiCreateEquipment, apiUpdateEquipment, apiDeleteEquipment } from '@/li
 import { ThietBi } from '@/types';
 import ImportsPage from './ImportsPage';
 import ExportsPage from './ExportsPage';
-import ImportRequestsPage from './ImportRequestsPage';
+
 
 function StockView({ onRefresh }: { onRefresh: () => void }) {
   const [search, setSearch] = useState('');
@@ -323,7 +323,7 @@ export default function InventoryPage() {
       </div>
 
       <Tabs defaultValue="stock" className="w-full space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:max-w-2xl bg-muted/40 p-1 rounded-xl">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:max-w-2xl bg-muted/40 p-1 rounded-xl">
           <TabsTrigger value="stock" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Package className="w-4 h-4 mr-2" />
             Tồn kho
@@ -336,10 +336,7 @@ export default function InventoryPage() {
             <FileOutput className="w-4 h-4 mr-2" />
             Xuất kho
           </TabsTrigger>
-          <TabsTrigger value="requests" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <PackagePlus className="w-4 h-4 mr-2" />
-            YC nhập mới
-          </TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="stock" className="outline-none">
@@ -354,9 +351,7 @@ export default function InventoryPage() {
           <ExportsPage />
         </TabsContent>
 
-        <TabsContent value="requests" className="outline-none">
-          <ImportRequestsPage onRefresh={triggerRefresh} />
-        </TabsContent>
+
       </Tabs>
     </div>
   );

@@ -335,9 +335,16 @@ export async function apiDeleteImport(maPhieu: string) {
 }
 
 // ---- Exports ----
-export async function apiCreateExport(data: { maThietBi: string; soLuong: number; lyDoXuat: string; maNhanVienKho: string; ghiChu: string }) {
+export async function apiCreateExport(data: { lyDoXuat: string; maNhanVienKho: string; ghiChu: string; maKhoaNhan?: string; chiTiet: {maThietBi: string, soLuong: number}[] }) {
   if (isMockMode()) {
-    const phieu: PhieuXuatKho = { maPhieu: generateId('XK'), ...data, trangThai: 'DA_LAP', ngayXuat: new Date().toISOString() };
+    const phieu: PhieuXuatKho = { 
+       maPhieu: generateId('XK'), 
+       ...data, 
+       maThietBi: data.chiTiet[0]?.maThietBi || '', // fallback for types, not truly single item anymore
+       soLuong: data.chiTiet.reduce((sum, i) => sum + i.soLuong, 0),
+       trangThai: 'DA_LAP', 
+       ngayXuat: new Date().toISOString() 
+    };
     const exports = store.getExports();
     exports.push(phieu);
     store.setExports(exports);
@@ -374,27 +381,64 @@ export async function apiConfirmExport(maPhieu: string) {
   return result;
 }
 
-// ---- Allocations ----
-export async function apiCreateAllocation(data: { maPhieuYeuCau: string; maNhanVienKho: string; maThietBi: string; maNguoiMuon: string; maKhoa: string; soLuongCapPhat: number; ghiChu: string }) {
+export async function apiDeleteExport(maPhieu: string) {
   if (isMockMode()) {
-    const phieu: PhieuCapPhat = { maPhieu: generateId('CP'), ...data, ngayCapPhat: new Date().toISOString() };
+    store.setExports(store.getExports().filter(e => e.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/exports/${maPhieu}`, { method: 'DELETE' });
+  if (result.success) await refreshData('exports');
+  return result;
+}
+
+// ---- Allocations ----
+export async function apiCreateAllocation(data: { maPhieuYeuCau: string; maNhanVienKho: string; ghiChu: string }) {
+  if (isMockMode()) {
+    const requests = store.getRequests();
+    const req = requests.find(r => r.maPhieu === data.maPhieuYeuCau);
+    if (!req) return { success: false, message: 'Không tìm thấy phiếu yêu cầu' };
+
     const allocations = store.getAllocations();
-    allocations.push(phieu);
+    const inv = store.getInventory();
+    
+    // Validate all items first
+    for(const item of req.chiTiet || []) {
+      const idx = inv.findIndex(i => i.maThietBi === item.maThietBi);
+      if (idx < 0 || inv[idx].soLuongKho < item.soLuongYeuCau) {
+        return { success: false, message: `Kho không đủ thiết bị ${item.maThietBi}` };
+      }
+    }
+
+    // Process all items
+    for(const item of req.chiTiet || []) {
+       const phieu: PhieuCapPhat = { 
+         maPhieu: generateId('CP'), 
+         maPhieuYeuCau: req.maPhieu, 
+         maNhanVienKho: data.maNhanVienKho, 
+         maThietBi: item.maThietBi, 
+         maNguoiMuon: req.maNguoiYeuCau, 
+         maKhoa: req.maKhoa, 
+         soLuongCapPhat: item.soLuongYeuCau, 
+         ghiChu: data.ghiChu,
+         ngayCapPhat: new Date().toISOString() 
+       };
+       allocations.push(phieu);
+       
+       const idx = inv.findIndex(i => i.maThietBi === item.maThietBi);
+       if (idx >= 0) { 
+         inv[idx].soLuongKho -= item.soLuongYeuCau; 
+         inv[idx].soLuongDangDung += item.soLuongYeuCau; 
+         inv[idx].ngayCapNhat = new Date().toISOString(); 
+       }
+    }
+    
     store.setAllocations(allocations);
+    store.setInventory(inv);
     
     // Update Request status to DA_CAP_PHAT
-    const requests = store.getRequests();
     store.setRequests(requests.map(r => r.maPhieu === data.maPhieuYeuCau ? { ...r, trangThai: 'DA_CAP_PHAT' as const } : r));
-
-    const inv = store.getInventory();
-    const idx = inv.findIndex(i => i.maThietBi === data.maThietBi);
-    if (idx >= 0) { 
-      inv[idx].soLuongKho -= data.soLuongCapPhat; 
-      inv[idx].soLuongDangDung += data.soLuongCapPhat; 
-      inv[idx].ngayCapNhat = new Date().toISOString(); 
-      store.setInventory(inv); 
-    }
-    return { success: true, phieu };
+    
+    return { success: true };
   }
   const result = await fetchApi<any>('/allocations', { method: 'POST', body: JSON.stringify(data) });
   if (result.success) {
@@ -455,4 +499,54 @@ export async function apiMarkAllAsRead(userId: string) {
     return { success: true };
   }
   return fetchApi<any>('/notifications/read-all', { method: 'PUT', body: JSON.stringify({ userId }) });
+}
+
+// ---- Returns ----
+export async function apiCreateReturn(data: { maKhoa: string; maNguoiTra: string; chiTiet: {maThietBi: string, soLuongTra: number}[] }) {
+  if (isMockMode()) {
+    const maPhieu = generateId('PT');
+    const qrCode = `RETURN:${maPhieu}`;
+    const phieu: PhieuTraHang = {
+      maPhieu,
+      ...data,
+      trangThai: 'CHO_NHAN',
+      qrCode,
+      ngayTao: new Date().toISOString()
+    };
+    const returns = store.getReturns();
+    returns.push(phieu);
+    store.setReturns(returns);
+    return { success: true, phieu };
+  }
+  return fetchApi<any>('/returns', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiAcceptReturn(data: { maPhieuTra: string; maNguoiNhan: string; }) {
+  if (isMockMode()) {
+    const returns = store.getReturns();
+    const phieu = returns.find(r => r.maPhieu === data.maPhieuTra);
+    if (!phieu) return { success: false, message: 'Không tìm thấy phiếu trả hàng' };
+    if (phieu.trangThai !== 'CHO_NHAN') return { success: false, message: 'Phiếu này không thể nhận' };
+
+    // Update Inventory
+    const inv = store.getInventory();
+    for (const item of phieu.chiTiet || []) {
+      const idx = inv.findIndex(i => i.maThietBi === item.maThietBi);
+      if (idx >= 0) {
+         inv[idx].soLuongKho += item.soLuongTra;
+         // Giả sử lấy từ soLuongDangDung
+         inv[idx].soLuongDangDung = Math.max(0, inv[idx].soLuongDangDung - item.soLuongTra);
+         inv[idx].ngayCapNhat = new Date().toISOString();
+      }
+    }
+    store.setInventory(inv);
+
+    // Update Status
+    store.setReturns(returns.map(r => r.maPhieu === data.maPhieuTra ? {
+       ...r, trangThai: 'DA_NHAN' as const, ngayNhan: new Date().toISOString(), nguoiNhan: data.maNguoiNhan
+    } : r));
+
+    return { success: true };
+  }
+  return fetchApi<any>(`/returns/${data.maPhieuTra}/accept`, { method: 'PUT', body: JSON.stringify(data) });
 }

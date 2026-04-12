@@ -2,104 +2,124 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { apiCreateRequest, apiApproveRequest, apiCreateAllocation, apiDeleteRequest } from '@/lib/apiSync';
-import { PhieuYeuCauCapPhat } from '@/types';
+import { PhieuYeuCauCapPhat, ChiTietYeuCau } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Check, X, Eye, CheckCheck, Trash2, ChevronsUpDown } from 'lucide-react';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Search, Check, X, CheckCheck, Trash2, ShoppingCart, Plus, Minus } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 const STATUS_MAP = { 
   CHO_DUYET: 'Chờ duyệt', 
   DA_DUYET: 'Đã duyệt', 
   TU_CHOI: 'Từ chối',
-  DA_CAP_PHAT: 'Đã cấp phát'
+  DA_CAP_PHAT: 'Đã cấp phát',
+  DA_TRA_DU: 'Đã trả đủ'
 } as const;
 
 const STATUS_COLORS = { 
   CHO_DUYET: 'bg-warning/10 text-warning', 
   DA_DUYET: 'bg-success/10 text-success', 
   TU_CHOI: 'bg-destructive/10 text-destructive',
-  DA_CAP_PHAT: 'bg-indigo-100 text-indigo-700'
+  DA_CAP_PHAT: 'bg-indigo-100 text-indigo-700',
+  DA_TRA_DU: 'bg-muted text-muted-foreground'
 };
 
 export default function RequestsPage() {
   const { user } = useAuth();
   const [requests, setRequests] = useState(store.getRequests());
   const [search, setSearch] = useState('');
-  const [filterDate, setFilterDate] = useState('');
-  const [filterUser, setFilterUser] = useState('all');
-  const [filterEquip, setFilterEquip] = useState('all');
-  const [filterDept, setFilterDept] = useState('all');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
+  
   const [viewOpen, setViewOpen] = useState(false);
   const [viewing, setViewing] = useState<PhieuYeuCauCapPhat | null>(null);
+  
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cart, setCart] = useState<ChiTietYeuCau[]>([]);
+  const [reqReason, setReqReason] = useState('');
+
   const equipment = store.getEquipment();
   const departments = store.getDepartments();
   const users = store.getUsers();
   const inventory = store.getInventory();
 
-  const canCreate = user?.vaiTro === 'NV_BV' || user?.vaiTro === 'ADMIN';
   const canApprove = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
   const canAllocate = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'NV_KHO';
+  const isTruongKhoa = user?.vaiTro === 'TRUONG_KHOA';
 
-  const [form, setForm] = useState({ maThietBi: '', maKhoa: '', soLuongYeuCau: 1, lyDo: '' });
+  const inventoryAvailable = useMemo(() => {
+    return inventory.filter(i => i.soLuongKho > 0).map(i => {
+      const tb = equipment.find(e => e.maThietBi === i.maThietBi);
+      return { ...i, tenThietBi: tb?.tenThietBi || i.maThietBi, loaiThietBi: tb?.loaiThietBi };
+    }).filter(i => i.tenThietBi.toLowerCase().includes(search.toLowerCase()));
+  }, [inventory, equipment, search]);
 
-  const filtered = useMemo(() => {
+  const filteredRequests = useMemo(() => {
     let list = requests;
-    if (user?.vaiTro === 'NV_BV') list = list.filter(r => r.maNguoiYeuCau === user.maNguoiDung);
-    
-    return list.filter(r => {
-      const matchSearch = r.maPhieu.toLowerCase().includes(search.toLowerCase());
-      const matchDate = !filterDate || r.ngayTao.startsWith(filterDate);
-      const matchUser = filterUser === 'all' || r.maNguoiYeuCau === filterUser;
-      const matchEquip = filterEquip === 'all' || r.maThietBi === filterEquip;
-      const matchDept = filterDept === 'all' || r.maKhoa === filterDept;
-      
-      return matchSearch && matchDate && matchUser && matchEquip && matchDept;
-    });
-  }, [requests, search, user, filterDate, filterUser, filterEquip, filterDept]);
+    if (isTruongKhoa) list = list.filter(r => r.maNguoiYeuCau === user.maNguoiDung);
+    return list.filter(r => r.maPhieu.toLowerCase().includes(search.toLowerCase()));
+  }, [requests, search, isTruongKhoa, user]);
 
-  const addNotification = (tieuDe: string, noiDung: string, loai: 'info' | 'success' | 'warning' | 'error', nguoiNhan: string) => {
-    const notifs = store.getNotifications();
-    const localId = 'TB-N-' + Date.now().toString(36);
-    notifs.push({ id: localId, tieuDe, noiDung, loai, nguoiNhan, daDoc: false, ngayTao: new Date().toISOString() });
-    store.setNotifications(notifs);
+  const addToCart = (maThietBi: string) => {
+    setCart(prev => {
+      const exists = prev.find(p => p.maThietBi === maThietBi);
+      if (exists) return prev.map(p => p.maThietBi === maThietBi ? { ...p, soLuongYeuCau: p.soLuongYeuCau + 1 } : p);
+      return [...prev, { maPhieuYeuCau: '', maThietBi, soLuongYeuCau: 1, hanMuon: '' }];
+    });
+    toast({ title: 'Đã thêm', description: 'Đã thêm thiết bị vào phiếu chờ.' });
   };
 
-  const handleCreate = async () => {
-    if (!form.maThietBi || !form.maKhoa || !form.lyDo) {
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin', variant: 'destructive' }); return;
+  const updateCartItem = (maThietBi: string, field: string, value: any) => {
+    setCart(prev => prev.map(p => p.maThietBi === maThietBi ? { ...p, [field]: value } : p));
+  };
+
+  const removeCartItem = (maThietBi: string) => {
+    setCart(prev => prev.filter(p => p.maThietBi !== maThietBi));
+  };
+
+  const submitCart = async () => {
+    if (!reqReason) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập lý do cấp phát', variant: 'destructive' }); return;
     }
-    if (form.soLuongYeuCau < 1) {
-      toast({ title: 'Lỗi', description: 'Số lượng phải lớn hơn 0', variant: 'destructive' }); return;
+    if (cart.length === 0) {
+      toast({ title: 'Lỗi', description: 'Giỏ hàng trống', variant: 'destructive' }); return;
     }
-    // Kiểm tra số lượng yêu cầu không vượt quá kho hiện có
-    const invItem = inventory.find(i => i.maThietBi === form.maThietBi);
-    if (invItem && form.soLuongYeuCau > invItem.soLuongKho) {
-      toast({ title: 'Quá số lượng kho hiện có', description: `Số lượng yêu cầu (${form.soLuongYeuCau}) vượt quá số lượng trong kho (${invItem.soLuongKho}).`, variant: 'destructive' }); return;
+    // validate quantity
+    for(const item of cart) {
+      const inv = inventory.find(i => i.maThietBi === item.maThietBi);
+      if(!inv || item.soLuongYeuCau > inv.soLuongKho || item.soLuongYeuCau < 1) {
+         toast({ title: 'Lỗi số lượng', description: `Sô lượng yêu cầu không hợp lệ cho thiết bị ${item.maThietBi}`, variant: 'destructive' }); return;
+      }
     }
-    if (!invItem) {
-      toast({ title: 'Lỗi', description: 'Thiết bị chưa có trong kho', variant: 'destructive' }); return;
-    }
+
     try {
-      const result = await apiCreateRequest({ maNguoiYeuCau: user!.maNguoiDung, ...form });
+      const maKhoa = departments.find(k => k.tenKhoa.includes(user?.vaiTro || 'Khoa Nội'))?.maKhoa || departments[0].maKhoa;
+      
+      const payload = {
+        maNguoiYeuCau: user!.maNguoiDung,
+        maKhoa,
+        lyDo: reqReason,
+        chiTiet: cart
+      };
+
+      const result = await apiCreateRequest(payload);
       if (result.success) {
         setRequests(store.getRequests());
-        setDialogOpen(false);
-        toast({ title: 'Thành công', description: `Đã tạo phiếu yêu cầu` });
+        setCartOpen(false);
+        setCart([]);
+        setReqReason('');
+        toast({ title: 'Thành công', description: 'Đã gửi yêu cầu cấp phát' });
       } else {
-        toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
+        toast({ title: 'Lỗi', description: result.message || 'Có lỗi', variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    } catch(err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -108,44 +128,16 @@ export default function RequestsPage() {
       const result = await apiApproveRequest(maPhieu, true);
       if (result.success) {
         setRequests(store.getRequests());
-        toast({ title: 'Đã phê duyệt' });
+        toast({ title: 'Đã duyệt' });
       } else {
-        toast({ title: 'Lỗi', description: result.message || 'Duyệt thất bại', variant: 'destructive' });
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
-    }
-  };
-
-  const handleAllocate = async (r: PhieuYeuCauCapPhat) => {
-    if (!window.confirm('Bạn có muốn in phiếu hay không?')) return;
-    
-    try {
-      const result = await apiCreateAllocation({
-        maPhieuYeuCau: r.maPhieu,
-        maNhanVienKho: user!.maNguoiDung,
-        maThietBi: r.maThietBi,
-        maNguoiMuon: r.maNguoiYeuCau,
-        maKhoa: r.maKhoa,
-        soLuongCapPhat: r.soLuongYeuCau,
-        ghiChu: 'Cấp phát trực tiếp từ yêu cầu'
-      });
-
-      if (result.success) {
-        setRequests(store.getRequests());
-        toast({ title: 'Thành công', description: 'Đã cấp phát thiết bị và cập nhật tồn kho' });
-      } else {
-        toast({ title: 'Lỗi', description: result.message || 'Cấp phát thất bại', variant: 'destructive' });
-      }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    } catch(err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim()) {
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập lý do từ chối', variant: 'destructive' }); return;
-    }
     try {
       const result = await apiApproveRequest(rejectingId, false, rejectReason);
       if (result.success) {
@@ -153,142 +145,146 @@ export default function RequestsPage() {
         setRejectOpen(false);
         toast({ title: 'Đã từ chối' });
       } else {
-        toast({ title: 'Lỗi', description: result.message || 'Thao tác thất bại', variant: 'destructive' });
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    } catch(err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleAllocate = async (r: PhieuYeuCauCapPhat) => {
+    if (!window.confirm('Xác nhận cấp phát toàn bộ thiết bị trong yêu cầu?')) return;
+    try {
+      const result = await apiCreateAllocation({
+        maPhieuYeuCau: r.maPhieu,
+        maNhanVienKho: user!.maNguoiDung,
+        ghiChu: 'Cấp phát theo phiếu yêu cầu'
+      });
+      if (result.success) {
+        setRequests(store.getRequests());
+        toast({ title: 'Thành công', description: 'Đã xuất kho toàn bộ thiết bị yêu cầu.' });
+        setViewOpen(false);
+      } else {
+         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch(err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
   const handleDelete = async (maPhieu: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa phiếu yêu cầu ${maPhieu}?`)) return;
+    if (!window.confirm('Bạn có chắc muốn xóa yêu cầu này?')) return;
     try {
-      const result = await apiDeleteRequest(maPhieu);
-      if (result.success) {
+      const res = await apiDeleteRequest(maPhieu);
+      if (res.success) {
         setRequests(store.getRequests());
-        toast({ title: 'Đã xóa', description: `Đã xóa phiếu yêu cầu ${maPhieu}` });
-        if (viewing?.maPhieu === maPhieu) setViewOpen(false);
+        toast({ title: 'Đã xóa' });
       } else {
-        toast({ title: 'Lỗi', description: result.message || 'Xóa thất bại', variant: 'destructive' });
+        toast({ title: 'Lỗi', description: res.message, variant: 'destructive' });
       }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    } catch(err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="p-4 bg-card rounded-xl border border-border/50 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
-            <div className="relative">
+    <div className="space-y-4 animate-fade-in relative pb-20">
+      
+      {/* TRƯỞNG KHOA VIEW - SHOPPING CART */}
+      {isTruongKhoa && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Danh mục thiết bị sẵn sàng cấp phát</h2>
+            <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Mã phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+              <Input placeholder="Tìm thiết bị..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
             </div>
-            
-            <Input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-            
-            <SearchableSelect 
-              options={[{ value: 'all', label: 'Tất cả người yêu cầu' }, ...users.map(u => ({ value: u.maNguoiDung, label: u.hoTen }))]} 
-              value={filterUser} 
-              onValueChange={setFilterUser} 
-              placeholder="Người yêu cầu"
-            />
-            
-            <SearchableSelect 
-              options={[{ value: 'all', label: 'Tất cả thiết bị' }, ...equipment.map(e => ({ value: e.maThietBi, label: e.tenThietBi }))]} 
-              value={filterEquip} 
-              onValueChange={setFilterEquip} 
-              placeholder="Thiết bị"
-            />
-            
-            <SearchableSelect 
-              options={[{ value: 'all', label: 'Tất cả khoa' }, ...departments.map(k => ({ value: k.maKhoa, label: k.tenKhoa }))]} 
-              value={filterDept} 
-              onValueChange={setFilterDept} 
-              placeholder="Khoa"
-            />
           </div>
           
-          <div className="flex gap-2 w-full lg:w-auto">
-            {(search || filterDate || filterUser !== 'all' || filterEquip !== 'all' || filterDept !== 'all') && (
-              <Button variant="outline" onClick={() => { setSearch(''); setFilterDate(''); setFilterUser('all'); setFilterEquip('all'); setFilterDept('all'); }}>
-                Xóa lọc
-              </Button>
-            )}
-            {canCreate && (
-              <Button onClick={() => { setForm({ maThietBi: '', maKhoa: '', soLuongYeuCau: 1, lyDo: '' }); setDialogOpen(true); }} className="gradient-primary text-primary-foreground whitespace-nowrap">
-                <Plus className="w-4 h-4 mr-2" /> Tạo phiếu
-              </Button>
-            )}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {inventoryAvailable.map(inv => (
+              <Card key={inv.maThietBi} className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4 flex flex-col items-center text-center">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-3">
+                    <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-primary to-primary/50">
+                      {inv.soLuongKho}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-sm line-clamp-2 min-h-[40px]">{inv.tenThietBi}</h3>
+                  <p className="text-xs text-muted-foreground my-2">{inv.loaiThietBi || '—'}</p>
+                  <Button size="sm" className="w-full mt-auto" onClick={() => addToCart(inv.maThietBi)}>
+                    <Plus className="w-4 h-4 mr-1" /> Thêm vào phiếu
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+            {inventoryAvailable.length === 0 && <div className="col-span-full text-center py-12 text-muted-foreground">Không có thiết bị nào trong kho</div>}
           </div>
-        </div>
-      </div>
 
-      <div className="overflow-x-auto">
+          {/* Floating Cart Button */}
+          {cart.length > 0 && (
+            <button 
+              onClick={() => setCartOpen(true)}
+              className="fixed bottom-8 right-8 w-16 h-16 bg-primary rounded-full shadow-lg flex items-center justify-center hover:scale-105 transition-transform z-50 text-primary-foreground group"
+            >
+              <ShoppingCart className="w-6 h-6" />
+              <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm border-2 border-background">
+                {cart.length}
+              </span>
+            </button>
+          )}
+
+          <hr className="my-8" />
+          <h2 className="text-xl font-bold">Lịch sử yêu cầu của Khoa</h2>
+        </div>
+      )}
+
+      {/* ADMIN & NV KHO VIEW - TABULAR */}
+      {!isTruongKhoa && (
+         <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Danh sách yêu cầu cấp phát</h2>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Tìm mã phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+         </div>
+      )}
+
+      {/* COMMON TABLE VIEWER */}
+      <div className="overflow-x-auto bg-card rounded-lg border shadow-sm">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-muted/50">
-            <th className="text-left p-3 font-medium text-muted-foreground">Mã phiếu</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Người yêu cầu</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Thiết bị</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Mã YC</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Người YC</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Khoa</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">SL</th>
+            <th className="text-center p-3 font-medium text-muted-foreground">Số lượng TB</th>
             <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
-            {canApprove && <th className="text-center p-3 font-medium text-muted-foreground">Duyệt YC</th>}
-            <th className="text-center p-3 font-medium text-muted-foreground">Cấp phát</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Ngày tạo</th>
-            {user?.vaiTro === 'ADMIN' && <th className="text-center p-3 font-medium text-muted-foreground">Xóa</th>}
+            {!isTruongKhoa && <th className="text-center p-3 font-medium text-muted-foreground">Thao tác</th>}
           </tr></thead>
           <tbody>
-            {filtered.map(r => {
-              const tb = equipment.find(e => e.maThietBi === r.maThietBi);
+            {filteredRequests.map(r => {
               const khoa = departments.find(k => k.maKhoa === r.maKhoa);
               const nguoi = users.find(u => u.maNguoiDung === r.maNguoiYeuCau);
               return (
-                <tr key={r.maPhieu} className="border-b hover:bg-muted/50 transition-colors cursor-pointer group" onClick={() => { setViewing(r); setViewOpen(true); }}>
-                  <td className="p-3 font-mono text-xs">
-                    <span className="text-primary font-medium group-hover:underline">
-                      {r.maPhieu}
-                    </span>
-                  </td>
+                <tr key={r.maPhieu} className="border-b hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => { setViewing(r); setViewOpen(true); }}>
+                  <td className="p-3 font-mono text-xs text-primary font-medium">{r.maPhieu}</td>
                   <td className="p-3">{nguoi?.hoTen || '-'}</td>
-                  <td className="p-3">{tb?.tenThietBi || '-'}</td>
                   <td className="p-3">{khoa?.tenKhoa || '-'}</td>
-                  <td className="p-3 text-center font-medium">{r.soLuongYeuCau}</td>
+                  <td className="p-3 text-center">{r.chiTiet?.length || 0}</td>
                   <td className="p-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.trangThai]}`}>
+                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.trangThai]}`}>
                       {STATUS_MAP[r.trangThai]}
                     </span>
                   </td>
-                  {canApprove && (
+                  <td className="p-3 text-xs text-muted-foreground">{r.ngayTao.slice(0,10)}</td>
+                  {!isTruongKhoa && (
                     <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
-                      {r.trangThai === 'CHO_DUYET' ? (
-                        <div className="flex justify-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:bg-success/20" onClick={() => handleApprove(r.maPhieu)}>
-                            <Check className="w-4 h-4" />
+                       {user?.vaiTro === 'ADMIN' && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(r.maPhieu)}>
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/20" onClick={() => { setRejectingId(r.maPhieu); setRejectReason(''); setRejectOpen(true); }}>
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/30">—</span>
-                      )}
-                    </td>
-                  )}
-                  <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
-                    {r.trangThai === 'DA_CAP_PHAT' ? (
-                      <div className="flex justify-center"><div className="bg-emerald-100 text-emerald-700 p-1 rounded-full border border-emerald-200"><CheckCheck className="w-4 h-4" /></div></div>
-                    ) : r.trangThai === 'DA_DUYET' && canAllocate ? (
-                      <div className="flex justify-center"><Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/20" onClick={() => handleAllocate(r)}><Check className="w-4 h-4" /></Button></div>
-                    ) : <span className="text-muted-foreground/30">—</span>}
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground">{r.ngayTao.slice(0, 10)}</td>
-                  {user?.vaiTro === 'ADMIN' && (
-                    <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(r.maPhieu)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                       )}
                     </td>
                   )}
                 </tr>
@@ -296,108 +292,132 @@ export default function RequestsPage() {
             })}
           </tbody>
         </table>
+        {filteredRequests.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có dữ liệu yêu cầu</div>}
       </div>
-      {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có phiếu yêu cầu</div>}
 
-      {/* Create Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Tạo phiếu yêu cầu cấp phát</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Thiết bị *</Label>
-              <SearchableSelect 
-                options={equipment.filter(e => e.trangThai).map(e => ({ value: e.maThietBi, label: e.tenThietBi }))} 
-                value={form.maThietBi} 
-                onValueChange={v => setForm(f => ({ ...f, maThietBi: v }))} 
-                placeholder="Chọn thiết bị..."
-              />
-            </div>
-            <div>
-              <Label>Khoa *</Label>
-              <SearchableSelect 
-                options={departments.filter(k => k.trangThai).map(k => ({ value: k.maKhoa, label: k.tenKhoa }))} 
-                value={form.maKhoa} 
-                onValueChange={v => setForm(f => ({ ...f, maKhoa: v }))} 
-                placeholder="Chọn khoa..."
-              />
-            </div>
-            <div>
-              <Label>Số lượng * {form.maThietBi && (() => {
-                const inv = inventory.find(i => i.maThietBi === form.maThietBi);
-                return inv ? <span className="text-xs text-muted-foreground">(Trong kho: {inv.soLuongKho})</span> : null;
-              })()}</Label>
-              <Input type="number" min={1} value={form.soLuongYeuCau} onChange={e => {
-                const val = parseInt(e.target.value) || 0;
-                setForm(f => ({ ...f, soLuongYeuCau: val < 0 ? 0 : val }));
-              }} />
-            </div>
-            <div><Label>Lý do *</Label><Textarea value={form.lyDo} onChange={e => setForm(f => ({ ...f, lyDo: e.target.value }))} /></div>
+      {/* CHI TIẾT YÊU CẦU DIALOG */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader><DialogTitle>Chi tiết Phiếu Yêu Cầu: {viewing?.maPhieu}</DialogTitle></DialogHeader>
+          {viewing && (
+             <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm bg-muted/40 p-4 rounded-lg">
+                  <p><span className="text-muted-foreground">Khoa yêu cầu:</span> {departments.find(k => k.maKhoa === viewing.maKhoa)?.tenKhoa}</p>
+                  <p><span className="text-muted-foreground">Người tạo:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen}</p>
+                  <p className="col-span-2"><span className="text-muted-foreground">Lý do:</span> {viewing.lyDo}</p>
+                  <p><span className="text-muted-foreground">Trạng thái:</span> <strong className={STATUS_COLORS[viewing.trangThai]}>{STATUS_MAP[viewing.trangThai]}</strong></p>
+                </div>
+
+                <div className="font-semibold text-sm">Danh sách thiết bị:</div>
+                <div className="border rounded-md overflow-hidden max-h-[40vh] overflow-y-auto">
+                   <table className="w-full text-sm">
+                     <thead className="bg-muted sticky top-0"><tr>
+                        <th className="p-2 text-left">Mã TB</th>
+                        <th className="p-2 text-left">Tên TB</th>
+                        <th className="p-2 text-center">SL Yêu cầu</th>
+                        <th className="p-2 text-left">Hạn mượn</th>
+                     </tr></thead>
+                     <tbody>
+                       {viewing.chiTiet?.map((item, idx) => {
+                         const tb = equipment.find(e => e.maThietBi === item.maThietBi);
+                         return (
+                           <tr key={idx} className="border-t">
+                              <td className="p-2 text-xs font-mono">{item.maThietBi}</td>
+                              <td className="p-2">{tb?.tenThietBi}</td>
+                              <td className="p-2 text-center font-bold text-primary">{item.soLuongYeuCau}</td>
+                              <td className="p-2 text-xs text-muted-foreground">{item.hanMuon?.slice(0, 10) || 'Không'}</td>
+                           </tr>
+                         )
+                       })}
+                     </tbody>
+                   </table>
+                </div>
+
+                {!isTruongKhoa && viewing.trangThai === 'CHO_DUYET' && user?.vaiTro==='ADMIN' && (
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button variant="outline" className="text-destructive hover:bg-destructive/10" onClick={() => { setRejectingId(viewing.maPhieu); setRejectOpen(true); }}>Từ chối</Button>
+                    <Button className="bg-success hover:bg-success/90" onClick={() => handleApprove(viewing.maPhieu)}>Duyệt phiếu</Button>
+                  </div>
+                )}
+                
+                {viewing.trangThai === 'DA_DUYET' && canAllocate && (
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => handleAllocate(viewing)}>
+                       Tiến hành Xuất kho (Cấp phát)
+                    </Button>
+                  </div>
+                )}
+             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* GIỎ HÀNG DIALOG */}
+      <Dialog open={cartOpen} onOpenChange={setCartOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader><DialogTitle>Phiếu yêu cầu chờ tạo</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+             <div className="max-h-[50vh] overflow-y-auto pr-2 space-y-3">
+               {cart.map((item) => {
+                 const tb = equipment.find(e => e.maThietBi === item.maThietBi);
+                 const inv = inventory.find(i => i.maThietBi === item.maThietBi);
+                 return (
+                   <div key={item.maThietBi} className="flex flex-col sm:flex-row gap-4 p-3 border rounded-lg bg-card shadow-sm items-start sm:items-center">
+                     <div className="flex-1">
+                        <p className="font-semibold">{tb?.tenThietBi}</p>
+                        <p className="text-xs text-muted-foreground">Tồn kho hiện tại: {inv?.soLuongKho}</p>
+                     </div>
+                     <div className="flex gap-4 items-end flex-wrap sm:flex-nowrap">
+                       <div>
+                         <Label className="text-xs">Số lượng</Label>
+                         <Input 
+                            type="number" min={1} max={inv?.soLuongKho} 
+                            value={item.soLuongYeuCau} 
+                            onChange={e => updateCartItem(item.maThietBi, 'soLuongYeuCau', parseInt(e.target.value)||1)} 
+                            className="w-24 mt-1"
+                         />
+                       </div>
+                       {tb?.loaiThietBi === 'Vật tư tái sử dụng' || tb?.loaiThietBi === 'Máy móc' ? (
+                          <div>
+                            <Label className="text-xs">Hạn mượn tối đa</Label>
+                            <Input 
+                                type="date" 
+                                value={item.hanMuon} 
+                                onChange={e => updateCartItem(item.maThietBi, 'hanMuon', e.target.value)} 
+                                className="w-40 mt-1"
+                            />
+                          </div>
+                       ) : null}
+                       <Button variant="ghost" size="icon" className="text-destructive mt-auto" onClick={() => removeCartItem(item.maThietBi)}>
+                         <Trash2 className="w-4 h-4" />
+                       </Button>
+                     </div>
+                   </div>
+                 )
+               })}
+             </div>
+             
+             <div className="pt-4 border-t">
+               <Label>Lý do cấp phát tổng thể *</Label>
+               <Textarea placeholder="Vd: Cấp phát phục vụ đợt khám sức khỏe ngoại viện" value={reqReason} onChange={e => setReqReason(e.target.value)} className="mt-2" />
+             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate} className="gradient-primary text-primary-foreground">Tạo phiếu</Button>
+             <Button variant="outline" onClick={() => setCartOpen(false)}>Hủy</Button>
+             <Button onClick={submitCart} className="gradient-primary text-primary-foreground">Gửi Yêu Cầu</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
+      {/* REJECT DIALOG */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Từ chối phiếu</DialogTitle></DialogHeader>
-          <div><Label>Lý do từ chối *</Label><Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} /></div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Hủy</Button>
-            <Button variant="destructive" onClick={handleReject}>Từ chối</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Dialog */}
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Chi tiết phiếu yêu cầu</DialogTitle></DialogHeader>
-          {viewing && (
-            <div className="space-y-4">
-              <div className="space-y-2 text-sm">
-                <p><span className="text-muted-foreground">Mã phiếu:</span> <strong>{viewing.maPhieu}</strong></p>
-                <p><span className="text-muted-foreground">Người yêu cầu:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen}</p>
-                <p><span className="text-muted-foreground">Thiết bị:</span> {equipment.find(e => e.maThietBi === viewing.maThietBi)?.tenThietBi}</p>
-                <p><span className="text-muted-foreground">Khoa:</span> {departments.find(k => k.maKhoa === viewing.maKhoa)?.tenKhoa}</p>
-                <p><span className="text-muted-foreground">Số lượng:</span> {viewing.soLuongYeuCau}</p>
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1">Lý do cấp phát:</p>
-                  <div className="bg-muted p-3 rounded-md text-foreground italic border-l-4 border-primary break-all whitespace-pre-wrap">
-                    {viewing.lyDo || 'Không có lý do chi tiết'}
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t space-y-1">
-                  <p><span className="text-muted-foreground">Trạng thái:</span> <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[viewing.trangThai]}`}>{STATUS_MAP[viewing.trangThai]}</span></p>
-                  {viewing.ngayDuyet && <p><span className="text-muted-foreground">Ngày duyệt:</span> {viewing.ngayDuyet.slice(0, 10)}</p>}
-                  {viewing.nguoiDuyet && <p><span className="text-muted-foreground">Người duyệt:</span> {users.find(u => u.maNguoiDung === viewing.nguoiDuyet)?.hoTen || viewing.nguoiDuyet}</p>}
-                  {viewing.lyDoTuChoi && (
-                    <div className="pt-2 border-t mt-2">
-                       <p className="text-xs uppercase tracking-wider font-semibold text-destructive mb-1">Lý do từ chối:</p>
-                       <div className="bg-rose-50 p-2 rounded text-rose-700 italic break-all whitespace-pre-wrap text-sm border-l-4 border-rose-400">
-                         {viewing.lyDoTuChoi}
-                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {canApprove && viewing.trangThai === 'CHO_DUYET' && (
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button className="flex-1 bg-success hover:bg-success/90" onClick={() => { handleApprove(viewing.maPhieu); setViewOpen(false); }}>
-                    <Check className="w-4 h-4 mr-2" /> Phê duyệt
-                  </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => { setRejectingId(viewing.maPhieu); setRejectReason(''); setRejectOpen(true); setViewOpen(false); }}>
-                    <X className="w-4 h-4 mr-2" /> Từ chối
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+           <DialogHeader><DialogTitle>Lý do từ chối</DialogTitle></DialogHeader>
+           <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+           <DialogFooter>
+             <Button variant="outline" onClick={() => setRejectOpen(false)}>Hủy</Button>
+             <Button variant="destructive" onClick={handleReject}>Từ chối</Button>
+           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
