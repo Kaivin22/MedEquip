@@ -13,7 +13,7 @@ import {
 
 export type PageKey =
   | 'dashboard' | 'inventory' | 'suppliers' | 'departments'
-  | 'requests' | 'users' | 'notifications'
+  | 'requests' | 'returns' | 'users' | 'notifications'
   | 'profile' | 'reports';
 
 interface NavItem {
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'NV_BV', 'TRUONG_KHOA', 'NV_KHO'] },
+  { key: 'returns', label: 'Trả thiết bị', icon: <PackagePlus className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'reports', label: 'Báo cáo thống kê', icon: <BarChart3 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'users', label: 'Quản lý Tài khoản', icon: <Users className="w-5 h-5" />, roles: ['ADMIN'] },
   { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },

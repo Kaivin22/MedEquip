@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateDepartment, apiUpdateDepartment } from '@/lib/apiSync';
+import { apiCreateDepartment, apiUpdateDepartment, apiDeleteDepartment } from '@/lib/apiSync';
 import { Khoa } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,28 +19,56 @@ export default function DepartmentsPage() {
   const [editing, setEditing] = useState<Khoa | null>(null);
   const canEdit = user?.vaiTro === 'ADMIN';
 
-  const [form, setForm] = useState({ tenKhoa: '', moTa: '' });
-  const filtered = useMemo(() => data.filter(k => k.tenKhoa.toLowerCase().includes(search.toLowerCase())), [data, search]);
+  const [form, setForm] = useState({ tenKhoa: '', moTa: '', trangThai: true });
+  const filtered = useMemo(() => data.filter(k => 
+    k.tenKhoa.toLowerCase().includes(search.toLowerCase()) || 
+    k.maKhoa.toLowerCase().includes(search.toLowerCase()) ||
+    (k.moTa && k.moTa.toLowerCase().includes(search.toLowerCase()))
+  ), [data, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ tenKhoa: '', moTa: '' }); setDialogOpen(true); };
-  const openEdit = (k: Khoa) => { setEditing(k); setForm({ tenKhoa: k.tenKhoa, moTa: k.moTa }); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ tenKhoa: '', moTa: '', trangThai: true }); setDialogOpen(true); };
+  const openEdit = (k: Khoa) => { setEditing(k); setForm({ tenKhoa: k.tenKhoa, moTa: k.moTa, trangThai: k.trangThai }); setDialogOpen(true); };
 
-  const handleSave = () => {
-    if (!form.tenKhoa) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên khoa', variant: 'destructive' }); return; }
-    let updated: Khoa[];
+  const handleSave = async () => {
+    if (!form.tenKhoa.trim()) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên khoa', variant: 'destructive' }); return; }
+    
+    // Check duplicate name
+    const isDuplicate = data.some(k => k.tenKhoa.toLowerCase() === form.tenKhoa.trim().toLowerCase() && k.maKhoa !== editing?.maKhoa);
+    if (isDuplicate) {
+      toast({ title: 'Lỗi', description: 'Tên khoa đã tồn tại', variant: 'destructive' });
+      return;
+    }
+
     if (editing) {
-      updated = data.map(k => k.maKhoa === editing.maKhoa ? { ...k, ...form } : k);
+      const resp = await apiUpdateDepartment(editing.maKhoa, { ...form, tenKhoa: form.tenKhoa.trim() });
+      if (!resp.success) {
+        toast({ title: 'Lỗi', description: resp.message, variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Cập nhật thành công' });
     } else {
-      updated = [...data, { maKhoa: generateId('K'), ...form, trangThai: true }];
+      const resp = await apiCreateDepartment({ ...form, tenKhoa: form.tenKhoa.trim() });
+      if (!resp.success) {
+        toast({ title: 'Lỗi', description: resp.message, variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Thêm thành công' });
     }
-    store.setDepartments(updated); setData(updated); setDialogOpen(false);
+    setData(store.getDepartments()); setDialogOpen(false);
   };
 
-  const handleDelete = (k: Khoa) => {
-    const updated = data.filter(x => x.maKhoa !== k.maKhoa);
-    store.setDepartments(updated); setData(updated); toast({ title: 'Đã xóa' });
+  const handleDelete = async (k: Khoa) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa khoa ${k.tenKhoa} hay không?`)) {
+      return;
+    }
+    
+    const result = await apiDeleteDepartment(k.maKhoa);
+    if (result.success) {
+      setData(store.getDepartments());
+      toast({ title: 'Đã xóa' });
+    } else {
+      toast({ title: 'Lỗi', description: result.message || 'Không thể xóa', variant: 'destructive' });
+    }
   };
 
   return (
@@ -94,6 +122,17 @@ export default function DepartmentsPage() {
           <div className="space-y-3">
             <div><Label>Tên Khoa *</Label><Input value={form.tenKhoa} onChange={e => setForm(f => ({ ...f, tenKhoa: e.target.value }))} /></div>
             <div><Label>Mô tả</Label><Textarea value={form.moTa} onChange={e => setForm(f => ({ ...f, moTa: e.target.value }))} /></div>
+            {editing && (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="trangThai" 
+                  checked={form.trangThai} 
+                  onChange={e => setForm(f => ({ ...f, trangThai: e.target.checked }))} 
+                />
+                <Label htmlFor="trangThai">{form.trangThai ? 'Đang hoạt động' : 'Ngừng hoạt động'}</Label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>

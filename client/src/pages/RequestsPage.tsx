@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateRequest, apiApproveRequest, apiCreateAllocation } from '@/lib/apiSync';
+import { apiCreateRequest, apiApproveRequest, apiCreateAllocation, apiDeleteRequest } from '@/lib/apiSync';
 import { PhieuYeuCauCapPhat } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Check, X, Eye, CheckCheck } from 'lucide-react';
+import { Plus, Search, Check, X, Eye, CheckCheck, Trash2, ChevronsUpDown } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 const STATUS_MAP = { 
   CHO_DUYET: 'Chờ duyệt', 
@@ -30,6 +31,10 @@ export default function RequestsPage() {
   const { user } = useAuth();
   const [requests, setRequests] = useState(store.getRequests());
   const [search, setSearch] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterUser, setFilterUser] = useState('all');
+  const [filterEquip, setFilterEquip] = useState('all');
+  const [filterDept, setFilterDept] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
@@ -50,8 +55,17 @@ export default function RequestsPage() {
   const filtered = useMemo(() => {
     let list = requests;
     if (user?.vaiTro === 'NV_BV') list = list.filter(r => r.maNguoiYeuCau === user.maNguoiDung);
-    return list.filter(r => r.maPhieu.toLowerCase().includes(search.toLowerCase()));
-  }, [requests, search, user]);
+    
+    return list.filter(r => {
+      const matchSearch = r.maPhieu.toLowerCase().includes(search.toLowerCase());
+      const matchDate = !filterDate || r.ngayTao.startsWith(filterDate);
+      const matchUser = filterUser === 'all' || r.maNguoiYeuCau === filterUser;
+      const matchEquip = filterEquip === 'all' || r.maThietBi === filterEquip;
+      const matchDept = filterDept === 'all' || r.maKhoa === filterDept;
+      
+      return matchSearch && matchDate && matchUser && matchEquip && matchDept;
+    });
+  }, [requests, search, user, filterDate, filterUser, filterEquip, filterDept]);
 
   const addNotification = (tieuDe: string, noiDung: string, loai: 'info' | 'success' | 'warning' | 'error', nguoiNhan: string) => {
     const notifs = store.getNotifications();
@@ -146,18 +160,69 @@ export default function RequestsPage() {
     }
   };
 
+  const handleDelete = async (maPhieu: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa phiếu yêu cầu ${maPhieu}?`)) return;
+    try {
+      const result = await apiDeleteRequest(maPhieu);
+      if (result.success) {
+        setRequests(store.getRequests());
+        toast({ title: 'Đã xóa', description: `Đã xóa phiếu yêu cầu ${maPhieu}` });
+        if (viewing?.maPhieu === maPhieu) setViewOpen(false);
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Xóa thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+      <div className="p-4 bg-card rounded-xl border border-border/50 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Mã phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            
+            <Input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+            
+            <SearchableSelect 
+              options={[{ value: 'all', label: 'Tất cả người yêu cầu' }, ...users.map(u => ({ value: u.maNguoiDung, label: u.hoTen }))]} 
+              value={filterUser} 
+              onValueChange={setFilterUser} 
+              placeholder="Người yêu cầu"
+            />
+            
+            <SearchableSelect 
+              options={[{ value: 'all', label: 'Tất cả thiết bị' }, ...equipment.map(e => ({ value: e.maThietBi, label: e.tenThietBi }))]} 
+              value={filterEquip} 
+              onValueChange={setFilterEquip} 
+              placeholder="Thiết bị"
+            />
+            
+            <SearchableSelect 
+              options={[{ value: 'all', label: 'Tất cả khoa' }, ...departments.map(k => ({ value: k.maKhoa, label: k.tenKhoa }))]} 
+              value={filterDept} 
+              onValueChange={setFilterDept} 
+              placeholder="Khoa"
+            />
+          </div>
+          
+          <div className="flex gap-2 w-full lg:w-auto">
+            {(search || filterDate || filterUser !== 'all' || filterEquip !== 'all' || filterDept !== 'all') && (
+              <Button variant="outline" onClick={() => { setSearch(''); setFilterDate(''); setFilterUser('all'); setFilterEquip('all'); setFilterDept('all'); }}>
+                Xóa lọc
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => { setForm({ maThietBi: '', maKhoa: '', soLuongYeuCau: 1, lyDo: '' }); setDialogOpen(true); }} className="gradient-primary text-primary-foreground whitespace-nowrap">
+                <Plus className="w-4 h-4 mr-2" /> Tạo phiếu
+              </Button>
+            )}
+          </div>
         </div>
-        {canCreate && (
-          <Button onClick={() => { setForm({ maThietBi: '', maKhoa: '', soLuongYeuCau: 1, lyDo: '' }); setDialogOpen(true); }} className="gradient-primary text-primary-foreground">
-            <Plus className="w-4 h-4 mr-2" /> Tạo phiếu yêu cầu
-          </Button>
-        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -169,9 +234,10 @@ export default function RequestsPage() {
             <th className="text-left p-3 font-medium text-muted-foreground">Khoa</th>
             <th className="text-center p-3 font-medium text-muted-foreground">SL</th>
             <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
+            {canApprove && <th className="text-center p-3 font-medium text-muted-foreground">Duyệt YC</th>}
             <th className="text-center p-3 font-medium text-muted-foreground">Cấp phát</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Ngày tạo</th>
-            <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
+            {user?.vaiTro === 'ADMIN' && <th className="text-center p-3 font-medium text-muted-foreground">Xóa</th>}
           </tr></thead>
           <tbody>
             {filtered.map(r => {
@@ -179,8 +245,12 @@ export default function RequestsPage() {
               const khoa = departments.find(k => k.maKhoa === r.maKhoa);
               const nguoi = users.find(u => u.maNguoiDung === r.maNguoiYeuCau);
               return (
-                <tr key={r.maPhieu} className="border-b hover:bg-muted/30">
-                  <td className="p-3 font-mono text-xs">{r.maPhieu}</td>
+                <tr key={r.maPhieu} className="border-b hover:bg-muted/50 transition-colors cursor-pointer group" onClick={() => { setViewing(r); setViewOpen(true); }}>
+                  <td className="p-3 font-mono text-xs">
+                    <span className="text-primary font-medium group-hover:underline">
+                      {r.maPhieu}
+                    </span>
+                  </td>
                   <td className="p-3">{nguoi?.hoTen || '-'}</td>
                   <td className="p-3">{tb?.tenThietBi || '-'}</td>
                   <td className="p-3">{khoa?.tenKhoa || '-'}</td>
@@ -190,7 +260,23 @@ export default function RequestsPage() {
                       {STATUS_MAP[r.trangThai]}
                     </span>
                   </td>
-                  <td className="p-3 text-center">
+                  {canApprove && (
+                    <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                      {r.trangThai === 'CHO_DUYET' ? (
+                        <div className="flex justify-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:bg-success/20" onClick={() => handleApprove(r.maPhieu)}>
+                            <Check className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/20" onClick={() => { setRejectingId(r.maPhieu); setRejectReason(''); setRejectOpen(true); }}>
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/30">—</span>
+                      )}
+                    </td>
+                  )}
+                  <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
                     {r.trangThai === 'DA_CAP_PHAT' ? (
                       <div className="flex justify-center"><div className="bg-emerald-100 text-emerald-700 p-1 rounded-full border border-emerald-200"><CheckCheck className="w-4 h-4" /></div></div>
                     ) : r.trangThai === 'DA_DUYET' && canAllocate ? (
@@ -198,17 +284,13 @@ export default function RequestsPage() {
                     ) : <span className="text-muted-foreground/30">—</span>}
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">{r.ngayTao.slice(0, 10)}</td>
-                  <td className="p-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => { setViewing(r); setViewOpen(true); }}><Eye className="w-3.5 h-3.5" /></Button>
-                      {canApprove && r.trangThai === 'CHO_DUYET' && (
-                        <>
-                          <Button variant="ghost" size="sm" className="text-success" onClick={() => handleApprove(r.maPhieu)}><Check className="w-3.5 h-3.5" /></Button>
-                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { setRejectingId(r.maPhieu); setRejectReason(''); setRejectOpen(true); }}><X className="w-3.5 h-3.5" /></Button>
-                        </>
-                      )}
-                    </div>
-                  </td>
+                  {user?.vaiTro === 'ADMIN' && (
+                    <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(r.maPhieu)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -224,17 +306,21 @@ export default function RequestsPage() {
           <div className="space-y-3">
             <div>
               <Label>Thiết bị *</Label>
-              <Select value={form.maThietBi} onValueChange={v => setForm(f => ({ ...f, maThietBi: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn thiết bị" /></SelectTrigger>
-                <SelectContent>{equipment.filter(e => e.trangThai).map(e => <SelectItem key={e.maThietBi} value={e.maThietBi}>{e.tenThietBi}</SelectItem>)}</SelectContent>
-              </Select>
+              <SearchableSelect 
+                options={equipment.filter(e => e.trangThai).map(e => ({ value: e.maThietBi, label: e.tenThietBi }))} 
+                value={form.maThietBi} 
+                onValueChange={v => setForm(f => ({ ...f, maThietBi: v }))} 
+                placeholder="Chọn thiết bị..."
+              />
             </div>
             <div>
               <Label>Khoa *</Label>
-              <Select value={form.maKhoa} onValueChange={v => setForm(f => ({ ...f, maKhoa: v }))}>
-                <SelectTrigger><SelectValue placeholder="Chọn khoa" /></SelectTrigger>
-                <SelectContent>{departments.filter(k => k.trangThai).map(k => <SelectItem key={k.maKhoa} value={k.maKhoa}>{k.tenKhoa}</SelectItem>)}</SelectContent>
-              </Select>
+              <SearchableSelect 
+                options={departments.filter(k => k.trangThai).map(k => ({ value: k.maKhoa, label: k.tenKhoa }))} 
+                value={form.maKhoa} 
+                onValueChange={v => setForm(f => ({ ...f, maKhoa: v }))} 
+                placeholder="Chọn khoa..."
+              />
             </div>
             <div>
               <Label>Số lượng * {form.maThietBi && (() => {
@@ -272,16 +358,44 @@ export default function RequestsPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Chi tiết phiếu yêu cầu</DialogTitle></DialogHeader>
           {viewing && (
-            <div className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">Mã phiếu:</span> <strong>{viewing.maPhieu}</strong></p>
-              <p><span className="text-muted-foreground">Người yêu cầu:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen}</p>
-              <p><span className="text-muted-foreground">Thiết bị:</span> {equipment.find(e => e.maThietBi === viewing.maThietBi)?.tenThietBi}</p>
-              <p><span className="text-muted-foreground">Khoa:</span> {departments.find(k => k.maKhoa === viewing.maKhoa)?.tenKhoa}</p>
-              <p><span className="text-muted-foreground">Số lượng:</span> {viewing.soLuongYeuCau}</p>
-              <p><span className="text-muted-foreground">Lý do:</span> {viewing.lyDo}</p>
-              <p><span className="text-muted-foreground">Trạng thái:</span> <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[viewing.trangThai]}`}>{STATUS_MAP[viewing.trangThai]}</span></p>
-              {viewing.ngayDuyet && <p><span className="text-muted-foreground">Ngày duyệt:</span> {viewing.ngayDuyet.slice(0, 10)}</p>}
-              {viewing.lyDoTuChoi && <p><span className="text-muted-foreground">Lý do từ chối:</span> <span className="text-destructive">{viewing.lyDoTuChoi}</span></p>}
+            <div className="space-y-4">
+              <div className="space-y-2 text-sm">
+                <p><span className="text-muted-foreground">Mã phiếu:</span> <strong>{viewing.maPhieu}</strong></p>
+                <p><span className="text-muted-foreground">Người yêu cầu:</span> {users.find(u => u.maNguoiDung === viewing.maNguoiYeuCau)?.hoTen}</p>
+                <p><span className="text-muted-foreground">Thiết bị:</span> {equipment.find(e => e.maThietBi === viewing.maThietBi)?.tenThietBi}</p>
+                <p><span className="text-muted-foreground">Khoa:</span> {departments.find(k => k.maKhoa === viewing.maKhoa)?.tenKhoa}</p>
+                <p><span className="text-muted-foreground">Số lượng:</span> {viewing.soLuongYeuCau}</p>
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1">Lý do cấp phát:</p>
+                  <div className="bg-muted p-3 rounded-md text-foreground italic border-l-4 border-primary break-all whitespace-pre-wrap">
+                    {viewing.lyDo || 'Không có lý do chi tiết'}
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t space-y-1">
+                  <p><span className="text-muted-foreground">Trạng thái:</span> <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[viewing.trangThai]}`}>{STATUS_MAP[viewing.trangThai]}</span></p>
+                  {viewing.ngayDuyet && <p><span className="text-muted-foreground">Ngày duyệt:</span> {viewing.ngayDuyet.slice(0, 10)}</p>}
+                  {viewing.nguoiDuyet && <p><span className="text-muted-foreground">Người duyệt:</span> {users.find(u => u.maNguoiDung === viewing.nguoiDuyet)?.hoTen || viewing.nguoiDuyet}</p>}
+                  {viewing.lyDoTuChoi && (
+                    <div className="pt-2 border-t mt-2">
+                       <p className="text-xs uppercase tracking-wider font-semibold text-destructive mb-1">Lý do từ chối:</p>
+                       <div className="bg-rose-50 p-2 rounded text-rose-700 italic break-all whitespace-pre-wrap text-sm border-l-4 border-rose-400">
+                         {viewing.lyDoTuChoi}
+                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {canApprove && viewing.trangThai === 'CHO_DUYET' && (
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button className="flex-1 bg-success hover:bg-success/90" onClick={() => { handleApprove(viewing.maPhieu); setViewOpen(false); }}>
+                    <Check className="w-4 h-4 mr-2" /> Phê duyệt
+                  </Button>
+                  <Button variant="destructive" className="flex-1" onClick={() => { setRejectingId(viewing.maPhieu); setRejectReason(''); setRejectOpen(true); setViewOpen(false); }}>
+                    <X className="w-4 h-4 mr-2" /> Từ chối
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

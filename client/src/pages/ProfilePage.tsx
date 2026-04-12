@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { ROLE_LABELS } from '@/types';
+import { apiUpdateUser, apiChangePassword } from '@/lib/apiSync';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound } from 'lucide-react';
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+const PHONE_REGEX = /^[0-9]{10,11}$/;
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -18,30 +22,55 @@ export default function ProfilePage() {
     soDienThoai: user?.soDienThoai || '',
     diaChi: user?.diaChi || '',
   });
+  const [formErrors, setFormErrors] = useState<{ email?: string; soDienThoai?: string }>({})
   const [passwordForm, setPasswordForm] = useState({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
   const [changingPw, setChangingPw] = useState(false);
 
   if (!user) return null;
 
-  const handleSave = () => {
+  const validateForm = () => {
+    const errors: { email?: string; soDienThoai?: string } = {};
+    if (!EMAIL_REGEX.test(form.email)) {
+      errors.email = 'Email không đúng định dạng (ví dụ: ten@example.com)';
+    }
+    if (form.soDienThoai && !PHONE_REGEX.test(form.soDienThoai)) {
+      errors.soDienThoai = 'Số điện thoại phải có 10–11 chữ số, không chứa ký tự đặc biệt hoặc chữ cái';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSave = async () => {
     if (!form.hoTen || !form.email) {
       toast({ title: 'Lỗi', description: 'Họ tên và email không được để trống', variant: 'destructive' }); return;
     }
-    const users = store.getUsers();
-    const updated = users.map(u => u.maNguoiDung === user.maNguoiDung ? {
-      ...u, hoTen: form.hoTen, email: form.email,
-      soDienThoai: form.soDienThoai, diaChi: form.diaChi,
-      ngayCapNhat: new Date().toISOString()
-    } : u);
-    store.setUsers(updated);
-    localStorage.setItem('kho_currentUser', JSON.stringify({ ...user, ...form, ngayCapNhat: new Date().toISOString() }));
-    setEditing(false);
-    toast({ title: 'Thành công', description: 'Đã cập nhật thông tin cá nhân' });
+    if (!validateForm()) {
+      toast({ title: 'Lỗi', description: 'Vui lòng kiểm tra lại các trường thông tin', variant: 'destructive' }); return;
+    }
+    try {
+      const result = await apiUpdateUser(user.maNguoiDung, {
+        hoTen: form.hoTen,
+        email: form.email,
+        soDienThoai: form.soDienThoai,
+        diaChi: form.diaChi
+      });
+      if (result.success) {
+        localStorage.setItem('kho_currentUser', JSON.stringify({ ...user, ...form }));
+        setEditing(false);
+        toast({ title: 'Thành công', description: 'Đã cập nhật thông tin cá nhân' });
+        // Optionally reload page to update context
+        window.location.reload();
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Cập nhật thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
-  const handleChangePassword = () => {
-    if (passwordForm.matKhauCu !== user.matKhau) {
-      toast({ title: 'Lỗi', description: 'Mật khẩu cũ không đúng', variant: 'destructive' }); return;
+  const handleChangePassword = async () => {
+    if (!passwordForm.matKhauCu) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu cũ', variant: 'destructive' }); return;
     }
     if (passwordForm.matKhauMoi.length < 6) {
       toast({ title: 'Lỗi', description: 'Mật khẩu mới phải ít nhất 6 ký tự', variant: 'destructive' }); return;
@@ -49,13 +78,19 @@ export default function ProfilePage() {
     if (passwordForm.matKhauMoi !== passwordForm.xacNhan) {
       toast({ title: 'Lỗi', description: 'Mật khẩu xác nhận không khớp', variant: 'destructive' }); return;
     }
-    const users = store.getUsers();
-    const updated = users.map(u => u.maNguoiDung === user.maNguoiDung ? { ...u, matKhau: passwordForm.matKhauMoi, ngayCapNhat: new Date().toISOString() } : u);
-    store.setUsers(updated);
-    localStorage.setItem('kho_currentUser', JSON.stringify({ ...user, matKhau: passwordForm.matKhauMoi }));
-    setChangingPw(false);
-    setPasswordForm({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
-    toast({ title: 'Thành công', description: 'Đã đổi mật khẩu' });
+    
+    try {
+      const result = await apiChangePassword(user.maNguoiDung, passwordForm.matKhauCu, passwordForm.matKhauMoi);
+      if (result.success) {
+        setChangingPw(false);
+        setPasswordForm({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
+        toast({ title: 'Thành công', description: 'Đã đổi mật khẩu' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message || 'Đổi mật khẩu thất bại', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
   };
 
   return (
@@ -76,12 +111,39 @@ export default function ProfilePage() {
           {editing ? (
             <div className="space-y-3">
               <div><Label>Họ tên</Label><Input value={form.hoTen} onChange={e => setForm(f => ({ ...f, hoTen: e.target.value }))} /></div>
-              <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-              <div><Label>Số điện thoại</Label><Input value={form.soDienThoai} onChange={e => setForm(f => ({ ...f, soDienThoai: e.target.value }))} /></div>
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={e => {
+                    setForm(f => ({ ...f, email: e.target.value }));
+                    setFormErrors(err => ({ ...err, email: undefined }));
+                  }}
+                  className={formErrors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
+                />
+                {formErrors.email && <p className="text-xs text-destructive mt-1">{formErrors.email}</p>}
+              </div>
+              <div>
+                <Label>Số điện thoại</Label>
+                <Input
+                  value={form.soDienThoai}
+                  inputMode="numeric"
+                  onChange={e => {
+                    // Chỉ cho nhập số, tối đa 11 ký tự
+                    const onlyDigits = e.target.value.replace(/[^0-9]/g, '').slice(0, 11);
+                    setForm(f => ({ ...f, soDienThoai: onlyDigits }));
+                    setFormErrors(err => ({ ...err, soDienThoai: undefined }));
+                  }}
+                  className={formErrors.soDienThoai ? 'border-destructive focus-visible:ring-destructive' : ''}
+                  placeholder="10-11 chữ số"
+                />
+                {formErrors.soDienThoai && <p className="text-xs text-destructive mt-1">{formErrors.soDienThoai}</p>}
+              </div>
               <div><Label>Địa chỉ</Label><Input value={form.diaChi} onChange={e => setForm(f => ({ ...f, diaChi: e.target.value }))} /></div>
               <div className="flex gap-2">
                 <Button onClick={handleSave} className="gradient-primary text-primary-foreground"><Save className="w-4 h-4 mr-1" /> Lưu</Button>
-                <Button variant="outline" onClick={() => setEditing(false)}>Hủy</Button>
+                <Button variant="outline" onClick={() => { setEditing(false); setFormErrors({}); }}>Hủy</Button>
               </div>
             </div>
           ) : (

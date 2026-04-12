@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { apiCreateUser, apiUpdateUser, apiDeleteUser } from '@/lib/apiSync';
 import { NguoiDung, UserRole, ROLE_LABELS, ROLE_COLORS } from '@/types';
@@ -10,37 +11,61 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [data, setData] = useState(store.getUsers());
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<NguoiDung | null>(null);
 
-  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole });
+  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole, trangThai: true });
+  const [emailError, setEmailError] = useState<string | null>(null);
   const filtered = useMemo(() => data.filter(u => u.hoTen.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search)), [data, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' }); setDialogOpen(true); };
-  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: u.matKhau, vaiTro: u.vaiTro }); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV', trangThai: true }); setEmailError(null); setDialogOpen(true); };
+  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: u.matKhau, vaiTro: u.vaiTro, trangThai: u.trangThai }); setEmailError(null); setDialogOpen(true); };
 
   const handleSave = async () => {
     if (!form.hoTen || !form.email) { toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return; }
+    if (!EMAIL_REGEX.test(form.email)) {
+      setEmailError('Email không đúng định dạng (ví dụ: ten@example.com)');
+      toast({ title: 'Lỗi', description: 'Email không đúng định dạng', variant: 'destructive' });
+      return;
+    }
+    setEmailError(null);
     try {
       if (editing) {
         const result = await apiUpdateUser(editing.maNguoiDung, form);
-        if (result.success) { setData(store.getUsers()); toast({ title: 'Cập nhật thành công' }); }
-        else toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+        if (result.success) { setData(store.getUsers()); toast({ title: 'Cập nhật thành công' }); setDialogOpen(false); }
+        else {
+          if (result.message?.toLowerCase().includes('email')) {
+            setEmailError(result.message);
+          }
+          toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+        }
       } else {
         const result = await apiCreateUser(form);
-        if (result.success) { setData(store.getUsers()); toast({ title: 'Thêm thành công' }); }
-        else toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+        if (result.success) { setData(store.getUsers()); toast({ title: 'Thêm thành công' }); setDialogOpen(false); }
+        else {
+          if (result.message?.toLowerCase().includes('email')) {
+            setEmailError(result.message);
+          }
+          toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+        }
       }
-      setDialogOpen(false);
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
   const handleDelete = async (u: NguoiDung) => {
+    if (currentUser?.maNguoiDung === u.maNguoiDung) {
+      toast({ title: 'Lỗi', description: 'Không thể xóa tài khoản của chính mình', variant: 'destructive' });
+      return;
+    }
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${u.hoTen} không?`)) return;
     try {
       await apiDeleteUser(u.maNguoiDung);
       setData(store.getUsers());
@@ -81,7 +106,9 @@ export default function UsersPage() {
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(u)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    {currentUser?.maNguoiDung !== u.maNguoiDung && (
+                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(u)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -95,7 +122,19 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle>{editing ? 'Sửa tài khoản' : 'Thêm tài khoản mới'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Họ tên *</Label><Input value={form.hoTen} onChange={e => setForm(f => ({ ...f, hoTen: e.target.value }))} /></div>
-            <div><Label>Email *</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+            <div>
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={e => {
+                  setForm(f => ({ ...f, email: e.target.value }));
+                  setEmailError(null);
+                }}
+                className={emailError ? 'border-destructive focus-visible:ring-destructive' : ''}
+              />
+              {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+            </div>
             <div><Label>Mật khẩu</Label><Input type="password" value={form.matKhau} onChange={e => setForm(f => ({ ...f, matKhau: e.target.value }))} /></div>
             <div>
               <Label>Vai trò *</Label>
@@ -106,6 +145,18 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {editing && (
+              <div>
+                <Label>Trạng thái</Label>
+                <Select value={form.trangThai ? 'true' : 'false'} onValueChange={v => setForm(f => ({ ...f, trangThai: v === 'true' }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Hoạt động</SelectItem>
+                    <SelectItem value="false">Ngừng hoạt động</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>

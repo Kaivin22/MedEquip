@@ -6,7 +6,7 @@
 import { isMockMode, fetchApi } from '@/services/api';
 import { store, generateId } from './store';
 import { refreshData } from './dataLoader';
-import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole, PhieuYeuCauNhap } from '@/types';
+import { NguoiDung, ThietBi, NhaCungCap, Khoa, PhieuYeuCauCapPhat, PhieuNhapKho, PhieuXuatKho, PhieuCapPhat, PhieuBaoHuHong, UserRole, PhieuYeuCauNhap, PhieuTra } from '@/types';
 
 // ---- Users ----
 export async function apiCreateUser(data: { hoTen: string; email: string; matKhau: string; vaiTro: UserRole }) {
@@ -39,9 +39,21 @@ export async function apiDeleteUser(userId: string) {
     store.setUsers(store.getUsers().filter(u => u.maNguoiDung !== userId));
     return { success: true };
   }
-  const result = await fetchApi<any>(`/users/${userId}/deactivate`, { method: 'PUT' });
+  const result = await fetchApi<any>(`/users/${userId}`, { method: 'DELETE' });
   if (result.success) await refreshData('users');
   return result;
+}
+
+export async function apiChangePassword(userId: string, currentPassword: string, newPassword: string) {
+  if (isMockMode()) {
+    const users = store.getUsers();
+    const user = users.find(u => u.maNguoiDung === userId);
+    if (!user) return { success: false, message: 'Không tìm thấy người dùng.' };
+    if (user.matKhau !== currentPassword) return { success: false, message: 'Mật khẩu hiện tại không đúng!' };
+    store.setUsers(users.map(u => u.maNguoiDung === userId ? { ...u, matKhau: newPassword, ngayCapNhat: new Date().toISOString() } : u));
+    return { success: true, message: 'Đổi mật khẩu thành công!' };
+  }
+  return fetchApi<any>('/auth/change-password', { method: 'PUT', body: JSON.stringify({ userId, currentPassword, newPassword }) });
 }
 
 // ---- Equipment ----
@@ -53,7 +65,7 @@ export async function apiCreateEquipment(data: Omit<ThietBi, 'maThietBi' | 'tran
     equipment.push(newItem);
     store.setEquipment(equipment);
     const inv = store.getInventory();
-    inv.push({ maTonKho: generateId('TK'), maThietBi: newItem.maThietBi, soLuongKho: 0, soLuongHu: 0, soLuongDangDung: 0, ngayCapNhat: new Date().toISOString() });
+    inv.push({ maTonKho: generateId('TK'), maThietBi: newItem.maThietBi, soLuongKho: 0, soLuongDangDung: 0, ngayCapNhat: new Date().toISOString() });
     store.setInventory(inv);
     return { success: true, equipment: newItem };
   }
@@ -141,10 +153,30 @@ export async function apiCreateDepartment(data: Omit<Khoa, 'maKhoa' | 'trangThai
 
 export async function apiUpdateDepartment(id: string, data: Partial<Khoa>) {
   if (isMockMode()) {
+    if (data.trangThai === false) {
+      const allocations = store.getAllocations();
+      if (allocations.some(a => a.maKhoa === id)) {
+        return { success: false, message: 'Không thể ngừng hoạt động khoa khi có thiết bị đang sử dụng' };
+      }
+    }
     store.setDepartments(store.getDepartments().map(d => d.maKhoa === id ? { ...d, ...data } : d));
     return { success: true };
   }
   const result = await fetchApi<any>(`/departments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  if (result.success) await refreshData('departments');
+  return result;
+}
+
+export async function apiDeleteDepartment(id: string) {
+  if (isMockMode()) {
+    const allocations = store.getAllocations();
+    if (allocations.some(a => a.maKhoa === id)) {
+      return { success: false, message: 'Không thể xóa khoa khi có thiết bị đang sử dụng' };
+    }
+    store.setDepartments(store.getDepartments().filter(d => d.maKhoa !== id));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/departments/${id}`, { method: 'DELETE' });
   if (result.success) await refreshData('departments');
   return result;
 }
@@ -175,6 +207,16 @@ export async function apiApproveRequest(maPhieu: string, approved: boolean, lyDo
     return { success: true };
   }
   const result = await fetchApi<any>(`/requests/${maPhieu}/approve-dept`, { method: 'PUT', body: JSON.stringify({ approved, lyDo }) });
+  if (result.success) await refreshData('requests');
+  return result;
+}
+
+export async function apiDeleteRequest(maPhieu: string) {
+  if (isMockMode()) {
+    store.setRequests(store.getRequests().filter(r => r.maPhieu !== maPhieu));
+    return { success: true };
+  }
+  const result = await fetchApi<any>(`/requests/${maPhieu}`, { method: 'DELETE' });
   if (result.success) await refreshData('requests');
   return result;
 }
@@ -225,7 +267,6 @@ export async function apiApproveImportRequest(maPhieu: string, approved: boolean
         maTonKho: generateId('TK'),
         maThietBi: newMaThietBi,
         soLuongKho: request.soLuong,
-        soLuongHu: 0,
         soLuongDangDung: 0,
         ngayCapNhat: new Date().toISOString()
       });
@@ -320,7 +361,6 @@ export async function apiConfirmExport(maPhieu: string) {
       const fromKho = Math.min(remaining, inv[idx].soLuongKho);
       inv[idx].soLuongKho -= fromKho;
       remaining -= fromKho;
-      if (remaining > 0) inv[idx].soLuongHu -= Math.min(remaining, inv[idx].soLuongHu);
       inv[idx].ngayCapNhat = new Date().toISOString();
       store.setInventory(inv);
     }
@@ -377,7 +417,6 @@ export async function apiCreateDamageReport(data: { maNguoiBao: string; maThietB
     if (idx >= 0) {
       const moveQty = Math.min(data.soLuongHu, inv[idx].soLuongDangDung);
       inv[idx].soLuongDangDung -= moveQty;
-      inv[idx].soLuongHu += data.soLuongHu;
       inv[idx].ngayCapNhat = new Date().toISOString();
       store.setInventory(inv);
     }
@@ -416,4 +455,55 @@ export async function apiMarkAllAsRead(userId: string) {
     return { success: true };
   }
   return fetchApi<any>('/notifications/read-all', { method: 'PUT', body: JSON.stringify({ userId }) });
+}
+
+// ---- Returns ----
+export async function apiCreateReturn(data: { maNguoiTra: string; maKhoa: string; chiTiet: { maThietBi: string; soLuongTra: number }[] }) {
+  if (isMockMode()) {
+    const maPhieu = generateId('PT');
+    const qrCode = `RETURN:${maPhieu}`;
+    const phieu: PhieuTra = {
+      maPhieu,
+      ...data,
+      trangThai: 'CHO_NHAN',
+      ngayTao: new Date().toISOString(),
+      qrCode,
+    };
+    const returns = store.getReturns();
+    returns.push(phieu);
+    store.setReturns(returns);
+    return { success: true, phieu: { ...phieu, qrCode } };
+  }
+  const result = await fetchApi<any>('/returns', { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) await refreshData('returns');
+  return result;
+}
+
+export async function apiAcceptReturn(data: { maPhieuTra: string; maNguoiNhan: string }) {
+  if (isMockMode()) {
+    const returns = store.getReturns();
+    const phieu = returns.find(r => r.maPhieu === data.maPhieuTra);
+    if (!phieu) return { success: false, message: 'Không tìm thấy phiếu trả.' };
+    if (phieu.trangThai !== 'CHO_NHAN') return { success: false, message: 'Phiếu này đã được xử lý.' };
+
+    // Update tồn kho: cộng lại số lượng trả về kho
+    const inv = store.getInventory();
+    for (const ct of phieu.chiTiet) {
+      const idx = inv.findIndex(i => i.maThietBi === ct.maThietBi);
+      if (idx >= 0) {
+        inv[idx].soLuongKho += ct.soLuongTra;
+        inv[idx].soLuongDangDung = Math.max(0, inv[idx].soLuongDangDung - ct.soLuongTra);
+        inv[idx].ngayCapNhat = new Date().toISOString();
+      }
+    }
+    store.setInventory(inv);
+    store.setReturns(returns.map(r => r.maPhieu === data.maPhieuTra ? { ...r, trangThai: 'DA_NHAN' as const } : r));
+    return { success: true };
+  }
+  const result = await fetchApi<any>('/returns/accept', { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) {
+    await refreshData('returns');
+    await refreshData('inventory');
+  }
+  return result;
 }
