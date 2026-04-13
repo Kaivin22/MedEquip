@@ -10,7 +10,7 @@ export async function loadAllData(userId?: string): Promise<void> {
   if (isMockMode()) return; // Mock mode uses localStorage defaults
 
   try {
-    const [equipment, inventory, suppliers, departments, requests, imports, exports, allocations, damageReports, importRequests] = await Promise.all([
+    const [equipment, inventory, suppliers, departments, requests, imports, exports, allocations, damageReports, importRequests, returns] = await Promise.all([
       fetchApi<ThietBi[]>('/equipment').catch(() => []),
       fetchApi<TonKho[]>('/inventory').catch(() => []),
       fetchApi<NhaCungCap[]>('/suppliers').catch(() => []),
@@ -21,6 +21,7 @@ export async function loadAllData(userId?: string): Promise<void> {
       fetchApi<PhieuCapPhat[]>('/allocations').catch(() => []),
       fetchApi<PhieuBaoHuHong[]>('/damage-reports').catch(() => []),
       fetchApi<PhieuYeuCauNhap[]>('/import-requests').catch(() => []),
+      fetchApi<PhieuTraThietBi[]>('/returns').catch(() => []),
     ]);
 
     // Optionally load users (admin only) and notifications
@@ -33,7 +34,7 @@ export async function loadAllData(userId?: string): Promise<void> {
 
     store.initFromApi({
       users, equipment, inventory, suppliers, departments,
-      notifications, requests, imports, exports, allocations, damageReports, importRequests
+      notifications, requests, imports, exports, allocations, damageReports, importRequests, returns
     });
 
     console.log('✅ Data loaded from API');
@@ -60,6 +61,7 @@ export async function refreshData(type: string, userId?: string): Promise<void> 
       case 'allocations': store.setAllocations(await fetchApi('/allocations')); break;
       case 'damageReports': store.setDamageReports(await fetchApi('/damage-reports')); break;
       case 'importRequests': store.setImportRequests(await fetchApi('/import-requests')); break;
+      case 'returns': store.setReturns(await fetchApi('/returns')); break;
       case 'notifications':
         if (userId) store.setNotifications(await fetchApi(`/notifications?userId=${userId}`));
         break;

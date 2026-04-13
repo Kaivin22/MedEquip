@@ -6,7 +6,29 @@
 CREATE DATABASE IF NOT EXISTS medequip_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE medequip_db;
 
--- 1. Bảng Người dùng (3 vai trò: ADMIN, NV_KHO, TRUONG_KHOA)
+-- 1. Bảng Khoa (Cần tạo trước vì nhiều bảng khác tham chiếu tới)
+CREATE TABLE IF NOT EXISTS khoa (
+    ma_khoa VARCHAR(20) PRIMARY KEY,
+    ten_khoa VARCHAR(100) NOT NULL,
+    mo_ta TEXT,
+    trang_thai BOOLEAN DEFAULT TRUE,
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 2. Bảng Nhà cung cấp
+CREATE TABLE IF NOT EXISTS nha_cung_cap (
+    ma_nha_cung_cap VARCHAR(20) PRIMARY KEY,
+    ten_nha_cung_cap VARCHAR(200) NOT NULL,
+    dia_chi TEXT,
+    so_dien_thoai VARCHAR(20),
+    email VARCHAR(100),
+    trang_thai BOOLEAN DEFAULT TRUE,
+    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 3. Bảng Người dùng (Tham chiếu tới Bảng Khoa)
 CREATE TABLE IF NOT EXISTS nguoi_dung (
     ma_nguoi_dung VARCHAR(20) PRIMARY KEY,
     ho_ten VARCHAR(100) NOT NULL,
@@ -24,29 +46,7 @@ CREATE TABLE IF NOT EXISTS nguoi_dung (
     FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa)
 );
 
--- 2. Bảng Nhà cung cấp
-CREATE TABLE IF NOT EXISTS nha_cung_cap (
-    ma_nha_cung_cap VARCHAR(20) PRIMARY KEY,
-    ten_nha_cung_cap VARCHAR(200) NOT NULL,
-    dia_chi TEXT,
-    so_dien_thoai VARCHAR(20),
-    email VARCHAR(100),
-    trang_thai BOOLEAN DEFAULT TRUE,
-    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- 3. Bảng Khoa
-CREATE TABLE IF NOT EXISTS khoa (
-    ma_khoa VARCHAR(20) PRIMARY KEY,
-    ten_khoa VARCHAR(100) NOT NULL,
-    mo_ta TEXT,
-    trang_thai BOOLEAN DEFAULT TRUE,
-    ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- 4. Bảng Thiết bị (v4: thêm loai_thiet_bi ENUM, he_so_quy_doi, serial_number, nguong_canh_bao)
+-- 4. Bảng Thiết bị (Tham chiếu tới Nhà cung cấp)
 CREATE TABLE IF NOT EXISTS thiet_bi (
     ma_thiet_bi VARCHAR(20) PRIMARY KEY,
     ten_thiet_bi VARCHAR(200) NOT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS phieu_yeu_cau (
     FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa)
 );
 
--- 7. Bảng Phiếu cấp phát (v4: thêm ngay_du_kien_tra, ly_do_gia_han, trang_thai_tra)
+-- 7. Bảng Phiếu cấp phát
 CREATE TABLE IF NOT EXISTS phieu_cap_phat (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_phieu_yeu_cau VARCHAR(30) NOT NULL,
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS chi_tiet_cap_phat (
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
 
--- 8. Bảng Phiếu nhập kho (v4: thêm trang_thai, nguoi_duyet, ly_do_tu_choi, ngay_duyet)
+-- 8. Bảng Phiếu nhập kho
 CREATE TABLE IF NOT EXISTS phieu_nhap_kho (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_nguoi_nhap VARCHAR(20) NOT NULL,
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS chi_tiet_nhap_kho (
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
 
--- 9. Bảng Phiếu xuất kho (khi thiết bị rời khỏi bệnh viện)
+-- 9. Bảng Phiếu xuất kho
 CREATE TABLE IF NOT EXISTS phieu_xuat_kho (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_nguoi_xuat VARCHAR(20) NOT NULL,
@@ -200,7 +200,7 @@ CREATE TABLE IF NOT EXISTS thong_bao (
     FOREIGN KEY (nguoi_nhan) REFERENCES nguoi_dung(ma_nguoi_dung)
 );
 
--- 12. Bảng Phiếu trả thiết bị (mới v4)
+-- 12. Bảng Phiếu trả thiết bị
 CREATE TABLE IF NOT EXISTS phieu_tra_thiet_bi (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ma_phieu_tra VARCHAR(50) UNIQUE NOT NULL,
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS chi_tiet_phieu_tra (
     FOREIGN KEY (ma_phieu_tra) REFERENCES phieu_tra_thiet_bi(id)
 );
 
--- 13. Bảng Phiếu yêu cầu nhập (đề xuất từ các khoa)
+-- 13. Bảng Phiếu yêu cầu nhập
 CREATE TABLE IF NOT EXISTS phieu_yeu_cau_nhap (
     ma_phieu VARCHAR(30) PRIMARY KEY,
     ma_nguoi_yeu_cau VARCHAR(20) NOT NULL,
@@ -243,8 +243,15 @@ CREATE TABLE IF NOT EXISTS phieu_yeu_cau_nhap (
 );
 
 -- ============================================
--- DỮ LIỆU MẪU (mật khẩu: 123456 — đã hash bcrypt)
+-- DỮ LIỆU MẪU (mật khẩu: 123456)
 -- ============================================
+
+INSERT IGNORE INTO khoa (ma_khoa, ten_khoa, mo_ta) VALUES
+('K-001', 'Khoa Nội', 'Khoa Nội tổng hợp'),
+('K-002', 'Khoa Ngoại', 'Khoa Ngoại tổng hợp'),
+('K-003', 'Khoa Sản', 'Khoa Sản phụ khoa'),
+('K-004', 'Khoa Nhi', 'Khoa Nhi đồng'),
+('K-005', 'Khoa Cấp cứu', 'Khoa Cấp cứu và hồi sức');
 
 INSERT IGNORE INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, ma_khoa) VALUES
 ('ND-001', 'Nguyễn Văn Admin', 'admin@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'ADMIN', NULL),
@@ -253,23 +260,19 @@ INSERT IGNORE INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, 
 ('ND-004', 'Trưởng khoa Ngoại', 'khoangoai@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-002'),
 ('ND-005', 'Trưởng khoa Sản', 'khoasan@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-003');
 
-INSERT IGNORE INTO khoa VALUES
-('K-001', 'Khoa Nội', 'Khoa Nội tổng hợp', TRUE, NOW(), NOW()),
-('K-002', 'Khoa Ngoại', 'Khoa Ngoại tổng hợp', TRUE, NOW(), NOW()),
-('K-003', 'Khoa Sản', 'Khoa Sản phụ khoa', TRUE, NOW(), NOW()),
-('K-004', 'Khoa Nhi', 'Khoa Nhi đồng', TRUE, NOW(), NOW()),
-('K-005', 'Khoa Cấp cứu', 'Khoa Cấp cứu và hồi sức', TRUE, NOW(), NOW());
+INSERT IGNORE INTO nha_cung_cap (ma_nha_cung_cap, ten_nha_cung_cap) VALUES
+('NCC-001', 'Công ty Phương Nam'),
+('NCC-002', 'Công ty thiết bị Việt');
 
-INSERT IGNORE INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_tinh, he_so_quy_doi, serial_number, nguong_canh_bao, mo_ta, ma_nha_cung_cap, hinh_anh, trang_thai) VALUES
-('TB-001', 'Máy đo huyết áp', 'TAI_SU_DUNG', 'Cái', 1, 'SN-001', 5, 'Máy đo huyết áp tự động', 'NCC-001', 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop', TRUE),
-('TB-002', 'Ống nghe y khoa', 'TAI_SU_DUNG', 'Cái', 1, 'SN-002', 3, 'Ống nghe chuyên khoa nội', 'NCC-001', 'https://images.unsplash.com/photo-1584982751601-97dcc096659c?w=400&h=300&fit=crop', TRUE),
-('TB-003', 'Máy siêu âm', 'TAI_SU_DUNG', 'Bộ', 1, 'SN-003', 2, 'Máy siêu âm 4D', 'NCC-002', 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=400&h=300&fit=crop', TRUE);
+INSERT IGNORE INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_tinh, ma_nha_cung_cap) VALUES
+('TB-001', 'Máy đo huyết áp', 'TAI_SU_DUNG', 'Cái', 'NCC-001'),
+('TB-002', 'Ống nghe y khoa', 'TAI_SU_DUNG', 'Cái', 'NCC-001'),
+('TB-003', 'Máy siêu âm', 'TAI_SU_DUNG', 'Bộ', 'NCC-002');
 
 INSERT IGNORE INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES
-('TK-001', 'TB-001', 50, 2, 30),
-('TK-002', 'TB-002', 100, 5, 80),
-('TK-003', 'TB-003', 10, 0, 8);
+('TK-001', 'TB-001', 50, 0, 30),
+('TK-002', 'TB-002', 100, 0, 80),
+('TK-003', 'TB-003', 10, 0, 5);
 
 INSERT IGNORE INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES
-('TB-N-001', 'Hệ thống đã nâng cấp', 'MedEquip đã được cập nhật lên v4. Chúc bạn trải nghiệm tốt.', 'info', 'ND-001', FALSE),
-('TB-N-002', 'Hướng dẫn nạp dữ liệu', 'Tạo NCC trước, sau đó upload file Excel nhập kho.', 'warning', 'ND-002', FALSE);
+('TB-N-001', 'Hệ thống đã nâng cấp', 'MedEquip đã được cập nhật lên v4.', 'info', 'ND-001', FALSE);

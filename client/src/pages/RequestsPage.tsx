@@ -9,10 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box } from 'lucide-react';
+import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box, Camera, QrCode, RotateCcw } from 'lucide-react';
 import { fetchApi } from '@/services/api';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { QRCodeCanvas as QRCodeComponent } from 'qrcode.react';
+import { Scanner } from '@yudiel/react-qr-scanner';
+import { Separator } from '@/components/ui/separator';
 
 const STATUS_MAP = { 
   CHO_DUYET: 'Chờ cấp phát', 
@@ -50,6 +53,12 @@ export default function RequestsPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+
+  // QR state
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrDataStr, setQrDataStr] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
+  const [manualCode, setManualCode] = useState('');
 
   const equipment = store.getEquipment();
   const departments = store.getDepartments();
@@ -111,24 +120,37 @@ export default function RequestsPage() {
     if (hasError) return;
 
     try {
+      const createdIds: string[] = [];
       for (const item of cart) {
-        await apiCreateRequest({
+        const result = await apiCreateRequest({
           maNguoiYeuCau: user!.maNguoiDung,
           maThietBi: item.tb.maThietBi,
           maKhoa: isKhoa ? user?.maKhoa : khoaYeuCau,
           soLuongYeuCau: item.soLuong,
           lyDo
         } as any);
+        if (result.success && result.phieu) {
+            createdIds.push(result.phieu.maPhieu);
+        }
       }
+      
       const resList = await fetchApi<any[]>('/requests');
-      if (resList.success) {
-        store.setRequests(resList.data);
-        setRequests([...resList.data]);
+      if (Array.isArray(resList)) {
+        store.setRequests(resList);
+        setRequests(resList);
       }
+      
       setCartOpen(false);
       setCart([]);
       setLyDo('');
-      toast({ title: 'Thành công', description: `Đã gửi yêu cầu cấp phát.` });
+
+      if (createdIds.length > 0) {
+        // Nếu tạo nhiều, hiện mã QR của phiếu cuối cùng hoặc một chuỗi tổng hợp
+        setQrDataStr(createdIds[createdIds.length - 1]);
+        setQrOpen(true);
+      }
+
+      toast({ title: 'Thành công', description: `Đã gửi ${createdIds.length} yêu cầu cấp phát.` });
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
@@ -163,14 +185,14 @@ export default function RequestsPage() {
 
       if (result.success) {
         const resList = await fetchApi<any[]>('/requests');
-        if (resList.success) {
-          store.setRequests(resList.data);
-          setRequests([...resList.data]);
+        if (Array.isArray(resList)) {
+          store.setRequests(resList);
+          setRequests(resList);
         }
         const resAlloc = await fetchApi<any[]>('/allocations');
-        if (resAlloc.success) store.setAllocations(resAlloc.data);
+        if (Array.isArray(resAlloc)) store.setAllocations(resAlloc);
         const resInv = await fetchApi<any[]>('/inventory');
-        if (resInv.success) store.setInventory(resInv.data);
+        if (Array.isArray(resInv)) store.setInventory(resInv);
 
         setAllocateOpen(false);
         toast({ title: 'Cấp phát thành công' });
@@ -185,7 +207,8 @@ export default function RequestsPage() {
   const handleReject = async () => {
     if (!rejectReason) return toast({ title: 'Lỗi', description: 'Nhập lý do từ chối', variant: 'destructive' });
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/requests/${rejectingId}/approve-dept`, {
+      const endpoint = user?.vaiTro === 'NV_KHO' ? `/requests/${rejectingId}/approve-mgr` : `/requests/${rejectingId}/approve-dept`;
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}${endpoint}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
         body: JSON.stringify({ approved: false, lyDo: rejectReason })
@@ -193,9 +216,9 @@ export default function RequestsPage() {
       const result = await response.json();
       if (result.success) {
         const resList = await fetchApi<any[]>('/requests');
-        if (resList.success) {
-          store.setRequests(resList.data);
-          setRequests([...resList.data]);
+        if (Array.isArray(resList)) {
+          store.setRequests(resList);
+          setRequests(resList);
         }
         setRejectOpen(false);
         toast({ title: 'Đã từ chối phiếu.' });
@@ -203,7 +226,7 @@ export default function RequestsPage() {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
     } catch (err) {
-      toast({ title: 'Lỗi' });
+      toast({ title: 'Lỗi', description: 'Không thể thực hiện từ chối.', variant: 'destructive' });
     }
   };
 
@@ -218,6 +241,12 @@ export default function RequestsPage() {
             </TabsTrigger>
           </TabsList>
           
+          {isNvkho && (
+            <Button onClick={() => setScanOpen(true)} className="bg-foreground text-background hover:bg-foreground/80">
+              <Camera className="w-4 h-4 mr-2" /> Quét QR Duyệt nhanh
+            </Button>
+          )}
+
           {isKhoa && (
             <Button onClick={() => setCartOpen(true)} className="gradient-primary text-primary-foreground shadow-md mr-2 relative">
               <ShoppingCart className="w-4 h-4 mr-2" /> Giỏ hàng yêu cầu
@@ -334,11 +363,15 @@ export default function RequestsPage() {
                           <td className="p-3 text-right">
                             {r.trangThai === 'CHO_DUYET' ? (
                               <div className="flex justify-end gap-1">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setQrDataStr(r.maPhieu); setQrOpen(true); }} title="Mã QR"><QrCode className="w-4 h-4 text-primary" /></Button>
                                 <Button size="sm" variant="default" className="h-7 text-xs bg-success hover:bg-success/90 text-white" onClick={() => { setAllocating(r); setNgayDuKienTra(''); setAllocateOpen(true); }}>Cấp phát</Button>
                                 <Button size="sm" variant="outline" className="h-7 text-xs text-destructive hover:bg-destructive/10 border-destructive/20" onClick={() => { setRejectingId(r.maPhieu); setRejectReason(''); setRejectOpen(true); }}>Từ chối</Button>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground mr-2">—</span>
+                              <div className="flex justify-end items-center gap-1">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setQrDataStr(r.maPhieu); setQrOpen(true); }} title="Mã QR"><QrCode className="w-4 h-4 text-muted-foreground" /></Button>
+                                <span className="text-muted-foreground mr-2">—</span>
+                              </div>
                             )}
                           </td>
                         )}
@@ -480,6 +513,84 @@ export default function RequestsPage() {
             <Button variant="outline" onClick={() => setRejectOpen(false)}>Quay lại</Button>
             <Button variant="destructive" onClick={handleReject}>Gửi phản hồi Từ chối</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="max-w-sm text-center flex flex-col items-center justify-center p-6 space-y-4">
+          <DialogHeader><DialogTitle>Mã QR Yêu Cầu Cấp Phát</DialogTitle></DialogHeader>
+          <div className="bg-white p-4 rounded-xl shadow-inner border inline-block mt-4">
+            <QRCodeComponent 
+              value={qrDataStr} 
+              size={200}
+              fgColor="#000000"
+              level="H"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 font-mono font-bold">{qrDataStr}</p>
+          <p className="text-[10px] text-muted-foreground">NV Kho có thể quét mã này để xử lý nhanh.</p>
+          <Button variant="outline" onClick={() => setQrOpen(false)} className="w-full mt-4">Đóng</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scanOpen} onOpenChange={(open) => { setScanOpen(open); if(!open) setManualCode(''); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nhận diện Yêu Cầu Cấp Phát</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="overflow-hidden rounded-xl border bg-black aspect-video relative">
+              {scanOpen && (
+                 <Scanner
+                    onScan={(detectedCodes) => {
+                       if (detectedCodes && detectedCodes.length > 0) {
+                          const code = detectedCodes[0].rawValue;
+                          const found = requests.find(r => r.maPhieu === code);
+                          if (found) {
+                            if (found.trangThai === 'CHO_DUYET') {
+                              setAllocating(found);
+                              setNgayDuKienTra('');
+                              setAllocateOpen(true);
+                              setScanOpen(false);
+                            } else {
+                              toast({ title: 'Cảnh báo', description: `Phiếu ${code} đã ở trạng thái ${STATUS_MAP[found.trangThai as keyof typeof STATUS_MAP] || found.trangThai}`, variant: 'destructive' });
+                            }
+                          } else {
+                            toast({ title: 'Lỗi', description: 'Không tìm thấy mã phiếu yêu cầu này.', variant: 'destructive' });
+                          }
+                       }
+                    }}
+                    formats={['qr_code']}
+                    components={{ audio: false, finder: true }}
+                    styles={{ container: { width: '100%', height: '100%' } }}
+                 />
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Nhập mã YCCF thủ công..." 
+                value={manualCode} 
+                onChange={e => setManualCode(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const found = requests.find(r => r.maPhieu === manualCode);
+                    if (found) {
+                      setAllocating(found); setAllocateOpen(true); setScanOpen(false);
+                    } else {
+                      toast({ title: 'Lỗi', description: 'Mã không tồn tại.' });
+                    }
+                  }
+                }}
+              />
+              <Button onClick={() => {
+                const found = requests.find(r => r.maPhieu === manualCode);
+                if (found) {
+                  setAllocating(found); setAllocateOpen(true); setScanOpen(false);
+                } else {
+                  toast({ title: 'Lỗi', description: 'Mã không tồn tại.' });
+                }
+              }}>Tìm</Button>
+            </div>
+          </div>
+          <DialogFooter><Button variant="ghost" onClick={() => setScanOpen(false)} className="w-full">Đóng</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

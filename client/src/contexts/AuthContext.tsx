@@ -17,7 +17,20 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<NguoiDung | null>(() => {
     const saved = localStorage.getItem('kho_currentUser');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    try {
+      const parsed = JSON.parse(saved);
+      // Bảo vệ: Nếu vai trò cũ (như NV_BV) không còn tồn tại, ép đăng xuất
+      const validRoles = ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'];
+      if (!parsed.vaiTro || !validRoles.includes(parsed.vaiTro)) {
+        localStorage.removeItem('kho_currentUser');
+        localStorage.removeItem('auth_token');
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   });
   const [dataLoaded, setDataLoaded] = useState(false);
 
