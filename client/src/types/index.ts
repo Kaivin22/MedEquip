@@ -199,6 +199,21 @@ export interface ThongBao {
   ngayTao: string;
 }
 
+export interface ChiTietTra {
+  maThietBi: string;
+  soLuongTra: number;
+}
+
+export interface PhieuTra {
+  maPhieu: string;
+  maNguoiTra: string;
+  maKhoa: string;
+  trangThai: 'CHO_NHAN' | 'DA_NHAN' | 'TU_CHOI';
+  ngayTao: string;
+  chiTiet: ChiTietTra[];
+  qrCode?: string;
+}
+
 export interface NhatKy {
   maNhatKy: string;
   maNguoiDung: string;

@@ -61,8 +61,6 @@ export default function ReturnsPage() {
       }
 
       const resAlloc = await fetchApi<any[]>('/allocations');
-      // resAlloc might be an array or object depending on implementation, 
-      // but usually fetchApi throws on error, so we can check if it's array
       if (Array.isArray(resAlloc)) {
         store.setAllocations(resAlloc);
         setAllocations(resAlloc);
@@ -109,7 +107,6 @@ export default function ReturnsPage() {
       if (result.success) {
         toast({ title: 'Thành công', description: 'Đã tạo Phiếu thông báo trả thiết bị.' });
         setDialogOpen(false);
-        // Ngay lập tức hiển thị mã QR cho Trưởng khoa
         setQrDataStr(result.maPhieuTra);
         setQrOpen(true);
         reload();
@@ -133,7 +130,6 @@ export default function ReturnsPage() {
       if (result.success) {
         toast({ title: 'Thành công', description: `Đã ${approved ? 'xác nhận nhập kho' : 'từ chối'} phiếu trả.` });
         setConfirmOpen(false);
-        // Chờ dữ liệu backend cập nhật xong rồi mới reload
         setTimeout(() => reload(), 300);
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
@@ -260,7 +256,7 @@ export default function ReturnsPage() {
 
   const filtered = data.filter(d => 
     d.maPhieuTra.toLowerCase().includes(search.toLowerCase()) || 
-    d.maPhieuCapPhat.toLowerCase().includes(search.toLowerCase())
+    (d.maPhieuCapPhat && d.maPhieuCapPhat.toLowerCase().includes(search.toLowerCase()))
   );
 
   const pendingAllocations = allocations.filter(a => 
@@ -285,7 +281,7 @@ export default function ReturnsPage() {
           )}
           {canCreate && (
             <Button onClick={() => {
-              setForm({ maPhieuCapPhat: '', ghiChu: '', chiTiet: [] });
+              setForm({ ghiChu: '', chiTiet: [] });
               setDialogOpen(true);
             }} className="gradient-primary text-primary-foreground">
               <Plus className="w-4 h-4 mr-2" /> Khai báo Trả thiết bị
@@ -296,7 +292,7 @@ export default function ReturnsPage() {
 
       <div className="relative max-w-md w-full">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Tìm mã phiếu trả, mã phiếu cấp phát..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+        <Input placeholder="Tìm mã phiếu trả..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
       </div>
 
       <div className="border rounded-xl bg-card overflow-hidden">
@@ -361,7 +357,6 @@ export default function ReturnsPage() {
         {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có dữ liệu phiếu trả.</div>}
       </div>
 
-      {/* Tạo Phiếu Trả (Trưởng khoa) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Lập phiếu Trả Thiết bị</DialogTitle></DialogHeader>
@@ -465,7 +460,6 @@ export default function ReturnsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Chi tiết Phiếu Trả {viewingPhieu?.maPhieuTra}</DialogTitle></DialogHeader>
@@ -528,7 +522,6 @@ export default function ReturnsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* QR Code Dialog */}
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="max-w-sm text-center flex flex-col items-center justify-center p-6 space-y-4">
           <DialogHeader><DialogTitle>Mã QR Phiếu Trả</DialogTitle></DialogHeader>
@@ -545,13 +538,11 @@ export default function ReturnsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* QR Scanner Dialog */}
       <Dialog open={scanOpen} onOpenChange={(open) => { setScanOpen(open); if(!open) setManualCode(''); }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Nhận diện Phiếu Trả</DialogTitle></DialogHeader>
           
           <div className="space-y-4 py-2">
-            {/* Camera Scanner */}
             <div className="overflow-hidden rounded-xl border bg-black aspect-video relative">
               {scanOpen && (
                  <Scanner
@@ -605,7 +596,6 @@ export default function ReturnsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Validate Return Dialog (NV KHO) */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Xác nhận Nhập kho Trả Thiết bị</DialogTitle></DialogHeader>

@@ -6,12 +6,33 @@ import * as XLSX from "xlsx";
 // ──────────────────────────────────────────────
 export async function getAllImports(req, res) {
   try {
-    let sql = "SELECT * FROM phieu_nhap_kho WHERE 1=1";
+    let sql = `
+      SELECT DISTINCT p.*, n.ten_nha_cung_cap, u.ho_ten as ten_nhan_vien
+      FROM phieu_nhap_kho p
+      LEFT JOIN chi_tiet_nhap_kho c ON p.ma_phieu = c.ma_phieu_nhap
+      LEFT JOIN thiet_bi t ON c.ma_thiet_bi = t.ma_thiet_bi
+      LEFT JOIN nha_cung_cap n ON p.ma_nha_cung_cap = n.ma_nha_cung_cap
+      LEFT JOIN nguoi_dung u ON p.ma_nguoi_nhap = u.ma_nguoi_dung
+      WHERE 1=1
+    `;
     const params = [];
-    if (req.query.fromDate) { sql += " AND ngay_nhap >= ?"; params.push(req.query.fromDate); }
-    if (req.query.toDate)   { sql += " AND ngay_nhap <= ?"; params.push(req.query.toDate); }
-    if (req.query.maNhaCungCap) { sql += " AND ma_nha_cung_cap = ?"; params.push(req.query.maNhaCungCap); }
-    sql += " ORDER BY ngay_nhap DESC";
+    if (req.query.fromDate) { sql += " AND p.ngay_nhap >= ?"; params.push(req.query.fromDate); }
+    if (req.query.toDate) { sql += " AND p.ngay_nhap <= ?"; params.push(req.query.toDate); }
+    if (req.query.maNhaCungCap) { sql += " AND p.ma_nha_cung_cap = ?"; params.push(req.query.maNhaCungCap); }
+    
+    if (req.query.search) {
+      const keyword = `%${req.query.search}%`;
+      sql += ` AND (
+        p.ma_phieu LIKE ? OR 
+        t.ten_thiet_bi LIKE ? OR 
+        n.ten_nha_cung_cap LIKE ? OR 
+        u.ho_ten LIKE ?
+      )`;
+      params.push(keyword, keyword, keyword, keyword);
+    }
+
+    // Sort DESC (newest first)
+    sql += " ORDER BY p.ngay_nhap DESC, p.ma_phieu DESC";
     const [rows] = await pool.query(sql, params);
 
     const result = [];
@@ -27,7 +48,9 @@ export async function getAllImports(req, res) {
         result.push({
           maPhieu: row.ma_phieu,
           maNhaCungCap: row.ma_nha_cung_cap,
+          tenNhaCungCap: row.ten_nha_cung_cap || "",
           maNhanVienKho: row.ma_nguoi_nhap,
+          tenNhanVienKho: row.ten_nhan_vien || "",
           ngayNhap: row.ngay_nhap,
           ghiChu: row.ghi_chu || "",
           maThietBi: d.ma_thiet_bi,
@@ -48,7 +71,9 @@ export async function getAllImports(req, res) {
         result.push({
           maPhieu: row.ma_phieu,
           maNhaCungCap: row.ma_nha_cung_cap,
+          tenNhaCungCap: row.ten_nha_cung_cap || "",
           maNhanVienKho: row.ma_nguoi_nhap,
+          tenNhanVienKho: row.ten_nhan_vien || "",
           ngayNhap: row.ngay_nhap,
           ghiChu: row.ghi_chu || "",
           maThietBi: "", tenThietBi: "", soLuongNhap: 0,
@@ -152,7 +177,7 @@ export async function parseExcelPreview(req, res) {
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error("DEBUG: Error in parseExcelPreview:", err);
     res.status(500).json({ success: false, message: "Lỗi đọc file Excel: " + err.message });
   }
 }
@@ -244,7 +269,9 @@ export async function confirmImportFromExcel(req, res) {
     });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
+    await conn.rollback();
+    console.error("DEBUG: Error in confirmImportFromExcel:", err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
     res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
   } finally {
     conn.release();
