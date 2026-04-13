@@ -12,7 +12,8 @@ export function mapUser(row) {
     ngayTao: row.ngay_tao,
     ngayCapNhat: row.ngay_cap_nhat,
     soDienThoai: row.so_dien_thoai || "",
-    diaChi: row.dia_chi || ""
+    diaChi: row.dia_chi || "",
+    maKhoa: row.ma_khoa || ""
   };
 }
 
@@ -29,28 +30,15 @@ export async function login(req, res) {
 
     if (!user.trang_thai) return res.json({ success: false, message: "Tài khoản đã bị vô hiệu hoá. Vui lòng liên hệ quản trị viên." });
 
-    // Check lock
-    if (user.khoa_den && new Date(user.khoa_den) > new Date()) {
-      const remainMin = Math.ceil((new Date(user.khoa_den) - new Date()) / 60000);
-      return res.json({ success: false, message: `Tài khoản bị khóa. Vui lòng thử lại sau ${remainMin} phút.` });
-    }
-
     const isMatch = await bcrypt.compare(password, user.mat_khau);
     if (!isMatch) {
-      const newCount = (user.so_lan_dang_nhap_sai || 0) + 1;
-      if (newCount >= 5) {
-        const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
-        await pool.query("UPDATE nguoi_dung SET so_lan_dang_nhap_sai = ?, khoa_den = ? WHERE ma_nguoi_dung = ?", [newCount, lockUntil, user.ma_nguoi_dung]);
-        return res.json({ success: false, message: "Tài khoản bị khóa 15 phút do nhập sai quá nhiều lần.", failedAttempts: 5 });
-      }
-      await pool.query("UPDATE nguoi_dung SET so_lan_dang_nhap_sai = ? WHERE ma_nguoi_dung = ?", [newCount, user.ma_nguoi_dung]);
-      return res.json({ success: false, message: "Email hoặc mật khẩu không đúng!", failedAttempts: newCount });
+      return res.json({ success: false, message: "Email hoặc mật khẩu không đúng!" });
     }
 
-    // Reset failed attempts
+    // Reset failed attempts (just in case)
     await pool.query("UPDATE nguoi_dung SET so_lan_dang_nhap_sai = 0, khoa_den = NULL WHERE ma_nguoi_dung = ?", [user.ma_nguoi_dung]);
 
-    const token = generateToken({ userId: user.ma_nguoi_dung, vaiTro: user.vai_tro, email: user.email });
+    const token = generateToken({ userId: user.ma_nguoi_dung, vaiTro: user.vai_tro, email: user.email, maKhoa: user.ma_khoa });
 
     res.json({ success: true, user: mapUser(user), token });
   } catch (err) {

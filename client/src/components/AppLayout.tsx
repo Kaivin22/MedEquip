@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import {
   Hospital, LayoutDashboard, Package, Truck, Building2, FolderOpen,
   FileText, FileInput, FileOutput, ClipboardCheck, Bell, Users,
-  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3, PackagePlus
+  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3, RotateCcw
 } from 'lucide-react';
 
 export type PageKey =
   | 'dashboard' | 'inventory' | 'suppliers' | 'departments'
-  | 'requests' | 'users' | 'notifications'
+  | 'requests' | 'returns' | 'users' | 'notifications'
   | 'profile' | 'reports';
 
 interface NavItem {
@@ -24,15 +24,16 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
-  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'NV_BV', 'TRUONG_KHOA', 'NV_KHO'] },
+  { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
+  { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
+  { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
+  { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+  { key: 'returns', label: 'Trả thiết bị', icon: <RotateCcw className="w-5 h-5" />, roles: ['TRUONG_KHOA', 'NV_KHO', 'ADMIN'] },
   { key: 'reports', label: 'Báo cáo thống kê', icon: <BarChart3 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
   { key: 'users', label: 'Quản lý Tài khoản', icon: <Users className="w-5 h-5" />, roles: ['ADMIN'] },
-  { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
-  { key: 'profile', label: 'Trang cá nhân', icon: <UserCircle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'NV_BV'] },
+  { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'profile', label: 'Trang cá nhân', icon: <UserCircle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
 ];
 
 interface AppLayoutProps {
@@ -60,7 +61,7 @@ export default function AppLayout({ currentPage, onNavigate, children }: AppLayo
         {!collapsed && (
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-sidebar-primary-foreground truncate">Kho Bệnh viện</h2>
-            <p className="text-xs text-sidebar-foreground truncate">Hệ thống quản lý</p>
+            <p className="text-xs text-sidebar-foreground truncate">Hệ thống quản lý v4</p>
           </div>
         )}
       </div>

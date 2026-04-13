@@ -4,18 +4,19 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Package, FileInput, FileOutput, PackagePlus, Trash2, Pencil, X, Eye, Plus, Image as ImageIcon } from 'lucide-react';
+import { Search, Package, FileInput, FileOutput, Trash2, Pencil, X, Eye, Plus, Image as ImageIcon } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { apiCreateEquipment, apiUpdateEquipment, apiDeleteEquipment } from '@/lib/apiSync';
-import { ThietBi } from '@/types';
+import { ThietBi, PhieuCapPhat } from '@/types';
 import ImportsPage from './ImportsPage';
 import ExportsPage from './ExportsPage';
-import ImportRequestsPage from './ImportRequestsPage';
+import { useAuth } from '@/contexts/AuthContext';
 
 function StockView({ onRefresh }: { onRefresh: () => void }) {
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [detailOpen, setDetailOpen] = useState(false);
@@ -26,13 +27,36 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
   const inventory = store.getInventory();
   const equipment = store.getEquipment();
   const suppliers = store.getSuppliers();
+  const allocations = store.getAllocations();
+
+  const isTrưởngKhoa = user?.vaiTro === 'TRUONG_KHOA';
 
   const [form, setForm] = useState({
     tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '', trangThai: true
   });
 
-  const data = useMemo(() =>
-    inventory.map(inv => ({
+  const data = useMemo(() => {
+    if (isTrưởngKhoa) {
+      return allocations
+        .filter(a => a.maKhoa === user?.maKhoa && a.trangThaiTra !== 'DA_TRA')
+        .map(a => {
+          const eq = equipment.find(e => e.maThietBi === a.maThietBi);
+          return {
+            ...a,
+            thietBi: eq,
+            soLuongKho: 0, 
+            soLuongDangDung: a.soLuongCapPhat,
+            soLuongHu: 0,
+            maTonKho: a.maPhieu
+          };
+        })
+        .filter(d => 
+          d.thietBi?.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
+          d.maThietBi.toLowerCase().includes(search.toLowerCase())
+        );
+    }
+
+    return inventory.map(inv => ({
       ...inv,
       thietBi: equipment.find(e => e.maThietBi === inv.maThietBi),
     })).filter(d => {
@@ -46,7 +70,8 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
       if (filterStatus === 'HET_HANG') return (d.soLuongKho === 0 && d.soLuongDangDung === 0 && d.soLuongHu === 0);
       
       return true;
-    }), [inventory, equipment, search, filterStatus]);
+    });
+  }, [inventory, equipment, allocations, search, filterStatus, isTrưởngKhoa, user?.maKhoa]);
 
   const openAdd = () => {
     setSelectedItem(null);
@@ -137,16 +162,41 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
         </div>
       </div>
 
+      {!isTrưởngKhoa && (
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex justify-between items-center shadow-sm">
+           <div>
+             <h3 className="text-sm text-primary font-semibold mb-1">Tổng giá trị tài sản hệ thống</h3>
+             <p className="text-xs text-muted-foreground">Dựa trên đơn giá lô nhập gần nhất</p>
+           </div>
+           <div className="text-2xl font-bold font-mono text-primary">
+              {new Intl.NumberFormat('vi-VN').format(
+                data.reduce((sum, d) => sum + ((d.donGia || 0) * (d.soLuongKho + d.soLuongDangDung + d.soLuongHu)), 0)
+              )} đ
+           </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card/30">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="text-left p-4 font-medium text-muted-foreground">Thiết bị</th>
-              <th className="text-center p-4 font-medium text-muted-foreground">Trong kho</th>
-              <th className="text-center p-4 font-medium text-muted-foreground">Đang dùng</th>
-              <th className="text-center p-4 font-medium text-muted-foreground">Hư hỏng</th>
-              <th className="text-center p-4 font-medium text-muted-foreground">Tổng cộng</th>
-              <th className="text-center p-4 font-medium text-muted-foreground">Xóa</th>
+              {isTrưởngKhoa ? (
+                <>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Số lượng mượn</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Ngày cấp</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Hạn trả (Dự kiến)</th>
+                </>
+              ) : (
+                <>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Trong kho</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Đang dùng</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Hư hỏng</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Tổng cộng SL</th>
+                  <th className="text-right p-4 font-medium text-muted-foreground w-36">Tổng trị giá</th>
+                  <th className="text-center p-4 font-medium text-muted-foreground">Thao tác</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
@@ -160,36 +210,60 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
                   <div className="font-medium text-foreground group-hover:text-primary transition-colors">{d.thietBi?.tenThietBi || 'Thiết bị không xác định'}</div>
                   <div className="text-xs font-mono text-muted-foreground mt-0.5">{d.maThietBi}</div>
                 </td>
-                <td className="p-4 text-center">
-                  <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-primary/10 text-primary font-semibold">
-                    {d.soLuongKho}
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-secondary/10 text-secondary-foreground font-semibold">
-                    {d.soLuongDangDung}
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-warning/10 text-warning font-semibold">
-                    {d.soLuongHu}
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <span className="text-base font-bold text-foreground">
-                    {d.soLuongKho + d.soLuongDangDung + d.soLuongHu}
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => handleDelete(d.maThietBi, e)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </td>
+                
+                {isTrưởngKhoa ? (
+                  <>
+                    <td className="p-4 text-center">
+                      <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-primary/10 text-primary font-semibold">
+                        {d.soLuongCapPhat}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center text-muted-foreground">
+                      {new Date(d.ngayCapPhat).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className={new Date(d.ngayDuKienTra) < new Date() ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+                        {d.ngayDuKienTra ? new Date(d.ngayDuKienTra).toLocaleDateString('vi-VN') : '—'}
+                      </span>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="p-4 text-center">
+                      <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-primary/10 text-primary font-semibold">
+                        {d.soLuongKho}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-secondary/10 text-secondary-foreground font-semibold">
+                        {d.soLuongDangDung}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-warning/10 text-warning font-semibold">
+                        {d.soLuongHu}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="text-base font-bold text-foreground">
+                        {d.soLuongKho + d.soLuongDangDung + d.soLuongHu}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right font-mono font-semibold text-primary">
+                      {d.donGia ? new Intl.NumberFormat('vi-VN').format(d.donGia * (d.soLuongKho + d.soLuongDangDung + d.soLuongHu)) + ' đ' : '-'}
+                    </td>
+                    <td className="p-4 text-center">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => handleDelete(d.maThietBi, e)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -312,51 +386,63 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
 }
 
 export default function InventoryPage() {
+  const { user } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
+
+  const isTrưởngKhoa = user?.vaiTro === 'TRUONG_KHOA';
 
   return (
     <div key={refreshKey} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Quản lý kho</h1>
-        <p className="text-muted-foreground">Theo dõi tồn kho, quản lý nhập xuất và thiết bị.</p>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {isTrưởngKhoa ? 'Thiết bị đang mượn' : 'Quản lý kho'}
+        </h1>
+        <p className="text-muted-foreground">
+          {isTrưởngKhoa 
+            ? 'Danh sách thiết bị mà khoa đang mượn và quản lý.' 
+            : 'Theo dõi tồn kho, quản lý nhập xuất và thiết bị.'}
+        </p>
       </div>
 
       <Tabs defaultValue="stock" className="w-full space-y-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:max-w-2xl bg-muted/40 p-1 rounded-xl">
+        <TabsList className={`grid w-full ${isTrưởngKhoa ? 'grid-cols-2 lg:max-w-md' : 'grid-cols-2 md:grid-cols-4 lg:max-w-2xl'} bg-muted/40 p-1 rounded-xl`}>
           <TabsTrigger value="stock" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
             <Package className="w-4 h-4 mr-2" />
-            Tồn kho
+            {isTrưởngKhoa ? 'Thiết bị của khoa' : 'Tồn kho'}
           </TabsTrigger>
-          <TabsTrigger value="imports" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <FileInput className="w-4 h-4 mr-2" />
-            Nhập kho
-          </TabsTrigger>
-          <TabsTrigger value="exports" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <FileOutput className="w-4 h-4 mr-2" />
-            Xuất kho
-          </TabsTrigger>
-          <TabsTrigger value="requests" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            <PackagePlus className="w-4 h-4 mr-2" />
-            YC nhập mới
-          </TabsTrigger>
+          {!isTrưởngKhoa && (
+            <>
+              <TabsTrigger value="imports" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <FileInput className="w-4 h-4 mr-2" />
+                Nhập kho
+              </TabsTrigger>
+              <TabsTrigger value="exports" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                <FileOutput className="w-4 h-4 mr-2" />
+                Xuất kho
+              </TabsTrigger>
+            </>
+          )}
+          {/* Removed requests tab */}
         </TabsList>
 
         <TabsContent value="stock" className="outline-none">
           <StockView onRefresh={triggerRefresh} />
         </TabsContent>
         
-        <TabsContent value="imports" className="outline-none">
-          <ImportsPage />
-        </TabsContent>
+        {!isTrưởngKhoa && (
+          <>
+            <TabsContent value="imports" className="outline-none">
+              <ImportsPage />
+            </TabsContent>
 
-        <TabsContent value="exports" className="outline-none">
-          <ExportsPage />
-        </TabsContent>
+            <TabsContent value="exports" className="outline-none">
+              <ExportsPage />
+            </TabsContent>
+          </>
+        )}
 
-        <TabsContent value="requests" className="outline-none">
-          <ImportRequestsPage onRefresh={triggerRefresh} />
-        </TabsContent>
+        {/* Removed requests content */}
       </Tabs>
     </div>
   );

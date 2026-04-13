@@ -1,4 +1,5 @@
 import { store } from '@/lib/store';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -15,15 +16,33 @@ function exportToExcel(data: Record<string, unknown>[], sheetName: string, fileN
 }
 
 export default function ReportsPage() {
-  const inventory = store.getInventory();
-  const equipment = store.getEquipment();
-  const requests = store.getRequests();
-  const imports = store.getImports();
-  const exports_ = store.getExports();
-  const allocations = store.getAllocations();
-  const damageReports = store.getDamageReports();
+  const { user } = useAuth();
+  
+  const allInventory = store.getInventory();
+  const allEquipment = store.getEquipment();
+  const allRequests = store.getRequests();
+  const allImports = store.getImports();
+  const allExports = store.getExports();
+  const allAllocations = store.getAllocations();
+  const allDamageReports = store.getDamageReports();
   const departments = store.getDepartments();
   const users = store.getUsers();
+
+  const isTK = user?.vaiTro === 'TRUONG_KHOA';
+  
+  // Filtering logic
+  const requests = isTK ? allRequests.filter(r => r.maNguoiYeuCau === user.maNguoiDung) : allRequests;
+  const allocations = isTK ? allAllocations.filter(a => a.maNguoiMuon === user.maNguoiDung) : allAllocations;
+  const damageReports = isTK ? allDamageReports.filter(d => d.maNguoiBao === user.maNguoiDung) : allDamageReports;
+  
+  // For Inventory charts/stats, TK only sees devices they participated in
+  const myDeviceIds = new Set(allocations.map(a => a.maThietBi));
+  const inventory = isTK ? allInventory.filter(inv => myDeviceIds.has(inv.maThietBi)) : allInventory;
+  const equipment = isTK ? allEquipment.filter(e => myDeviceIds.has(e.maThietBi)) : allEquipment;
+  
+  // Imports/Exports are usually hidden or scoped too, but for TK they shouldn't see hospital-wide imports
+  const imports = isTK ? [] : allImports;
+  const exports_ = isTK ? [] : allExports;
 
   const invData = inventory.map(inv => {
     const tb = equipment.find(e => e.maThietBi === inv.maThietBi);
@@ -160,13 +179,13 @@ export default function ReportsPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: 'Tổng trong kho', value: totalStock, color: 'text-primary' },
-          { label: 'Đang sử dụng', value: totalInUse, color: 'text-accent' },
-          { label: 'Hư hỏng', value: totalDamaged, color: 'text-warning' },
-          { label: 'Đã nhập', value: totalImported, color: 'text-info' },
-          { label: 'Đã xuất (BV)', value: totalExported, color: 'text-destructive' },
-          { label: 'Đã cấp phát', value: totalAllocated, color: 'text-success' },
-        ].map(s => (
+          { label: 'Tổng trong kho', value: totalStock, color: 'text-primary', hide: isTK },
+          { label: 'Đang sử dụng', value: totalInUse, color: 'text-accent', hide: isTK },
+          { label: 'Hư hỏng', value: totalDamaged, color: 'text-warning', hide: isTK },
+          { label: 'Đã nhập', value: totalImported, color: 'text-info', hide: isTK },
+          { label: 'Đã xuất (BV)', value: totalExported, color: 'text-destructive', hide: isTK },
+          { label: 'Đã mượn', value: totalAllocated, color: 'text-success' },
+        ].filter(s => !s.hide).map(s => (
           <Card key={s.label} className="shadow-card">
             <CardContent className="p-4 text-center">
               <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -178,28 +197,30 @@ export default function ReportsPage() {
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Inventory chart */}
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Tồn kho theo thiết bị</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportInventory} className="gap-1">
-              <Download className="h-3 w-3" /> Excel
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={invData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-30} textAnchor="end" fontSize={11} />
-                <YAxis fontSize={12} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Trong kho" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Đang dùng" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Hư hỏng" fill="hsl(38, 92%, 50%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {(!isTK || invData.length > 0) && (
+          <Card className="shadow-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">{isTK ? 'Tình trạng thiết bị đã mượn' : 'Tồn kho theo thiết bị'}</CardTitle>
+              <Button variant="outline" size="sm" onClick={exportInventory} className="gap-1">
+                <Download className="h-3 w-3" /> Excel
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={invData} margin={{ top: 5, right: 20, left: 0, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-30} textAnchor="end" fontSize={11} />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Legend />
+                  {!isTK && <Bar dataKey="Trong kho" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} />}
+                  <Bar dataKey="Đang dùng" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Hư hỏng" fill="hsl(38, 92%, 50%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Request status pie */}
         <Card className="shadow-card">
@@ -286,55 +307,59 @@ export default function ReportsPage() {
         </Card>
 
         {/* Import/Export summary */}
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Nhập kho</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportImports} className="gap-1">
-              <Download className="h-3 w-3" /> Excel
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-sm text-muted-foreground">Tổng phiếu nhập</span>
-                <span className="font-bold">{imports.length}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-sm text-muted-foreground">Tổng SL đã nhập</span>
-                <span className="font-bold text-info">{totalImported}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {!isTK && (
+          <>
+            <Card className="shadow-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Nhập kho</CardTitle>
+                <Button variant="outline" size="sm" onClick={exportImports} className="gap-1">
+                  <Download className="h-3 w-3" /> Excel
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-muted-foreground">Tổng phiếu nhập</span>
+                    <span className="font-bold">{imports.length}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Tổng SL đã nhập</span>
+                    <span className="font-bold text-info">{totalImported}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Xuất kho / Cấp phát</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportExportsData} className="gap-1">
-              <Download className="h-3 w-3" /> Excel
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-sm text-muted-foreground">Tổng phiếu xuất</span>
-                <span className="font-bold">{exports_.length}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-sm text-muted-foreground">Tổng SL đã xuất</span>
-                <span className="font-bold text-destructive">{totalExported}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b">
-                <span className="text-sm text-muted-foreground">Tổng phiếu cấp phát</span>
-                <span className="font-bold">{allocations.length}</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-sm text-muted-foreground">Tổng SL cấp phát</span>
-                <span className="font-bold text-success">{totalAllocated}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="shadow-card">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Xuất kho / Cấp phát</CardTitle>
+                <Button variant="outline" size="sm" onClick={exportExportsData} className="gap-1">
+                  <Download className="h-3 w-3" /> Excel
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-muted-foreground">Tổng phiếu xuất</span>
+                    <span className="font-bold">{exports_.length}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-muted-foreground">Tổng SL đã xuất</span>
+                    <span className="font-bold text-destructive">{totalExported}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-sm text-muted-foreground">Tổng phiếu cấp phát</span>
+                    <span className="font-bold">{allocations.length}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Tổng SL cấp phát</span>
+                    <span className="font-bold text-success">{totalAllocated}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

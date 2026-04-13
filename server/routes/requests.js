@@ -7,7 +7,7 @@ const router = Router();
 router.get("/", authMiddleware, getAllRequests);
 router.post("/", authMiddleware, createRequest);
 router.put("/:id/approve-dept", authMiddleware, roleMiddleware("TRUONG_KHOA", "ADMIN"), approveDept);
-router.put("/:id/approve-mgr", authMiddleware, roleMiddleware("ADMIN"), approveManager);
+router.put("/:id/approve-mgr", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), approveManager);
 router.post("/:id/process", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), processRequest);
 router.put("/:id/confirm", authMiddleware, confirmReceived);
 router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteRequest);

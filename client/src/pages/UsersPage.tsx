@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Building } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
@@ -20,12 +21,13 @@ export default function UsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<NguoiDung | null>(null);
 
-  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV' as UserRole, trangThai: true });
+  const [form, setForm] = useState({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'TRUONG_KHOA' as UserRole, maKhoa: '', trangThai: true });
+  const departments = store.getDepartments();
   const [emailError, setEmailError] = useState<string | null>(null);
   const filtered = useMemo(() => data.filter(u => u.hoTen.toLowerCase().includes(search.toLowerCase()) || u.email.includes(search)), [data, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'NV_BV', trangThai: true }); setEmailError(null); setDialogOpen(true); };
-  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: u.matKhau, vaiTro: u.vaiTro, trangThai: u.trangThai }); setEmailError(null); setDialogOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ hoTen: '', email: '', matKhau: '123456', vaiTro: 'TRUONG_KHOA', maKhoa: '', trangThai: true }); setEmailError(null); setDialogOpen(true); };
+  const openEdit = (u: NguoiDung) => { setEditing(u); setForm({ hoTen: u.hoTen, email: u.email, matKhau: u.matKhau, vaiTro: u.vaiTro, maKhoa: u.maKhoa || '', trangThai: u.trangThai }); setEmailError(null); setDialogOpen(true); };
 
   const handleSave = async () => {
     if (!form.hoTen || !form.email) { toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return; }
@@ -38,7 +40,11 @@ export default function UsersPage() {
     try {
       if (editing) {
         const result = await apiUpdateUser(editing.maNguoiDung, form);
-        if (result.success) { setData(store.getUsers()); toast({ title: 'Cập nhật thành công' }); setDialogOpen(false); }
+        if (result.success) { 
+          setData([...store.getUsers()]); 
+          toast({ title: 'Cập nhật thành công' }); 
+          setDialogOpen(false); 
+        }
         else {
           if (result.message?.toLowerCase().includes('email')) {
             setEmailError(result.message);
@@ -47,7 +53,11 @@ export default function UsersPage() {
         }
       } else {
         const result = await apiCreateUser(form);
-        if (result.success) { setData(store.getUsers()); toast({ title: 'Thêm thành công' }); setDialogOpen(false); }
+        if (result.success) { 
+          setData([...store.getUsers()]); 
+          toast({ title: 'Thêm thành công' }); 
+          setDialogOpen(false); 
+        }
         else {
           if (result.message?.toLowerCase().includes('email')) {
             setEmailError(result.message);
@@ -68,7 +78,7 @@ export default function UsersPage() {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${u.hoTen} không?`)) return;
     try {
       await apiDeleteUser(u.maNguoiDung);
-      setData(store.getUsers());
+      setData([...store.getUsers()]);
       toast({ title: 'Đã xóa' });
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
@@ -138,13 +148,24 @@ export default function UsersPage() {
             <div><Label>Mật khẩu</Label><Input type="password" value={form.matKhau} onChange={e => setForm(f => ({ ...f, matKhau: e.target.value }))} /></div>
             <div>
               <Label>Vai trò *</Label>
-              <Select value={form.vaiTro} onValueChange={v => setForm(f => ({ ...f, vaiTro: v as UserRole }))}>
+              <Select value={form.vaiTro} onValueChange={v => setForm(f => ({ ...f, vaiTro: v as UserRole, maKhoa: v === 'TRUONG_KHOA' ? f.maKhoa : '' }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ROLE_LABELS).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            {form.vaiTro === 'TRUONG_KHOA' && (
+              <div className="animate-in fade-in slide-in-from-top-2">
+                <Label className="flex items-center gap-1.5 mb-1.5"><Building className="w-3.5 h-3.5" /> Khoa trực thuộc *</Label>
+                <SearchableSelect 
+                  options={departments.map(k => ({ value: k.maKhoa, label: k.tenKhoa }))} 
+                  value={form.maKhoa} 
+                  onValueChange={v => setForm(f => ({ ...f, maKhoa: v }))} 
+                  placeholder="Chọn khoa đại diện"
+                />
+              </div>
+            )}
             {editing && (
               <div>
                 <Label>Trạng thái</Label>

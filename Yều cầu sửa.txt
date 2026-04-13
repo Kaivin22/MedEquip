@@ -1,0 +1,38 @@
+1. Loại bỏ hoàn toàn "yêu cầu nhập mới" ra khỏi toàn bộ hệ thống
+2. "Nhà cung cấp": bỏ nút thêm NCC, cột sửa, cột xóa 
+- 
+3."Nhập kho": Xóa bỏ nút Lập phiếu nhập, thay vào đó là 1 nút cho nhập file excel từ máy của chủ 
+-
+4."Xuất kho":Xóa bỏ nút Lập phiếu xuất, thay vào đó là 1 nút cho nhập file excel từ máy của chủ 
+-
+5.Thiết bị:
+- Thêm hai danh mục: vật tư tiêu hao và vật tư tái sử dụng 
+
+6.Trả lại :
+- Đối với cả hai danh mục vật tư tiêu hao và vật tư tái sử dụng nhân viên đều có thể yêu cầu trả lại kho khi hết hạn mượn
+ lưu ý : đối với vật tư tiêu hao thì sẽ có hai trường hợp: 1 là mượn thì sẽ khấu trừ khỏi kho vĩnh viễn nếu bị bốc seal, 2 là trường hợp mượn nhưng chưa bốc seal thì có thể gửi yêu cầu trả lại với đủ hình ảnh chứng minh nguyên seal 
+7. Tạo file excel để test các chức năng ( đầy đủ các thông tin như dự án cũ kèm ảnh, đặc biệt phải có đơn vị đo từng thiết bị )
+- file nhập kho, xuất kho
+
+8.Khoa: liệt kê các thiết bị mà đã mượn theo khoa, tạo thêm nút xuất file excel danh sách
+- 
+9." Yêu cầu cấp phát": 
+-  Đối với trưởng khoa: thì trang sẽ hiển thị các danh sách thiết bị có trong kho kèm theo nút chọn thiết bị, khi click vào nút chọn thiết bị thì thiết bị sẽ vào trong 1 
+icon xe đẩy ( giống với việc thêm sản phẩm vào giỏ hàng trong thương mại điện tử) khi lick vào icon thì sẽ hiển thị 1 danh sách các thiết bị đã chọn kèm với nút tạo yêu cầu cấp phát, từng thiết bị thì sẽ cho phép nhập số lượng/đơn vị/hạn mượn đối với các thiết bị tái sử dụng.
+- Đối với nhân viên kho: sẽ hiển thị danh sách các trưởng khoa đã yêu cầu cấp phát, khi click vào 1 yêu cầu bất kì thì sẽ hiển thị danh sách các thiết bị trong yêu cầu đó kèm theo các thông tin chi tiết đặc biệt là thời gian mượn trả, các trạng thái vẫn giữ nguyên như cũ cùng với việc chấp nhận/từ chối.
+-Đối vưới admin: thì chỉ xem được danh sách giống nhân viên kho nhưng không được quyền tác động đến các yêu cầu cấp phát.
+
+10. Bỏ " nhân viên bệnh viện" ra khỏi toàn bộ hệ thống, thay vào đó " trưởng khoa" sẽ là người phụ tách việc " cấp phát" và " trả vật tư"
+
+11. Đối với trưởng khoa: 
+-báo cáo thống kê chỉ liệt kê các thiết bị đang mượn và đã trả của khoa .
+-Đổi chức năng quản lý kho thành quản lý các thiết bị mình đã mượn kèm theo việc có thể thay đổi ngày gia hạn khi thay đổi thì nút gia hạn sáng nhấp nháy để click vào và khi click vào thì sẽ có phần nhập lí do gia hạn. Bên phần nhân viên kho sẽ nhận được thông báo yêu cầu gia hạn của trưởng khoa đó kèm theo là phiếu yêu cầu của trưởng khoa đó trong chức năng yêu cầu cấp phát sẽ có nút chấp nhận/từ chối, nếu nhân viên kho chấp nhận/từ chối sẽ cập nhận lại trạng thái kèm theo gửi lại thông báo cho trưởng khoa.
+- Thêm chức năng trả thiết bị 
+- Đối với trả hàng: Khi có thiết bị trong danh sách mượn tới hạn gia trả trước 2 ngày thì sẽ có nút chấm thang cảnh báo, bấm vào danh sách chỗ các thiết bị có nút để click chọn thiết bị cần trả và cuối danh sách có nút gia hạn/trả , bấm vào trả thì bên chức năng trả thiết bị sẽ tự động tạo 1 danh sách riêng các thiết bị trả kèm theo 1 mã QR . Bên nhân viên kho sẽ nhận được 1 thông báo yêu cầu trả hàng của trưởng khoa kèm theo các thông tin chi tiết của danh sách trả và nút chấp nhận/từ chối, nếu chấp nhận/từ chối thì sẽ có thông báo ngược lại cho trưởng khoa và thay đổi trạng thái yêu cầu trả hàng (đã trả/chưa)
+
+12. Cảnh báo tồn kho thiết bị ở mức thấp (<10), thêm phần lọc thiết bị từ thấp đến cao, cao đến thấp, cũ nhất đến mới nhất , mới nhất đến cũ nhất 
+
+13. Đối với nhân viên kho khi chấp nhận yêu cầu cấp phát thì sẽ tự động gửi 1 cái thông báo cho trưởng khoa. Lưu ý sửa lại chức năng thông báo có thể bấm vào xem chi tiết thông báo đó và sẽ kèm tự động 1 mã QR , khi quét mã thì sẽ hiển thị danh sách các thiết bị cho phép mượn trong yêu cầu cấp phát đã được xác nhận 
+
+14. 
+
