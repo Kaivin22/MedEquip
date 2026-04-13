@@ -16,7 +16,7 @@ import allocationRoutes from "./routes/allocations.js";
 import damageReportRoutes from "./routes/damageReports.js";
 import notificationRoutes from "./routes/notifications.js";
 import reportRoutes from "./routes/reports.js";
-import importRequestRoutes from "./routes/importRequests.js";
+import returnRoutes from "./routes/returns.js";
 
 dotenv.config();
 
@@ -31,7 +31,7 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Health check
-app.get("/", (req, res) => res.send("MedEquip API running"));
+app.get("/", (req, res) => res.send("MedEquip API v4 running"));
 
 // Test DB
 app.get("/api/test-db", async (req, res) => {
@@ -57,10 +57,10 @@ app.use("/api/allocations", allocationRoutes);
 app.use("/api/damage-reports", damageReportRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api/import-requests", importRequestRoutes);
+app.use("/api/returns", returnRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 MedEquip API running on http://localhost:${PORT}`);
+  console.log(`🚀 MedEquip API v4 running on http://localhost:${PORT}`);
   console.log(`📋 API docs: http://localhost:${PORT}/api/test-db`);
 });

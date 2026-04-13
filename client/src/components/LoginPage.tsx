@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +23,6 @@ export default function LoginPage() {
       const result = await login(email, password);
       if (!result.success) {
         setError(result.message || 'Email hoặc mật khẩu không đúng!');
-        setFailedAttempts(result.failedAttempts || 0);
       }
     } catch (err: any) {
       setError(err.message || 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
@@ -66,9 +64,6 @@ export default function LoginPage() {
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   <div>
                     <p>{error}</p>
-                    {failedAttempts > 0 && failedAttempts < 5 && (
-                      <p className="text-xs mt-1 opacity-80">Số lần sai: {failedAttempts}/5. Tài khoản sẽ bị khóa sau 5 lần.</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -123,8 +118,7 @@ export default function LoginPage() {
                   {[
                     { label: 'Admin', email: 'admin@benhvien.vn' },
                     { label: 'NV Kho', email: 'kho@benhvien.vn' },
-                    { label: 'Trưởng Khoa', email: 'truongkhoa@benhvien.vn' },
-                    { label: 'NV Bệnh viện', email: 'nvbv@benhvien.vn' },
+                    { label: 'Trưởng Khoa', email: 'khoanoi@benhvien.vn' },
                   ].map(item => (
                     <Button
                       key={item.email}

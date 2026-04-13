@@ -1,0 +1,73 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.wrap{padding:8px 0 20px;font-family:var(--font-sans)}
+.col2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.card-head{padding:10px 14px;font-size:13px;font-weight:500}
+.head-blue{background:var(--color-background-info);color:var(--color-text-info)}
+.head-green{background:var(--color-background-success);color:var(--color-text-success)}
+.head-amber{background:var(--color-background-warning);color:var(--color-text-warning)}
+.item{display:flex;gap:8px;padding:8px 14px;border-bottom:0.5px solid var(--color-border-tertiary);align-items:flex-start}
+.item:last-child{border-bottom:none}
+.item-name{font-size:13px;color:var(--color-text-primary);font-weight:500;flex:1;min-width:0}
+.item-meta{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.badge{font-size:10px;font-weight:500;padding:1px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.b-blue{background:var(--color-background-info);color:var(--color-text-info)}
+.b-green{background:var(--color-background-success);color:var(--color-text-success)}
+.b-red{background:var(--color-background-danger);color:var(--color-text-danger)}
+.b-gray{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.b-amber{background:var(--color-background-warning);color:var(--color-text-warning)}
+.note{font-size:12px;color:var(--color-text-secondary);background:var(--color-background-secondary);padding:10px 14px;border-radius:var(--border-radius-md);margin-top:12px;line-height:1.6}
+.sec-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-secondary);margin-bottom:8px}
+</style>
+<div class="wrap">
+<div class="sec-title">Loai 1 — Thiet bi tai su dung (Durable Equipment)</div>
+<div class="card" style="margin-bottom:12px">
+<div class="card-head head-blue">Thiet bi y te tai su dung — quan ly theo serial number, co bao tri</div>
+<div class="item"><span class="item-name">May tho (Ventilator)<div class="item-meta">Don vi: cai — Kho ICU, HSTC</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May theo doi benh nhan (Patient Monitor)<div class="item-meta">Don vi: cai — Gan dau giuong, ICU</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May X-quang / CT / MRI<div class="item-meta">Don vi: he thong — Co dinh tai phong chieu chup</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May sieu am<div class="item-meta">Don vi: cai — Di dong hoac co dinh theo khoa</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May dien tam do (ECG)<div class="item-meta">Don vi: cai — Khoa Tim mach, Cap cuu</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May pha rung tim (Defibrillator / AED)<div class="item-meta">Don vi: cai — Cap cuu, ICU, hanh lang</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">May bom tiem (Infusion pump / Syringe pump)<div class="item-meta">Don vi: cai — ICU, Phau thuat</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">Giuong benh dien (Electric hospital bed)<div class="item-meta">Don vi: cai — Theo phong benh, khoa</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">Xe lan / Xe day cang cuu<div class="item-meta">Don vi: cai — Dung chung toan benh vien</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">Kinh hien vi, May ly tam, May phan tich xet nghiem<div class="item-meta">Don vi: cai / he thong — Phong xet nghiem</div></span><span class="badge b-blue">Tai su dung</span></div>
+<div class="item"><span class="item-name">Binh Oxy (vo binh)<div class="item-meta">Don vi: binh — Oxy ben trong la vat tu tieu hao</div></span><span class="badge b-amber">Vo tai su dung</span></div>
+</div>
+
+<div class="sec-title">Loai 2 — Vat tu tieu hao (Consumables / Disposables)</div>
+<div class="col2">
+<div class="card">
+<div class="card-head head-green">Vat tu tieu hao — theo so lo va han su dung</div>
+<div class="item"><span class="item-name">Kim tiem<div class="item-meta">Cai, hop 100 cai, thung 10 hop</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Bom tiem (ong tiem)<div class="item-meta">Cai, hop 100 cai</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Gang tay vo khuan<div class="item-meta">Doi, hop 50 doi, thung 10 hop</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Khau trang y te<div class="item-meta">Cai, hop 50 cai, thung 20 hop</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Gay gac / Gac vo khuan<div class="item-meta">Mieng / cuon, tui, thung</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Bang y te / Bang thun<div class="item-meta">Cuon, hop, thung</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Day truyen dich / Binh dich truyen<div class="item-meta">Bo / Chai, thung 12 chai</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Ong thong tieu (Catheter)<div class="item-meta">Cai, hop 10 cai</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Chi khau phau thuat<div class="item-meta">Cuon, hop</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Test nhanh (COVID, cum...)<div class="item-meta">Cai, hop 25 cai</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Ong noi khi quan dung 1 lan<div class="item-meta">Cai, hop</div></span><span class="badge b-red">1 lan</span></div>
+<div class="item"><span class="item-name">Dung dich sat khuan / Con (cong)<div class="item-meta">Chai, thung 12 chai</div></span><span class="badge b-red">1 lan</span></div>
+</div>
+
+<div class="card">
+<div class="card-head head-amber">Vung xam — co the tai su dung sau khi tiet khuan</div>
+<div class="item"><span class="item-name">Kep phau thuat (forceps)<div class="item-meta">Cai, bo — Hap tiet khuan sau moi ca mo</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Kep bam (Kelly, Kocher...)<div class="item-meta">Cai — Theo doi tung cai, co so serial</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Ong noi soi (Endoscope)<div class="item-meta">Cai — Khu khuan hoa hoc sau moi thu thuat</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Dao mo thep (Steel scalpel)<div class="item-meta">Cai — Co the mai lai va hap lai</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Binh oxy (vo binh)<div class="item-meta">Binh — Bom lai khi, oxy la vat tu tieu hao</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Mask thu so (Oxygen mask, CPAP mask)<div class="item-meta">Cai — Tiet khuan giua cac benh nhan</div></span><span class="badge b-amber">Tiet trung lai</span></div>
+<div class="item"><span class="item-name">Stent (1 so loai co the thu hoi)<div class="item-meta">Cai — Phu thuoc loai, phieu phau thuat</div></span><span class="badge b-gray">Tuy loai</span></div>
+</div>
+</div>
+
+<div class="note">
+Goi y thiet ke DB: vat tu tieu hao can truong <strong>so_lo</strong> (batch), <strong>han_su_dung</strong>, <strong>don_vi_tinh</strong> (cai/hop/thung). Thiet bi tai su dung can <strong>serial_number</strong>, <strong>nam_san_xuat</strong>, <strong>lich_bao_tri</strong>. Nhom "vung xam" nen phan loai rieng vi co ca hai dac tinh.
+</div>
+</div>

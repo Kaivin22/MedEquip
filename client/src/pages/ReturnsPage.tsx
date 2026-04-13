@@ -1,101 +1,115 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateReturn, apiAcceptReturn } from '@/lib/apiSync';
+import { PhieuCapPhat, PhieuTraThietBi, TINH_TRANG_TRA_LABELS, TRANG_THAI_TRA_LABELS } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Search, QrCode, Plus, CheckCircle2, Trash2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { QRCodeSVG } from 'qrcode.react';
-
-const STATUS_MAP = { CHO_NHAN: 'Chờ nhận', DA_NHAN: 'Đã nhận', TU_CHOI: 'Từ chối' };
-const STATUS_COLORS = { CHO_NHAN: 'bg-warning/10 text-warning', DA_NHAN: 'bg-success/10 text-success', TU_CHOI: 'bg-destructive/10 text-destructive' };
+import { fetchApi } from '@/services/api';
+import { refreshData } from '@/lib/dataLoader';
+import { Plus, Search, QrCode, Check, X, RotateCcw, Camera, Upload, Keyboard, Trash2, Eye, Info } from 'lucide-react';
+import { QRCodeCanvas as QRCodeComponent } from 'qrcode.react';
+import { Scanner } from '@yudiel/react-qr-scanner';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
-  const [returns, setReturns] = useState(store.getReturns());
+  const [data, setData] = useState(store.getReturns() || []);
+  const [allocations, setAllocations] = useState(store.getAllocations() || []);
   const [search, setSearch] = useState('');
   
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [equipSearch, setEquipSearch] = useState('');
-  const [cart, setCart] = useState<{maThietBi: string, soLuongTra: number}[]>([]);
-  
+  const [form, setForm] = useState<{
+    ghiChu: string;
+    chiTiet: {
+      maPhieuCapPhat: string;
+      maThietBi: string;
+      tenThietBi: string;
+      soLuong: number;
+      tinhTrangKhiTra: 'NGUYEN_SEAL' | 'DA_BOC_SEAL' | 'HONG';
+    }[];
+  }>({ ghiChu: '', chiTiet: [] });
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [viewingPhieu, setViewingPhieu] = useState<PhieuTraThietBi | null>(null);
+
   const [qrOpen, setQrOpen] = useState(false);
-  const [qrValue, setQrValue] = useState('');
+  const [qrDataStr, setQrDataStr] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmingPhieu, setConfirmingPhieu] = useState<PhieuTraThietBi | null>(null);
 
+  // Scanner state
   const [scanOpen, setScanOpen] = useState(false);
-  const [scanCode, setScanCode] = useState('');
+  const [manualCode, setManualCode] = useState('');
 
-  const equipment = store.getEquipment();
-  const inventory = store.getInventory();
-  const departments = store.getDepartments();
-  const users = store.getUsers();
+  const canCreate = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
+  const canConfirm = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
 
-  const isTruongKhoa = user?.vaiTro === 'TRUONG_KHOA';
-  const isKho = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
-
-  const inventoryAvailable = useMemo(() => {
-    // Trong thực tế, Khoa nên chỉ trả thiết bị mà họ đang mượn (dựa vào phieu_cap_phat). 
-    // Nhưng vì DB đơn giản, ta cho phép chọn từ thiết bị "Máy móc" hoặc "Vật tư tái sử dụng"
-    return equipment.filter(e => 
-      (e.loaiThietBi === 'Máy móc' || e.loaiThietBi === 'Vật tư tái sử dụng') &&
-      (e.tenThietBi.toLowerCase().includes(equipSearch.toLowerCase()) || e.maThietBi.toLowerCase().includes(equipSearch.toLowerCase()))
-    );
-  }, [equipment, equipSearch]);
-
-  const filteredReturns = useMemo(() => {
-    let list = returns;
-    if (isTruongKhoa) list = list.filter(r => r.maNguoiTra === user?.maNguoiDung);
-    return list.filter(r => r.maPhieu.toLowerCase().includes(search.toLowerCase()));
-  }, [returns, search, isTruongKhoa, user]);
-
-  const addToCart = (maThietBi: string) => {
-    if (cart.find(c => c.maThietBi === maThietBi)) return;
-    setCart([...cart, { maThietBi, soLuongTra: 1 }]);
-  };
-
-  const createReturn = async () => {
-    if (cart.length === 0) { toast({ title: 'Lỗi', variant: 'destructive', description: 'Chưa chọn thiết bị để trả' }); return; }
-    
+  const reload = async () => {
     try {
-      const maKhoa = departments.find(k => k.tenKhoa.includes(user?.vaiTro || 'Khoa Nội'))?.maKhoa || departments[0].maKhoa;
-      
-      const payload = {
-        maNguoiTra: user!.maNguoiDung,
-        maKhoa,
-        chiTiet: cart
-      };
-
-      const result = await apiCreateReturn(payload);
-      if (result.success) {
-        setReturns(store.getReturns());
-        setDialogOpen(false);
-        setCart([]);
-        setQrValue(result.phieu.qrCode);
-        setQrOpen(true);
-      } else {
-        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      const endpoint = user?.vaiTro === 'TRUONG_KHOA' ? '/returns/my' : '/returns';
+      const returnsData = await fetchApi<any[]>(endpoint);
+      if (Array.isArray(returnsData)) {
+        store.setReturns(returnsData);
+        setData(returnsData);
       }
-    } catch(err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+
+      const resAlloc = await fetchApi<any[]>('/allocations');
+      if (Array.isArray(resAlloc)) {
+        store.setAllocations(resAlloc);
+        setAllocations(resAlloc);
+      } else if (resAlloc && (resAlloc as any).success) {
+        store.setAllocations((resAlloc as any).data);
+        setAllocations((resAlloc as any).data);
+      }
+      
+      await refreshData('inventory');
+    } catch (err: any) {
+      console.error('Reload error:', err);
     }
   };
 
-  const acceptReturn = async () => {
-    if(!scanCode) return;
+  useEffect(() => { reload(); }, []);
+
+  const handleCreateReturn = async () => {
+    if (form.chiTiet.length === 0) { 
+      toast({ title: 'Lỗi', description: 'Vui lòng chọn ít nhất một thiết bị để trả.', variant: 'destructive' }); 
+      return; 
+    }
+
+    const invalid = form.chiTiet.some(ct => ct.soLuong <= 0);
+    if (invalid) { 
+      toast({ title: 'Lỗi', description: 'Số lượng trả phải lớn hơn 0.', variant: 'destructive' }); 
+      return; 
+    }
+
     try {
-      // scanCode thường là format "RETURN:PT-2026..."
-      const maPhieu = scanCode.replace('RETURN:', '').trim();
-      
-      const result = await apiAcceptReturn({ maPhieuTra: maPhieu, maNguoiNhan: user!.maNguoiDung });
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+        body: JSON.stringify({
+          ghiChu: form.ghiChu,
+          chiTiet: form.chiTiet.map(ct => ({
+             maPhieuCapPhat: ct.maPhieuCapPhat,
+             maThietBi: ct.maThietBi,
+             soLuong: ct.soLuong,
+             tinhTrangKhiTra: ct.tinhTrangKhiTra
+          }))
+        })
+      });
+      const result = await response.json();
       if (result.success) {
-        setReturns(store.getReturns());
-        setScanOpen(false);
-        setScanCode('');
-        toast({ title: 'Thành công', description: 'Đã nhận lại thiết bị và cập nhật tồn kho.' });
+        toast({ title: 'Thành công', description: 'Đã tạo Phiếu thông báo trả thiết bị.' });
+        setDialogOpen(false);
+        setQrDataStr(result.maPhieuTra);
+        setQrOpen(true);
+        reload();
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
@@ -104,166 +118,509 @@ export default function ReturnsPage() {
     }
   };
 
+  const handleConfirmReturn = async (approved: boolean) => {
+    if (!confirmingPhieu) return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${confirmingPhieu.maPhieuTra}/confirm`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+        body: JSON.stringify({ approved })
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Thành công', description: `Đã ${approved ? 'xác nhận nhập kho' : 'từ chối'} phiếu trả.` });
+        setConfirmOpen(false);
+        setTimeout(() => reload(), 300);
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleScanQR = (text: string) => {
+    if (!text) return;
+    const cleanText = text.trim().toUpperCase();
+    const phieuData = data.find(d => 
+      (d.qrData && d.qrData.trim().toUpperCase() === cleanText) || 
+      (d.maPhieuTra && d.maPhieuTra.trim().toUpperCase() === cleanText)
+    );
+
+    if (phieuData) {
+      if (phieuData.trangThai !== 'CHO_XAC_NHAN') {
+         toast({ title: 'Cảnh báo', description: 'Phiếu này đã được xử lý (Trạng thái: ' + phieuData.trangThai + ')', variant: 'destructive' });
+      } else {
+         setConfirmingPhieu(phieuData);
+         setConfirmOpen(true);
+         setScanOpen(false); 
+      }
+    } else {
+      toast({ 
+        title: 'Không tìm thấy phiếu', 
+        description: `Mã "${cleanText}" không khớp với bất kỳ phiếu trả nào đang chờ xác nhận trong danh sách của bạn.`, 
+        variant: 'destructive' 
+      });
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      if (!('BarcodeDetector' in window)) {
+        toast({ 
+          title: 'Trình duyệt không hỗ trợ', 
+          description: 'Trình duyệt của bạn không hỗ trợ tự động quét ảnh. Vui lòng nhập mã thủ công.', 
+          variant: 'destructive' 
+        });
+        return;
+      }
+
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await img.decode();
+
+      // @ts-ignore
+      const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const [barcode] = await barcodeDetector.detect(img);
+
+      if (barcode) {
+        handleScanQR(barcode.rawValue);
+      } else {
+        toast({ title: 'Lỗi', description: 'Không tìm thấy mã QR trong ảnh này.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: 'Không thể xử lý ảnh: ' + err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteReturn = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa phiếu trả này khỏi danh sách của bạn?')) return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Đã xóa', description: result.message });
+        reload();
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleCancelReturn = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn hủy yêu cầu trả này? Các thiết bị sẽ quay về trạng thái Đang mượn.')) return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${id}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Đã hủy', description: result.message });
+        await reload();
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const toggleAllocationSelection = (alloc: PhieuCapPhat) => {
+    setForm(prev => {
+      const exists = prev.chiTiet.find(ct => ct.maPhieuCapPhat === alloc.maPhieu);
+      if (exists) {
+        return { ...prev, chiTiet: prev.chiTiet.filter(ct => ct.maPhieuCapPhat !== alloc.maPhieu) };
+      } else {
+        return {
+          ...prev,
+          chiTiet: [...prev.chiTiet, {
+            maPhieuCapPhat: alloc.maPhieu,
+            maThietBi: alloc.maThietBi,
+            tenThietBi: alloc.tenThietBi || alloc.maThietBi,
+            soLuong: alloc.soLuongCapPhat,
+            tinhTrangKhiTra: 'DA_BOC_SEAL'
+          }]
+        };
+      }
+    });
+  };
+
+  const filtered = data.filter(d => 
+    d.maPhieuTra.toLowerCase().includes(search.toLowerCase()) || 
+    (d.maPhieuCapPhat && d.maPhieuCapPhat.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const pendingAllocations = allocations.filter(a => 
+    a.trangThaiTra === 'CHUA_TRA' && 
+    (user?.vaiTro !== 'TRUONG_KHOA' || a.maNguoiMuon === user.maNguoiDung)
+  );
+
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-4 rounded-lg shadow-sm">
-        <div className="relative flex-1 max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm mã phiếu trả..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <RotateCcw className="w-5 h-5 text-primary" /> Quản lý Trả thiết bị
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">Trưởng khoa khai báo trả thiết bị, NV Kho quét mã hoặc xác nhận để tăng Tồn kho.</p>
         </div>
         <div className="flex gap-2">
-          {isTruongKhoa && (
-            <Button onClick={() => { setCart([]); setDialogOpen(true); }} className="gradient-primary text-primary-foreground">
-              <Plus className="w-4 h-4 mr-2" /> Tạo Phiếu Trả
+          {canConfirm && (
+            <Button onClick={() => setScanOpen(true)} className="bg-foreground text-background hover:bg-foreground/80">
+              <Camera className="w-4 h-4 mr-2" /> Quét QR Nhập kho
             </Button>
           )}
-          {isKho && (
-            <Button onClick={() => setScanOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-              <QrCode className="w-4 h-4 mr-2" /> Quét QR Nhận Hàng
+          {canCreate && (
+            <Button onClick={() => {
+              setForm({ ghiChu: '', chiTiet: [] });
+              setDialogOpen(true);
+            }} className="gradient-primary text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" /> Khai báo Trả thiết bị
             </Button>
           )}
         </div>
       </div>
 
-      <div className="overflow-x-auto bg-card rounded-lg border shadow-sm">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b bg-muted/50">
-            <th className="text-left p-3 font-medium text-muted-foreground">Mã Phiếu</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Khoa trả</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">Số lượng TB</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Ngày tạo</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">Thao tác</th>
-          </tr></thead>
-          <tbody>
-            {filteredReturns.map(r => {
-              const khoa = departments.find(k => k.maKhoa === r.maKhoa);
-              return (
-                <tr key={r.maPhieu} className="border-b hover:bg-muted/50 transition-colors">
-                  <td className="p-3 font-mono text-xs text-primary font-medium">{r.maPhieu}</td>
-                  <td className="p-3">{khoa?.tenKhoa || r.maKhoa}</td>
-                  <td className="p-3 text-center">{r.chiTiet?.length || 0}</td>
-                  <td className="p-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLORS[r.trangThai]}`}>{STATUS_MAP[r.trangThai]}</span>
-                  </td>
-                  <td className="p-3 text-xs text-muted-foreground">{r.ngayTao.slice(0,10)}</td>
-                  <td className="p-3 text-center">
-                    {r.trangThai === 'CHO_NHAN' && isTruongKhoa && (
-                      <Button variant="ghost" size="sm" onClick={() => { setQrValue(r.qrCode||''); setQrOpen(true); }} className="text-indigo-600">
-                        <QrCode className="w-4 h-4 mr-1" /> Mã QR
-                      </Button>
-                    )}
-                    {r.trangThai === 'DA_NHAN' && (
-                       <CheckCircle2 className="w-5 h-5 text-success mx-auto" />
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {filteredReturns.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có dữ liệu trả hàng</div>}
+      <div className="relative max-w-md w-full">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input placeholder="Tìm mã phiếu trả..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
       </div>
 
-      {/* TẠO PHIẾU TRẢ DIALOG */}
+      <div className="border rounded-xl bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium text-muted-foreground">Mã Phiếu Trả</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Người Trả</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Ngày Trả</th>
+                <th className="text-left p-3 font-medium text-muted-foreground">Số lượng mục</th>
+                <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
+                <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(d => (
+                <tr key={d.maPhieuTra} className="border-b hover:bg-muted/30">
+                  <td className="p-3 font-mono text-xs font-semibold">{d.maPhieuTra}</td>
+                  <td className="p-3">{d.tenTruongKhoa}</td>
+                  <td className="p-3 text-xs">{new Date(d.ngayTao).toLocaleString('vi-VN')}</td>
+                  <td className="p-3">
+                     <span className="font-semibold">{d.chiTiet.length}</span> thiết bị
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase 
+                      ${d.trangThai === 'CHO_XAC_NHAN' ? 'bg-warning/10 text-warning' : 
+                        d.trangThai === 'DA_TRA' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                      {d.trangThai === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : d.trangThai === 'DA_TRA' ? 'Đã nhập kho' : 'Bị từ chối'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => { setViewingPhieu(d); setDetailOpen(true); }} title="Xem chi tiết">
+                        <Eye className="w-4 h-4 text-info" />
+                      </Button>
+                      {d.qrData && (
+                        <Button variant="ghost" size="icon" onClick={() => { setQrDataStr(d.qrData!); setQrOpen(true); }} title="Mã QR">
+                          <QrCode className="w-4 h-4 text-primary" />
+                        </Button>
+                      )}
+                      {canConfirm && d.trangThai === 'CHO_XAC_NHAN' && (
+                         <Button variant="ghost" size="icon" className="bg-primary/10 text-primary hover:bg-primary/20" onClick={() => { setConfirmingPhieu(d); setConfirmOpen(true); }} title="Duyệt">
+                           <Check className="w-4 h-4" />
+                         </Button>
+                      )}
+                      {user?.vaiTro === 'TRUONG_KHOA' && d.trangThai === 'CHO_XAC_NHAN' && (
+                        <Button variant="ghost" size="icon" onClick={() => handleCancelReturn(d.maPhieuTra)} title="Hủy phiếu trả này">
+                          <RotateCcw className="w-4 h-4 text-orange-500" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteReturn(d.maPhieuTra)} title="Xóa">
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có dữ liệu phiếu trả.</div>}
+      </div>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-          <DialogHeader><DialogTitle>Lập phiếu trả thiết bị</DialogTitle></DialogHeader>
-          
-          <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            
-            <div className="flex flex-col border rounded-lg overflow-hidden bg-muted/20">
-               <div className="p-3 border-b bg-muted/50">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Tìm thiết bị tái sử dụng..." value={equipSearch} onChange={e => setEquipSearch(e.target.value)} className="pl-10" />
-                  </div>
-               </div>
-               <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                 {inventoryAvailable.map(e => (
-                    <Card key={e.maThietBi} className="hover:border-primary/50 transition-colors shadow-sm">
-                      <CardContent className="p-3 flex justify-between items-center">
-                         <div>
-                            <p className="font-semibold text-sm line-clamp-1">{e.tenThietBi}</p>
-                            <p className="text-xs text-muted-foreground font-mono">{e.maThietBi}</p>
-                         </div>
-                         <Button size="sm" variant="outline" onClick={() => addToCart(e.maThietBi)}>Chọn</Button>
-                      </CardContent>
-                    </Card>
-                 ))}
-                 {inventoryAvailable.length === 0 && <div className="text-center py-8 text-sm text-muted-foreground">Không tìm thấy thiết bị</div>}
-               </div>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Lập phiếu Trả Thiết bị</DialogTitle></DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <Label className="mb-2 block">Chọn các thiết bị muốn trả (Thiết bị đang mượn) *</Label>
+              <div className="border rounded-lg divide-y max-h-60 overflow-y-auto bg-muted/20">
+                {pendingAllocations.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">Không có thiết bị nào đang mượn hoặc tất cả đã được yêu cầu trả.</div>
+                ) : (
+                  pendingAllocations.map(alloc => (
+                    <div key={alloc.maPhieu} className="flex items-center p-3 gap-3 hover:bg-muted/50 transition-colors">
+                      <Checkbox 
+                        id={`check-${alloc.maPhieu}`}
+                        checked={form.chiTiet.some(ct => ct.maPhieuCapPhat === alloc.maPhieu)}
+                        onCheckedChange={() => toggleAllocationSelection(alloc)}
+                      />
+                      <label htmlFor={`check-${alloc.maPhieu}`} className="flex-1 cursor-pointer">
+                        <div className="text-sm font-medium">{alloc.tenThietBi}</div>
+                        <div className="text-[10px] text-muted-foreground flex gap-3">
+                          <span>Mã CP: {alloc.maPhieu}</span>
+                          <span>Số lượng: {alloc.soLuongCapPhat}</span>
+                          <span>Hạn trả: {new Date(alloc.ngayDuKienTra).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col border rounded-lg bg-card">
-               <div className="p-3 border-b font-medium flex justify-between items-center">
-                  <span>Thiết bị trả</span>
-                  <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-xs">{cart.length}</span>
-               </div>
-               <div className="flex-1 overflow-y-auto p-3 ">
-                 <div className="space-y-3">
-                   {cart.map(c => {
-                     const tb = equipment.find(e => e.maThietBi === c.maThietBi);
-                     return (
-                       <div key={c.maThietBi} className="flex flex-col sm:flex-row gap-3 p-3 border rounded items-start sm:items-center bg-muted/10">
-                          <div className="flex-1">
-                             <p className="font-medium text-sm line-clamp-1">{tb?.tenThietBi}</p>
-                             <p className="text-xs text-muted-foreground text-primary">{tb?.loaiThietBi}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                             <Input 
-                               type="number" min={1} 
-                               value={c.soLuongTra} 
-                               onChange={e => setCart(cart.map(x => x.maThietBi === c.maThietBi ? {...x, soLuongTra: parseInt(e.target.value)||1}: x))} 
-                               className="w-20 h-8"
-                             />
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setCart(cart.filter(x => x.maThietBi !== c.maThietBi))}>
-                               <Trash2 className="w-4 h-4" />
-                             </Button>
-                          </div>
-                       </div>
-                     )
-                   })}
-                   {cart.length===0 && <div className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed border-border rounded-lg">Chưa chọn thiết bị nào</div>}
-                 </div>
-               </div>
+            {form.chiTiet.length > 0 && (
+              <div className="space-y-4">
+                <Label>Chi tiết trạng thái & số lượng trả</Label>
+                <div className="space-y-3">
+                  {form.chiTiet.map((ct, idx) => (
+                    <div key={ct.maPhieuCapPhat} className="bg-card p-3 rounded-lg border shadow-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                      <div className="flex-1 min-w-[150px]">
+                        <div className="text-sm font-semibold text-primary">{ct.tenThietBi}</div>
+                        <div className="text-[10px] text-muted-foreground">Mã CP: {ct.maPhieuCapPhat}</div>
+                      </div>
+                      
+                      <div className="w-full sm:w-24">
+                        <Label className="text-[10px] mb-1 block">Số lượng</Label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.soLuongCapPhat || 1}
+                          value={ct.soLuong}
+                          onChange={e => {
+                            const val = parseInt(e.target.value) || 0;
+                            setForm(prev => ({
+                              ...prev,
+                              chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, soLuong: val } : it)
+                            }));
+                          }}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+
+                      <div className="flex-1 w-full">
+                        <Label className="text-[10px] mb-1 block">Tình trạng</Label>
+                        <Select 
+                          value={ct.tinhTrangKhiTra} 
+                          onValueChange={(val: any) => {
+                            setForm(prev => ({
+                              ...prev,
+                              chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, tinhTrangKhiTra: val } : it)
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NGUYEN_SEAL">Nguyên seal</SelectItem>
+                            <SelectItem value="DA_BOC_SEAL">Đã bóc seal (Dùng tốt)</SelectItem>
+                            <SelectItem value="HONG">Hỏng / Cần sửa chữa</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button variant="ghost" size="icon" onClick={() => setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.filter((_, i) => i !== idx) }))}>
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label>Ghi chú (Tùy chọn)</Label>
+              <Textarea placeholder="Lý do trả, ghi chú thêm..." value={form.ghiChu} onChange={e => setForm(prev => ({ ...prev, ghiChu: e.target.value }))} className="mt-1" />
             </div>
-            
           </div>
-
-          <DialogFooter className="mt-4 pt-4 border-t">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Đóng</Button>
-            <Button onClick={createReturn} disabled={cart.length === 0} className="gradient-primary text-primary-foreground min-w-[120px]">Hoàn Tất Trả</Button>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
+            <Button className="gradient-primary text-primary-foreground" onClick={handleCreateReturn} disabled={form.chiTiet.length === 0}>
+              Tạo Phiếu Trả & Lấy mã QR
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* HIỂN THỊ QR */}
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm flex flex-col items-center justify-center p-8 text-center space-y-4">
-           <DialogHeader><DialogTitle className="text-2xl font-bold">Mã Phiếu Trả</DialogTitle></DialogHeader>
-           <p className="text-sm text-muted-foreground">Đưa mã QR này cho Nhân viên Kho để quét và xác nhận nhận thiết bị.</p>
-           <div className="p-4 bg-white rounded-xl shadow-inner inline-block mx-auto border-2 border-primary/20">
-             {qrValue && <QRCodeSVG value={qrValue} size={200} level="H" />}
-           </div>
-           <p className="font-mono bg-muted px-4 py-2 rounded-lg break-all text-xs">{qrValue}</p>
-           <Button className="w-full mt-4" onClick={() => setQrOpen(false)}>Đóng</Button>
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Chi tiết Phiếu Trả {viewingPhieu?.maPhieuTra}</DialogTitle></DialogHeader>
+          {viewingPhieu && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm bg-muted/30 p-4 rounded-lg">
+                <div><span className="text-muted-foreground">Mã phiếu:</span> <span className="font-mono ml-2">{viewingPhieu.maPhieuTra}</span></div>
+                <div><span className="text-muted-foreground">Ngày tạo:</span> <span className="ml-2">{new Date(viewingPhieu.ngayTao).toLocaleString('vi-VN')}</span></div>
+                <div><span className="text-muted-foreground">Người lập:</span> <span className="ml-2 font-medium">{viewingPhieu.tenTruongKhoa}</span></div>
+                <div><span className="text-muted-foreground">Trạng thái:</span> 
+                  <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase 
+                    ${viewingPhieu.trangThai === 'CHO_XAC_NHAN' ? 'bg-warning/10 text-warning' : 
+                      viewingPhieu.trangThai === 'DA_TRA' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                    {viewingPhieu.trangThai === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : viewingPhieu.trangThai === 'DA_TRA' ? 'Đã nhập kho' : 'Bị từ chối'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm flex items-center gap-2"><Info className="w-4 h-4" /> Danh sách thiết bị</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr className="border-b">
+                        <th className="text-left p-2">Thiết bị</th>
+                        <th className="text-center p-2">Số lượng</th>
+                        <th className="text-left p-2">Tình trạng khi trả</th>
+                        <th className="text-left p-2">Phiếu cấp phát</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewingPhieu.chiTiet.map((ct, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                          <td className="p-2 font-medium">{ct.tenThietBi}</td>
+                          <td className="p-2 text-center font-bold text-primary">{ct.soLuong}</td>
+                          <td className="p-2">
+                            <span className={ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive font-semibold' : ''}>
+                              {TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}
+                            </span>
+                          </td>
+                          <td className="p-2 font-mono text-muted-foreground">{ct.maPhieuCapPhat}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {viewingPhieu.ghiChu && (
+                <div className="p-3 border rounded-lg bg-yellow-50/50">
+                  <span className="text-[10px] text-muted-foreground block mb-1">Ghi chú:</span>
+                  <p className="text-sm">{viewingPhieu.ghiChu}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)} className="w-full">Đóng</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* QUÉT QR (NV KHO) */}
-      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="max-w-sm text-center flex flex-col items-center justify-center p-6 space-y-4">
+          <DialogHeader><DialogTitle>Mã QR Phiếu Trả</DialogTitle></DialogHeader>
+          <div className="bg-white p-4 rounded-xl shadow-inner border inline-block mt-4">
+            <QRCodeComponent 
+              value={qrDataStr} 
+              size={200}
+              fgColor="#000000"
+              level="H"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">NV Kho có thể quét mã này bằng điện thoại/máy quét để duyệt nhanh.</p>
+          <Button variant="outline" onClick={() => setQrOpen(false)} className="w-full mt-4">Đóng</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scanOpen} onOpenChange={(open) => { setScanOpen(open); if(!open) setManualCode(''); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nhận diện Phiếu Trả</DialogTitle></DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="overflow-hidden rounded-xl border bg-black aspect-video relative">
+              {scanOpen && (
+                 <Scanner
+                    onScan={(detectedCodes) => {
+                       if (detectedCodes && detectedCodes.length > 0) {
+                          handleScanQR(detectedCodes[0].rawValue);
+                       }
+                    }}
+                    formats={['qr_code']}
+                    components={{ audio: false, finder: true }}
+                    styles={{ container: { width: '100%', height: '100%' } }}
+                 />
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><Separator /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Hoặc sử dụng cách khác</span></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" className="flex flex-col h-auto py-4 gap-2" onClick={() => document.getElementById('qr-file-input')?.click()}>
+                <Upload className="h-6 w-6 text-primary" />
+                <div className="text-xs">Tải ảnh QR lên</div>
+                <input id="qr-file-input" type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+              </Button>
+
+              <div className="space-y-2">
+                <Button variant="outline" className="flex flex-col h-auto py-4 gap-2 w-full" onClick={() => (document.getElementById('manual-input') as HTMLInputElement)?.focus()}>
+                  <Keyboard className="h-6 w-6 text-muted-foreground" />
+                  <div className="text-xs">Nhập mã thủ công</div>
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Input 
+                id="manual-input"
+                placeholder="Ví dụ: TRA-2026-12345" 
+                value={manualCode} 
+                onChange={e => setManualCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleScanQR(manualCode)}
+              />
+              <Button onClick={() => handleScanQR(manualCode)}>Tìm</Button>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setScanOpen(false)} className="w-full">Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
-           <DialogHeader><DialogTitle>Quét Mã QR hoặc Nhập Mã Phiếu</DialogTitle></DialogHeader>
-           <div className="p-8 text-center bg-muted/30 rounded-lg border-2 border-dashed border-primary/30 flex flex-col items-center justify-center space-y-4">
-              <QrCode className="w-16 h-16 text-primary/50" />
-              <p className="text-sm text-muted-foreground">Mô phỏng máy quét QR bằng cách nhập mã do phần mềm quét được.</p>
-              <Input placeholder="RETURN:PT-..." value={scanCode} onChange={e => setScanCode(e.target.value)} className="w-full text-center font-mono" />
-           </div>
-           <DialogFooter>
-             <Button variant="outline" onClick={() => setScanOpen(false)}>Hủy</Button>
-             <Button onClick={acceptReturn} disabled={!scanCode}>Xác nhận Nhận Hàng</Button>
-           </DialogFooter>
+          <DialogHeader><DialogTitle>Xác nhận Nhập kho Trả Thiết bị</DialogTitle></DialogHeader>
+          {confirmingPhieu && (
+            <div className="space-y-4 my-2">
+              <div className="p-4 bg-muted/40 rounded-lg space-y-2 border">
+                <div className="flex justify-between"><span className="text-muted-foreground text-sm">Mã phiếu:</span> <span className="font-mono">{confirmingPhieu.maPhieuTra}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground text-sm">Người trả:</span> <span className="font-semibold">{confirmingPhieu.tenTruongKhoa}</span></div>
+                {confirmingPhieu.chiTiet.map((ct, i) => (
+                  <div key={i} className="pt-2 border-t mt-2">
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">Thiết bị:</span> <span className="font-medium text-right max-w-[200px]">{ct.tenThietBi}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">Số lượng:</span> <span className="font-bold text-primary">{ct.soLuong}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">Tình trạng:</span> <span className={`font-semibold ${ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive' : 'text-success'}`}>{TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}</span></div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground italic">
+                * Nếu xác nhận, thiết bị không hỏng sẽ được cộng vào <strong>Tồn Kho</strong>, thiết bị hỏng sẽ được cộng vào <strong>Số lượng hư</strong>. Phiếu cấp phát sẽ được đánh dấu <strong>Đã trả</strong>.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleConfirmReturn(false)} className="text-destructive hover:bg-destructive/10 border-destructive/20">Từ chối</Button>
+            <Button className="gradient-primary text-primary-foreground" onClick={() => handleConfirmReturn(true)}>Xác nhận & Nhập kho</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

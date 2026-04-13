@@ -23,7 +23,7 @@ export async function getUserById(req, res) {
 
 export async function createUser(req, res) {
   try {
-    const { hoTen, email, matKhau, vaiTro, soDienThoai, diaChi } = req.body;
+    const { hoTen, email, matKhau, vaiTro, maKhoa, soDienThoai, diaChi } = req.body;
 
     const [existing] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE email = ?", [email]);
     if (existing.length > 0) return res.json({ success: false, message: "Email đã tồn tại và yêu cầu nhập email khác." });
@@ -32,8 +32,8 @@ export async function createUser(req, res) {
     const id = "ND-" + String(Date.now()).slice(-6);
 
     await pool.query(
-      "INSERT INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, trang_thai, so_dien_thoai, dia_chi) VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)",
-      [id, hoTen, email, hash, vaiTro, soDienThoai || null, diaChi || null]
+      "INSERT INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, ma_khoa, trang_thai, so_dien_thoai, dia_chi) VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)",
+      [id, hoTen, email, hash, vaiTro, maKhoa || null, soDienThoai || null, diaChi || null]
     );
 
     const [rows] = await pool.query("SELECT * FROM nguoi_dung WHERE ma_nguoi_dung = ?", [id]);
@@ -59,6 +59,7 @@ export async function updateUser(req, res) {
     if (updates.soDienThoai !== undefined) { fields.push("so_dien_thoai = ?"); values.push(updates.soDienThoai); }
     if (updates.diaChi !== undefined) { fields.push("dia_chi = ?"); values.push(updates.diaChi); }
     if (updates.vaiTro) { fields.push("vai_tro = ?"); values.push(updates.vaiTro); }
+    if (updates.maKhoa !== undefined) { fields.push("ma_khoa = ?"); values.push(updates.maKhoa || null); }
     if (typeof updates.trangThai === "boolean") { fields.push("trang_thai = ?"); values.push(updates.trangThai); }
 
     if (fields.length === 0) return res.json({ success: true });

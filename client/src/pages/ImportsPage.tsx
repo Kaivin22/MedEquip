@@ -1,111 +1,122 @@
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateImport, apiDeleteImport } from '@/lib/apiSync';
-import '@/types';
+import { apiDeleteImport } from '@/lib/apiSync';
+import { ExcelPreviewRow } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Search, Trash2, Check, X } from 'lucide-react';
+import { Search, Trash2, Upload, FileDown, Check, AlertCircle } from 'lucide-react';
 import { fetchApi } from '@/services/api';
 import { refreshData } from '@/lib/dataLoader';
-
-const STATUS_MAP: Record<string, string> = {
-  CHO_DUYET: 'Chờ duyệt',
-  DA_DUYET: 'Đã duyệt',
-  TU_CHOI: 'Từ chối',
-};
-const STATUS_COLORS: Record<string, string> = {
-  CHO_DUYET: 'bg-warning/10 text-warning',
-  DA_DUYET: 'bg-success/10 text-success',
-  TU_CHOI: 'bg-destructive/10 text-destructive',
-};
 
 export default function ImportsPage() {
   const { user } = useAuth();
   const [data, setData] = useState(store.getImports());
   const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [rejectingId, setRejectingId] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
-  const [equipmentSearch, setEquipmentSearch] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const equipment = store.getEquipment();
-  const suppliers = store.getSuppliers();
-  const users = store.getUsers();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<ExcelPreviewRow[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const canCreate = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
   const canDelete = user?.vaiTro === 'ADMIN';
-  const canApprove = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'TRUONG_KHOA';
 
-  const [form, setForm] = useState({ maThietBi: '', maNhaCungCap: '', soLuongNhap: 1, ghiChu: '' });
+  const suppliers = store.getSuppliers();
+  const users = store.getUsers();
 
   const reload = async () => {
     await refreshData('imports');
     await refreshData('inventory');
+    await refreshData('equipment');
     setData(store.getImports());
   };
 
-  const handleCreate = async () => {
-    if (!form.maThietBi || !form.maNhaCungCap) {
-      toast({ title: 'Lỗi', description: 'Nhập đầy đủ thông tin', variant: 'destructive' }); return;
-    }
-    if (form.soLuongNhap < 1) {
-      toast({ title: 'Lỗi', description: 'Số lượng phải lớn hơn 0', variant: 'destructive' }); return;
-    }
+  const downloadTemplate = async () => {
     try {
-      const result = await apiCreateImport({ ...form, maNhanVienKho: user!.maNguoiDung });
-      if (result.success) {
-        await reload();
-        setDialogOpen(false);
-        toast({ title: 'Đã lập phiếu', description: 'Phiếu nhập kho đang CHỜ DUYỆT từ Trưởng khoa / Admin' });
-      } else {
-        toast({ title: 'Lỗi', description: result.message || 'Có lỗi xảy ra', variant: 'destructive' });
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/imports/template`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      if (!response.ok) throw new Error('Không thể tải file');
+      const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error('File tải về bị trống (0 bytes). Vui lòng thử lại.');
       }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'template_nhap_kho.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
 
-  const handleApprove = async (maPhieu: string) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.xlsx')) {
+      toast({ title: 'Lỗi', description: 'Chỉ chấp nhận file .xlsx', variant: 'destructive' });
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
     try {
-      const result: any = await fetchApi(`/imports/${maPhieu}/approve`, { method: 'PUT', body: JSON.stringify({ approved: true }) });
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/imports/from-excel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+        body: formData
+      });
+      const result = await response.json();
+      
       if (result.success) {
-        await reload();
-        toast({ title: 'Đã duyệt', description: 'Phiếu nhập kho đã được duyệt và tồn kho đã cập nhật' });
-      } else {
-        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
-      }
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
-    }
-  };
-
-  const handleRejectOpen = (maPhieu: string) => {
-    setRejectingId(maPhieu);
-    setRejectReason('');
-    setRejectDialogOpen(true);
-  };
-
-  const handleRejectConfirm = async () => {
-    if (!rejectReason.trim()) {
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập lý do từ chối', variant: 'destructive' }); return;
-    }
-    try {
-      const result: any = await fetchApi(`/imports/${rejectingId}/approve`, { method: 'PUT', body: JSON.stringify({ approved: false, lyDo: rejectReason }) });
-      if (result.success) {
-        await reload();
-        setRejectDialogOpen(false);
-        toast({ title: 'Đã từ chối', description: `Phiếu ${rejectingId} đã bị từ chối`, variant: 'destructive' });
+        setPreviewData(result.preview);
+        setSummary(result.summary);
+        setPreviewOpen(true);
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message || 'Lỗi kết nối', variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi đọc file', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    setUploading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/imports/confirm`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({ rows: previewData })
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        await reload();
+        setPreviewOpen(false);
+        toast({ title: 'Thành công', description: result.message });
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message || 'Lỗi server', variant: 'destructive' });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -131,174 +142,219 @@ export default function ImportsPage() {
     ((d as any).tenNhanVienKho || users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen)?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Nhóm theo phiếu nhập
+  const groupedImports = Object.values(
+    filtered.reduce((acc, curr) => {
+      if (!acc[curr.maPhieu]) {
+        acc[curr.maPhieu] = { ...curr, chiTiet: [] };
+      }
+      if (curr.maThietBi) {
+        acc[curr.maPhieu].chiTiet.push(curr);
+      }
+      return acc;
+    }, {} as Record<string, any>)
+  ).sort((a, b) => new Date(b.ngayNhap).getTime() - new Date(a.ngayNhap).getTime());
+
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Tìm phiếu nhập..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border object-card">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Upload className="w-5 h-5 text-primary" /> Nhập kho bằng Excel
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">Upload danh sách thiết bị để tự động cập nhật tồn kho (UPSERT logic)</p>
         </div>
-        {canCreate && <Button onClick={() => { 
-          setForm({ maThietBi: '', maNhaCungCap: '', soLuongNhap: 1, ghiChu: '' }); 
-          setEquipmentSearch('');
-          setShowSuggestions(false);
-          setDialogOpen(true); 
-        }} className="gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-2" /> Lập phiếu nhập</Button>}
-      </div>
-
-      <div className="p-3 rounded-lg bg-info/10 border border-info/20 text-sm text-info">
-        <strong>Lưu ý:</strong> Phiếu nhập kho cần được <strong>Trưởng khoa hoặc Admin </strong> phê duyệt trước khi tồn kho được cập nhật.
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b bg-muted/50">
-            <th className="text-left p-3 font-medium text-muted-foreground">Mã phiếu</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Thiết bị</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">NCC</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">NV Kho</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">SL</th>
-            <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Ngày nhập</th>
-            <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
-          </tr></thead>
-          <tbody>
-            {filtered.map(d => (
-              <tr key={d.maPhieu} className="border-b hover:bg-muted/30">
-                <td className="p-3 font-mono text-xs">{d.maPhieu}</td>
-                <td className="p-3">{(d as any).tenThietBi || equipment.find(e => e.maThietBi === d.maThietBi)?.tenThietBi}</td>
-                <td className="p-3">{suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap}</td>
-                <td className="p-3">{users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen}</td>
-                <td className="p-3 text-center font-medium">{d.soLuongNhap}</td>
-                <td className="p-3 text-center">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[(d as any).trangThai || 'DA_DUYET']}`}>
-                    {STATUS_MAP[(d as any).trangThai || 'DA_DUYET']}
-                  </span>
-                  {(d as any).trangThai === 'TU_CHOI' && (d as any).lyDoTuChoi && (
-                    <p className="text-xs text-destructive mt-1">Lý do: {(d as any).lyDoTuChoi}</p>
-                  )}
-                </td>
-                <td className="p-3 text-xs text-muted-foreground">{d.ngayNhap.slice(0, 10)}</td>
-                <td className="p-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    {canApprove && (d as any).trangThai === 'CHO_DUYET' && (
-                      <>
-                        <Button size="sm" variant="ghost" className="text-success hover:text-success hover:bg-success/10" onClick={() => handleApprove(d.maPhieu)}>
-                          <Check className="w-3.5 h-3.5 mr-1" /> Duyệt
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleRejectOpen(d.maPhieu)}>
-                          <X className="w-3.5 h-3.5 mr-1" /> Từ chối
-                        </Button>
-                      </>
-                    )}
-                    {canDelete && (
-                      <Button size="icon" variant="ghost" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8" onClick={() => handleDelete(d.maPhieu)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {data.length === 0 && <div className="text-center py-12 text-muted-foreground">Chưa có phiếu nhập kho</div>}
-
-      {/* Dialog lập phiếu nhập */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Lập phiếu nhập kho</DialogTitle></DialogHeader>
-          <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning">
-            ⚠️ Phiếu sẽ ở trạng thái <strong>Chờ duyệt</strong>. Tồn kho chỉ được cập nhật sau khi Trưởng khoa / Admin phê duyệt.
+        
+        {canCreate && (
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={downloadTemplate} className="flex-1 sm:flex-none">
+              <FileDown className="w-4 h-4 mr-2" /> Mẫu Excel
+            </Button>
+            <input 
+              type="file" 
+              accept=".xlsx" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload}
+            />
+            <Button 
+              className="gradient-primary text-primary-foreground flex-1 sm:flex-none"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? 'Đang xử lý...' : <><Upload className="w-4 h-4 mr-2" /> Chọn File Excel</>}
+            </Button>
           </div>
-          <div className="space-y-4">
-            <div className="relative">
-              <Label>Tìm kiếm thiết bị *</Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Nhập tên hoặc mã thiết bị..." 
-                  className="pl-10"
-                  value={equipmentSearch}
-                  onChange={e => {
-                    setEquipmentSearch(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => setShowSuggestions(true)}
-                />
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-lg">Lịch sử nhập kho</h3>
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Tìm mã phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-9" />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {groupedImports.map((phieu: any) => (
+          <div key={phieu.maPhieu} className="border rounded-xl overflow-hidden bg-card">
+            <div className="bg-muted/30 p-3 lg:px-4 border-b flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">{phieu.maPhieu}</span>
+                <span className="text-xs text-muted-foreground">{new Date(phieu.ngayNhap).toLocaleString('vi-VN')}</span>
               </div>
-              
-              {showSuggestions && (equipmentSearch.length > 0 || equipment.length > 0) && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-200">
-                  {equipment
-                    .filter(e => e.trangThai && (
-                      e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) ||
-                      e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase())
-                    ))
-                    .map(e => (
-                      <div 
-                        key={e.maThietBi}
-                        className="flex flex-col p-2 hover:bg-accent cursor-pointer border-b last:border-0"
-                        onClick={() => {
-                          if (!e.maNhaCungCap) {
-                            toast({ title: 'Thiếu thông tin', description: 'Thiết bị này chưa được gán Nhà cung cấp. Vui lòng cập nhật thông tin thiết bị trước khi nhập.', variant: 'destructive' });
-                            return;
-                          }
-                          setForm(f => ({ ...f, maThietBi: e.maThietBi, maNhaCungCap: e.maNhaCungCap as string }));
-                          setEquipmentSearch(e.tenThietBi);
-                          setShowSuggestions(false);
-                        }}
-                      >
-                        <span className="font-medium text-sm">{e.tenThietBi}</span>
-                        <span className="text-xs text-muted-foreground">{e.maThietBi}</span>
-                      </div>
-                    ))}
-                  {equipment.filter(e => e.trangThai && (e.tenThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()) || e.maThietBi.toLowerCase().includes(equipmentSearch.toLowerCase()))).length === 0 && (
-                    <div className="p-4 text-center text-sm text-muted-foreground">Không tìm thấy thiết bị</div>
-                  )}
+              <div className="flex items-center gap-3">
+                <span className="text-xs">
+                  Người nhập: <span className="font-medium">{users.find(u => u.maNguoiDung === phieu.maNhanVienKho)?.hoTen || phieu.maNhanVienKho}</span>
+                </span>
+                {canDelete && (
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(phieu.maPhieu)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-muted/10">
+                  <th className="text-left p-2 pl-4 font-medium text-muted-foreground whitespace-nowrap">Mã TB</th>
+                  <th className="text-left p-2 font-medium text-muted-foreground">Tên thiết bị</th>
+                  <th className="text-left p-2 font-medium text-muted-foreground">Nhà cấp</th>
+                  <th className="text-center p-2 font-medium text-muted-foreground">Lô/HSD</th>
+                  <th className="text-right p-2 font-medium text-muted-foreground">Đơn giá</th>
+                  <th className="text-right p-2 pr-4 font-medium text-muted-foreground">Số lượng</th>
+                </tr></thead>
+                <tbody>
+                  {phieu.chiTiet.map((ct: any, idx: number) => (
+                    <tr key={idx} className="border-b last:border-0 hover:bg-muted/10">
+                      <td className="p-2 pl-4 font-mono text-xs">{ct.maThietBi}</td>
+                      <td className="p-2">{ct.tenThietBi}</td>
+                      <td className="p-2 text-xs truncate max-w-[150px]">{suppliers.find(s => s.maNhaCungCap === ct.maNhaCungCap)?.tenNhaCungCap}</td>
+                      <td className="p-2 text-center text-xs">
+                        {ct.soLo ? <span className="block">{ct.soLo}</span> : '-'}
+                        {ct.hanSuDung ? <span className="block text-muted-foreground">{new Date(ct.hanSuDung).toLocaleDateString('vi-VN')}</span> : ''}
+                      </td>
+                      <td className="p-2 text-right text-xs">{ct.donGia ? ct.donGia.toLocaleString('vi-VN') + ' đ' : '-'}</td>
+                      <td className="p-2 pr-4 text-right font-medium text-success">+{ct.soLuongNhap} {ct.donViTinh}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-muted/5 font-bold">
+                    <td colSpan={4} className="p-2 pl-4 text-right text-muted-foreground uppercase text-[10px] tracking-wider">Tổng cộng giá trị phiếu:</td>
+                    <td className="p-2 text-right text-amber-600 dark:text-amber-500">
+                      {new Intl.NumberFormat('vi-VN').format(phieu.chiTiet.reduce((sum: number, ct: any) => sum + (ct.soLuongNhap * (ct.donGia || 0)), 0))} đ
+                    </td>
+                    <td className="p-2 pr-4 text-right text-success">
+                      {phieu.chiTiet.reduce((sum: number, ct: any) => sum + ct.soLuongNhap, 0)} {phieu.chiTiet[0]?.donViTinh}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {groupedImports.length === 0 && <div className="text-center py-12 text-muted-foreground border rounded-xl border-dashed">Chưa có lịch sử nhập kho</div>}
+
+      {/* Dialog Preview Excel */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Xem trước dữ liệu nhập kho</DialogTitle>
+          </DialogHeader>
+          
+          {summary && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-2 shrink-0">
+              <div className="p-3 bg-muted rounded-lg border text-center">
+                <div className="text-xl font-bold">{summary.total}</div>
+                <div className="text-xs text-muted-foreground mt-1">Tổng dòng</div>
+              </div>
+              <div className="p-3 bg-success/10 text-success rounded-lg border border-success/20 text-center">
+                <div className="text-xl font-bold">{summary.willCreate}</div>
+                <div className="text-xs mt-1">Tạo mới (CREATE)</div>
+              </div>
+              <div className="p-3 bg-primary/10 text-primary rounded-lg border border-primary/20 text-center">
+                <div className="text-xl font-bold">{summary.willUpdate}</div>
+                <div className="text-xs mt-1">Cập nhật (UPDATE)</div>
+              </div>
+              <div className={`p-3 rounded-lg border text-center ${summary.errors > 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-muted text-muted-foreground'}`}>
+                <div className="text-xl font-bold">{summary.errors}</div>
+                <div className="text-xs mt-1">Lỗi (Bỏ qua)</div>
+              </div>
+              <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-lg border border-amber-500/20 text-center font-mono">
+                <div className="text-lg font-bold truncate" title={new Intl.NumberFormat('vi-VN').format(previewData.reduce((acc, r) => acc + (r.hasError ? 0 : r.soLuong * (r.donGia || 0)), 0)) + ' đ'}>
+                  {new Intl.NumberFormat('vi-VN').format(previewData.reduce((acc, r) => acc + (r.hasError ? 0 : r.soLuong * (r.donGia || 0)), 0))} đ
                 </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Nhà cung cấp (Tự động)</Label>
-                <div className="mt-1 p-2 bg-muted/50 border rounded-md text-sm font-medium text-muted-foreground italic">
-                  {suppliers.find(s => s.maNhaCungCap === form.maNhaCungCap)?.tenNhaCungCap || '(Chưa chọn thiết bị)'}
-                </div>
-              </div>
-              <div>
-                <Label>Số lượng nhập *</Label>
-                <Input type="number" min={1} value={form.soLuongNhap} className="mt-1" onChange={e => {
-                  const val = parseInt(e.target.value) || 0;
-                  setForm(f => ({ ...f, soLuongNhap: val < 0 ? 0 : val }));
-                }} />
+                <div className="text-xs mt-1">Tổng lô nhập</div>
               </div>
             </div>
+          )}
 
-            <div><Label>Ghi chú</Label><Textarea value={form.ghiChu} className="mt-1" onChange={e => setForm(f => ({ ...f, ghiChu: e.target.value }))} /></div>
+          <div className="flex-1 overflow-auto border rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-muted/90 backdrop-blur z-10 shadow-sm">
+                <tr>
+                  <th className="p-2 border-r text-center w-10">Dòng</th>
+                  <th className="p-2 border-r text-center w-16">Thao tác</th>
+                  <th className="p-2 border-r text-left">Mã TB</th>
+                  <th className="p-2 border-r text-left">Tên TB & Loại</th>
+                  <th className="p-2 border-r text-left">Nhà cung cấp</th>
+                  <th className="p-2 border-r text-right w-12">SL</th>
+                  <th className="p-2 border-r text-right w-24">Đơn giá</th>
+                  <th className="p-2 border-r text-right w-28">Thành tiền</th>
+                  <th className="p-2 text-left min-w-[200px]">Trạng thái / Lỗi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewData.map((row, i) => (
+                  <tr key={i} className={`border-b ${row.hasError ? 'bg-destructive/5' : ''}`}>
+                    <td className="p-2 border-r text-center text-muted-foreground">{row.rowIndex}</td>
+                    <td className="p-2 border-r text-center">
+                      {!row.hasError && row.action === 'CREATE' && <span className="text-[10px] bg-success/20 text-success px-1.5 py-0.5 rounded font-bold">CREATE</span>}
+                      {!row.hasError && row.action === 'UPDATE' && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold">UPDATE</span>}
+                    </td>
+                    <td className="p-2 border-r font-mono">{row.maThietBi}</td>
+                    <td className="p-2 border-r">
+                      <div className="font-semibold truncate max-w-[200px]" title={row.tenThietBi}>{row.tenThietBi}</div>
+                      <div className="text-[10px] text-muted-foreground">{row.loai === 'TAI_SU_DUNG' ? 'Tái sử dụng' : 'Tiêu hao'} - ĐVT: {row.donViTinh}</div>
+                    </td>
+                    <td className="p-2 border-r truncate max-w-[120px]">{row.maNcc}</td>
+                    <td className="p-2 border-r text-right font-medium text-success whitespace-nowrap">+{row.soLuong}</td>
+                    <td className="p-2 border-r text-right font-mono text-[10px] sm:text-xs whitespace-nowrap">{row.donGia ? new Intl.NumberFormat('vi-VN').format(row.donGia) + ' đ' : '-'}</td>
+                    <td className="p-2 border-r text-right font-mono text-[10px] sm:text-xs whitespace-nowrap font-semibold text-amber-600 dark:text-amber-500">
+                      {row.donGia ? new Intl.NumberFormat('vi-VN').format(row.donGia * row.soLuong) + ' đ' : '-'}
+                    </td>
+                    <td className="p-2">
+                      {row.hasError ? (
+                        <div className="flex items-start text-destructive gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                          <ul className="list-disc pl-4 space-y-0.5">
+                            {row.errors.map((e, j) => <li key={j}>{e}</li>)}
+                          </ul>
+                        </div>
+                      ) : (
+                        <span className="text-success flex items-center gap-1"><Check className="w-3 h-3" /> Hợp lệ</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleCreate} disabled={!form.maThietBi} className="gradient-primary text-primary-foreground">Gửi yêu cầu nhập</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Dialog từ chối */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Từ chối phiếu nhập kho {rejectingId}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Lý do từ chối *</Label>
-              <Textarea placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Hủy</Button>
-            <Button onClick={handleRejectConfirm} variant="destructive">Xác nhận từ chối</Button>
+          <DialogFooter className="shrink-0 mt-4">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)} disabled={uploading}>Hủy</Button>
+            <Button 
+              onClick={handleConfirmImport} 
+              className="gradient-primary text-primary-foreground" 
+              disabled={uploading || !summary || summary.valid === 0}
+            >
+              {uploading ? 'Đang xử lý...' : `Xác nhận nhập kho (${summary?.valid || 0} dòng)`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

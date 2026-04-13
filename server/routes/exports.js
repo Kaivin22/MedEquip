@@ -1,11 +1,16 @@
 import { Router } from "express";
 import { authMiddleware, roleMiddleware } from "../middleware/auth.js";
-import { getAllExports, createExport, confirmExport } from "../controllers/exportController.js";
+import { getAllExports, exportToExcel, createExportManual } from "../controllers/exportController.js";
 
 const router = Router();
 
+// Lấy lịch sử xuất kho
 router.get("/", authMiddleware, getAllExports);
-router.post("/", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), createExport);
-router.put("/:id/confirm", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), confirmExport);
+
+// Xuất lịch sử ra file Excel
+router.get("/excel", authMiddleware, exportToExcel);
+
+// Tạo phiếu xuất kho thủ công qua form UI
+router.post("/", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), createExportManual);
 
 export default router;

@@ -1,4 +1,5 @@
-export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA' | 'NV_BV';
+// v4: bỏ NV_BV, chỉ còn 3 role
+export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA';
 
 export interface NguoiDung {
   maNguoiDung: string;
@@ -11,18 +12,25 @@ export interface NguoiDung {
   ngayCapNhat: string;
   soDienThoai?: string;
   diaChi?: string;
+  maKhoa?: string;
 }
 
+// v4: ThietBi với loai ENUM và các trường mới
 export interface ThietBi {
   maThietBi: string;
   tenThietBi: string;
-  loaiThietBi: string;
+  loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG';
   donViTinh: string;
+  heSoQuyDoi: number;
+  serialNumber?: string;
+  nguongCanhBao: number;
   moTa: string;
   maNhaCungCap: string;
   trangThai: boolean;
   ngayTao: string;
   hinhAnh?: string;
+  // tồn kho (JOIN từ backend)
+  soLuongKho?: number;
 }
 
 export interface TonKho {
@@ -32,6 +40,12 @@ export interface TonKho {
   soLuongDangDung: number;
   soLuongHu: number;
   ngayCapNhat: string;
+  // low-stock join fields
+  tenThietBi?: string;
+  loaiThietBi?: string;
+  donViTinh?: string;
+  nguongCanhBao?: number;
+  donGia?: number;
 }
 
 export interface NhaCungCap {
@@ -50,24 +64,6 @@ export interface Khoa {
   trangThai: boolean;
 }
 
-export interface PhieuYeuCauNhap {
-  maPhieu: string;
-  maNguoiYeuCau: string;
-  tenThietBi: string;
-  loaiThietBi: string;
-  donViTinh: string;
-  soLuong: number;
-  mucDichSuDung: string;
-  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI' | 'DA_NHAP';
-  ngayTao: string;
-  ngayDuyet?: string;
-  nguoiDuyet?: string;
-  lyDoTuChoi?: string;
-  hinhAnh?: string;
-  maNhaCungCap?: string;
-  moTa?: string;
-}
-
 export interface PhieuYeuCauCapPhat {
   maPhieu: string;
   maNguoiYeuCau: string;
@@ -82,37 +78,81 @@ export interface PhieuYeuCauCapPhat {
   lyDoTuChoi?: string;
 }
 
+// v4: PhieuCapPhat với ngày hạn trả và trạng thái trả
 export interface PhieuCapPhat {
   maPhieu: string;
   maPhieuYeuCau: string;
   maNhanVienKho: string;
   maThietBi: string;
+  tenThietBi?: string;
+  loaiThietBi?: string;
+  donViTinh?: string;
   maNguoiMuon: string;
   maKhoa: string;
   soLuongCapPhat: number;
   ngayCapPhat: string;
+  ngayDuKienTra?: string;
+  trangThaiTra: 'CHUA_TRA' | 'YEU_CAU_TRA' | 'DA_TRA' | 'DA_GIA_HAN';
+  lyDoGiaHan?: string;
   ghiChu: string;
+}
+
+// v4: PhieuNhapKho với trangThai
+export interface PhieuNhapKho {
+  maPhieu: string;
+  maNhaCungCap: string;
+  maThietBi: string;
+  tenThietBi?: string;
+  soLuongNhap: number;
+  donViTinh?: string;
+  donGia?: number;
+  soLo?: string;
+  hanSuDung?: string;
+  urlAnh?: string;
+  ngayNhap: string;
+  maNhanVienKho: string;
+  ghiChu: string;
+  trangThai?: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI';
+}
+
+// v4: Excel preview row
+export interface ExcelPreviewRow {
+  rowIndex: number;
+  maThietBi: string;
+  tenThietBi: string;
+  loai: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG';
+  soLuong: number;
+  donViTinh: string;
+  heSoQuyDoi: number;
+  donGia: number;
+  soLo: string;
+  hanSuDung: string;
+  serialNumber: string;
+  maNcc: string;
+  nguongCanhBao: number;
+  urlAnh: string;
+  ghiChu: string;
+  action: 'CREATE' | 'UPDATE';
+  errors: string[];
+  hasError: boolean;
 }
 
 export interface PhieuXuatKho {
   maPhieu: string;
   maNhanVienKho: string;
-  maThietBi: string;
-  soLuong: number;
+  tenNguoiXuat?: string;
+  chiTiet: {
+    maThietBi: string;
+    tenThietBi?: string;
+    soLuong: number;
+    donViTinh?: string;
+  }[];
   trangThai: 'DA_LAP' | 'DA_XUAT' | 'DA_HUY';
   ngayXuat: string;
   ghiChu: string;
   lyDoXuat: string;
-}
-
-export interface PhieuNhapKho {
-  maPhieu: string;
-  maNhaCungCap: string;
-  maThietBi: string;
-  soLuongNhap: number;
-  ngayNhap: string;
-  maNhanVienKho: string;
-  ghiChu: string;
+  maKhoaNhan?: string;
+  tenKhoaNhan?: string;
 }
 
 export interface PhieuBaoHuHong {
@@ -126,6 +166,27 @@ export interface PhieuBaoHuHong {
   ngayBao: string;
   ngayXuLy?: string;
   ghiChu?: string;
+}
+
+// v4: Phiếu trả thiết bị (mới)
+export interface ChiTietPhieuTra {
+  maThietBi: string;
+  tenThietBi?: string;
+  soLuong: number;
+  tinhTrangKhiTra: 'NGUYEN_SEAL' | 'DA_BOC_SEAL' | 'HONG';
+}
+
+export interface PhieuTraThietBi {
+  id: number;
+  maPhieuTra: string;
+  maPhieuCapPhat: string;
+  maTruongKhoa: string;
+  tenTruongKhoa?: string;
+  ngayTao: string;
+  trangThai: 'CHO_XAC_NHAN' | 'DA_TRA' | 'TU_CHOI';
+  ghiChu?: string;
+  qrData?: string;
+  chiTiet: ChiTietPhieuTra[];
 }
 
 export interface ThongBao {
@@ -161,16 +222,38 @@ export interface NhatKy {
   chiTiet: string;
 }
 
+// ──────── Constants ────────
 export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',
   NV_KHO: 'Nhân viên Kho',
   TRUONG_KHOA: 'Trưởng Khoa',
-  NV_BV: 'Nhân viên Bệnh viện',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
   ADMIN: 'bg-destructive/10 text-destructive',
   NV_KHO: 'bg-primary/10 text-primary',
   TRUONG_KHOA: 'bg-warning/10 text-warning',
-  NV_BV: 'bg-accent/10 text-accent',
+};
+
+export const LOAI_THIET_BI_LABELS: Record<string, string> = {
+  VAT_TU_TIEU_HAO: 'Vật tư tiêu hao',
+  TAI_SU_DUNG: 'Tái sử dụng',
+};
+
+export const LOAI_THIET_BI_COLORS: Record<string, string> = {
+  VAT_TU_TIEU_HAO: 'bg-orange-100 text-orange-700',
+  TAI_SU_DUNG: 'bg-blue-100 text-blue-700',
+};
+
+export const TINH_TRANG_TRA_LABELS: Record<string, string> = {
+  NGUYEN_SEAL: 'Nguyên seal',
+  DA_BOC_SEAL: 'Đã bóc seal',
+  HONG: 'Hỏng',
+};
+
+export const TRANG_THAI_TRA_LABELS: Record<string, string> = {
+  CHUA_TRA: 'Chưa trả',
+  YEU_CAU_TRA: 'Yêu cầu trả',
+  DA_TRA: 'Đã trả',
+  DA_GIA_HAN: 'Đã gia hạn',
 };
