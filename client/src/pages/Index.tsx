@@ -15,7 +15,6 @@ import UsersPage from '@/pages/UsersPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import ReportsPage from '@/pages/ReportsPage';
-import ReturnsPage from '@/pages/ReturnsPage';
 
 const pages: Record<PageKey, React.ComponentType> = {
   dashboard: DashboardPage,

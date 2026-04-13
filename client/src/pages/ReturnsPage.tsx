@@ -90,9 +90,8 @@ export default function ReturnsPage() {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/create`, {
+      const result = await fetchApi<{ success: boolean; message: string; maPhieuTra: string }>('/returns/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
         body: JSON.stringify({
           ghiChu: form.ghiChu,
           chiTiet: form.chiTiet.map(ct => ({
@@ -103,7 +102,6 @@ export default function ReturnsPage() {
           }))
         })
       });
-      const result = await response.json();
       if (result.success) {
         toast({ title: 'Thành công', description: 'Đã tạo Phiếu thông báo trả thiết bị.' });
         setDialogOpen(false);
@@ -121,16 +119,14 @@ export default function ReturnsPage() {
   const handleConfirmReturn = async (approved: boolean) => {
     if (!confirmingPhieu) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${confirmingPhieu.maPhieuTra}/confirm`, {
+      const result = await fetchApi<{ success: boolean; message: string }>(`/returns/${confirmingPhieu.maPhieuTra}/confirm`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
         body: JSON.stringify({ approved })
       });
-      const result = await response.json();
       if (result.success) {
         toast({ title: 'Thành công', description: `Đã ${approved ? 'xác nhận nhập kho' : 'từ chối'} phiếu trả.` });
         setConfirmOpen(false);
-        setTimeout(() => reload(), 300);
+        await reload();
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
@@ -199,11 +195,9 @@ export default function ReturnsPage() {
   const handleDeleteReturn = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu trả này khỏi danh sách của bạn?')) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      const result = await fetchApi<{ success: boolean; message: string }>(`/returns/${id}`, {
+        method: 'DELETE'
       });
-      const result = await response.json();
       if (result.success) {
         toast({ title: 'Đã xóa', description: result.message });
         reload();
@@ -218,11 +212,9 @@ export default function ReturnsPage() {
   const handleCancelReturn = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn hủy yêu cầu trả này? Các thiết bị sẽ quay về trạng thái Đang mượn.')) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/returns/${id}/cancel`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      const result = await fetchApi<{ success: boolean; message: string }>(`/returns/${id}/cancel`, {
+        method: 'POST'
       });
-      const result = await response.json();
       if (result.success) {
         toast({ title: 'Đã hủy', description: result.message });
         await reload();
