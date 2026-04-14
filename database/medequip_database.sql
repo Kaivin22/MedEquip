@@ -94,6 +94,19 @@ CREATE TABLE IF NOT EXISTS phieu_yeu_cau (
     FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa)
 );
 
+CREATE TABLE IF NOT EXISTS chi_tiet_yeu_cau (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ma_phieu_yeu_cau VARCHAR(30) NOT NULL,
+    ma_thiet_bi VARCHAR(20) NOT NULL,
+    so_luong INT NOT NULL,
+    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
+    so_luong_co_so INT NOT NULL,
+    trang_thai ENUM('CHO_DUYET','DA_DUYET','TU_CHOI') DEFAULT 'CHO_DUYET',
+    ly_do_tu_choi TEXT NULL,
+    FOREIGN KEY (ma_phieu_yeu_cau) REFERENCES phieu_yeu_cau(ma_phieu),
+    FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
+);
+
 -- 7. Bảng Phiếu cấp phát
 CREATE TABLE IF NOT EXISTS phieu_cap_phat (
     ma_phieu VARCHAR(30) PRIMARY KEY,
@@ -115,6 +128,8 @@ CREATE TABLE IF NOT EXISTS chi_tiet_cap_phat (
     ma_phieu_cap_phat VARCHAR(30) NOT NULL,
     ma_thiet_bi VARCHAR(20) NOT NULL,
     so_luong INT NOT NULL,
+    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
+    so_luong_co_so INT NOT NULL,
     FOREIGN KEY (ma_phieu_cap_phat) REFERENCES phieu_cap_phat(ma_phieu),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
@@ -221,6 +236,8 @@ CREATE TABLE IF NOT EXISTS chi_tiet_phieu_tra (
     ma_phieu_tra INT NOT NULL,
     ma_thiet_bi VARCHAR(20) NOT NULL,
     so_luong INT NOT NULL DEFAULT 1,
+    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
+    so_luong_co_so INT NOT NULL DEFAULT 1,
     tinh_trang_khi_tra ENUM('NGUYEN_SEAL', 'DA_BOC_SEAL', 'HONG') DEFAULT 'DA_BOC_SEAL',
     anh_chung_minh TEXT COMMENT 'URL ảnh chứng minh',
     FOREIGN KEY (ma_phieu_tra) REFERENCES phieu_tra_thiet_bi(id)

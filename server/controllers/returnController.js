@@ -1,4 +1,4 @@
-import { pool } from "./server/config/db.js"; // Lưu ý: Đường dẫn dành cho file ở gốc
+import { pool } from "../config/db.js";
 
 function mapReturn(row, details = []) {
   return {
@@ -17,6 +17,8 @@ function mapReturn(row, details = []) {
         maThietBi: d.ma_thiet_bi,
         tenThietBi: d.ten_thiet_bi || d.ma_thiet_bi,
         soLuong: d.so_luong,
+        donViTinh: d.don_vi_tinh,
+        soLuongCoSo: d.so_luong_co_so,
         tinhTrangKhiTra: d.tinh_trang_khi_tra
       };
     })
@@ -66,10 +68,26 @@ export async function createReturn(req, res) {
         });
       }
 
+      // Lấy thông tin đơn vị từ chi tiết cấp phát
+      const [cpDetail] = await conn.query(
+        "SELECT don_vi_tinh, so_luong_co_so, so_luong FROM chi_tiet_cap_phat WHERE ma_phieu_cap_phat = ? AND ma_thiet_bi = ?",
+        [item.maPhieuCapPhat, item.maThietBi]
+      );
+      
+      let donVi = 'Cái';
+      let soLuongCoSo = item.soLuong;
+
+      if (cpDetail.length > 0) {
+        donVi = cpDetail[0].don_vi_tinh;
+        // Tỷ lệ quy đổi từ ban đầu
+        const exchangeRate = cpDetail[0].so_luong_co_so / cpDetail[0].so_luong;
+        soLuongCoSo = item.soLuong * exchangeRate;
+      }
+
       const meta = { maPhieuCapPhat: item.maPhieuCapPhat };
       await conn.query(
-        "INSERT INTO chi_tiet_phieu_tra (ma_phieu_tra, ma_thiet_bi, so_luong, tinh_trang_khi_tra, anh_chung_minh) VALUES (?, ?, ?, ?, ?)",
-        [parentId, item.maThietBi, item.soLuong, item.tinhTrangKhiTra || "DA_BOC_SEAL", JSON.stringify(meta)]
+        "INSERT INTO chi_tiet_phieu_tra (ma_phieu_tra, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, tinh_trang_khi_tra, anh_chung_minh) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [parentId, item.maThietBi, item.soLuong, donVi, soLuongCoSo, item.tinhTrangKhiTra || "DA_BOC_SEAL", JSON.stringify(meta)]
       );
 
       await conn.query("UPDATE phieu_cap_phat SET trang_thai_tra = 'YEU_CAU_TRA' WHERE ma_phieu = ?", [item.maPhieuCapPhat]);
@@ -176,6 +194,7 @@ export async function confirmReturn(req, res) {
       let meta = {};
       try { meta = JSON.parse(d.anh_chung_minh); } catch (e) { }
       const curMaPhieuCapPhat = meta.maPhieuCapPhat || phieu.ma_phieu_cap_phat;
+      const soLuongCoSo = d.so_luong_co_so || d.so_luong; // Fallback for old records
 
       if (approved) {
         const [cpRows] = await conn.query(
@@ -195,20 +214,20 @@ export async function confirmReturn(req, res) {
           if (loaiTB === 'VAT_TU_TIEU_HAO' && d.tinh_trang_khi_tra === 'DA_BOC_SEAL') {
             await conn.query(
               "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-              [d.so_luong, d.ma_thiet_bi]
+              [soLuongCoSo, d.ma_thiet_bi]
             );
           } else {
             // Tái sử dụng hoặc Vật tư nguyên seal
             await conn.query(
               "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ?, so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-              [d.so_luong, d.so_luong, d.ma_thiet_bi]
+              [soLuongCoSo, soLuongCoSo, d.ma_thiet_bi]
             );
           }
         } else {
           // Thiết bị hỏng: trừ dang_dung, cộng hu
           await conn.query(
             "UPDATE ton_kho SET so_luong_hu = so_luong_hu + ?, so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-            [d.so_luong, d.so_luong, d.ma_thiet_bi]
+            [soLuongCoSo, soLuongCoSo, d.ma_thiet_bi]
           );
         }
 

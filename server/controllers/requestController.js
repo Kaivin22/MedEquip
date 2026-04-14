@@ -28,7 +28,7 @@ export async function getAllRequests(req, res) {
     // Fetch items for each request
     const requestsWithItems = await Promise.all(rows.map(async (row) => {
       const [items] = await pool.query(
-        "SELECT ct.*, t.ten_thiet_bi, t.don_vi_tinh FROM chi_tiet_yeu_cau ct JOIN thiet_bi t ON ct.ma_thiet_bi = t.ma_thiet_bi WHERE ct.ma_phieu_yeu_cau = ?",
+        "SELECT ct.*, t.ten_thiet_bi, t.don_vi_co_so as don_vi_co_so_tb FROM chi_tiet_yeu_cau ct JOIN thiet_bi t ON ct.ma_thiet_bi = t.ma_thiet_bi WHERE ct.ma_phieu_yeu_cau = ?",
         [row.ma_phieu]
       );
       return {
@@ -39,6 +39,8 @@ export async function getAllRequests(req, res) {
           soLuong: i.so_luong,
           trangThai: i.trang_thai,
           donViTinh: i.don_vi_tinh,
+          soLuongCoSo: i.so_luong_co_so,
+          donViCoSo: i.don_vi_co_so_tb,
           lyDoTuChoi: i.ly_do_tu_choi || ""
         }))
       };
@@ -72,9 +74,16 @@ export async function createRequest(req, res) {
 
     // Insert all items
     for (const item of items) {
+      const [tbRows] = await conn.query("SELECT don_vi_co_so, don_vi_nhap, he_so_quy_doi FROM thiet_bi WHERE ma_thiet_bi = ?", [item.maThietBi]);
+      const tb = tbRows[0] || { don_vi_co_so: 'Cái', he_so_quy_doi: 1 };
+      
+      const donVi = item.donVi || tb.don_vi_co_so;
+      const factor = (donVi === tb.don_vi_nhap) ? (tb.he_so_quy_doi || 1) : 1;
+      const soLuongCoSo = item.soLuong * factor;
+
       await conn.query(
-        "INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong, trang_thai) VALUES (?, ?, ?, 'CHO_DUYET')",
-        [id, item.maThietBi, item.soLuong]
+        "INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, trang_thai) VALUES (?, ?, ?, ?, ?, 'CHO_DUYET')",
+        [id, item.maThietBi, item.soLuong, donVi, soLuongCoSo]
       );
     }
 
@@ -173,7 +182,7 @@ export async function scanRequest(req, res) {
 
     const request = mapRequest(rows[0]);
     const [items] = await pool.query(
-      `SELECT ct.*, t.ten_thiet_bi, t.don_vi_tinh, tk.so_luong_kho 
+      `SELECT ct.*, t.ten_thiet_bi, t.don_vi_co_so as don_vi_co_so_tb, tk.so_luong_kho 
        FROM chi_tiet_yeu_cau ct 
        JOIN thiet_bi t ON ct.ma_thiet_bi = t.ma_thiet_bi 
        LEFT JOIN ton_kho tk ON ct.ma_thiet_bi = tk.ma_thiet_bi
@@ -190,7 +199,9 @@ export async function scanRequest(req, res) {
         soLuong: i.so_luong,
         trangThai: i.trang_thai,
         donViTinh: i.don_vi_tinh,
+        soLuongCoSo: i.so_luong_co_so,
         tonKho: i.so_luong_kho || 0,
+        donViCoSo: i.don_vi_co_so_tb,
         lyDoTuChoi: i.ly_do_tu_choi || ""
       }))
     });
@@ -221,14 +232,16 @@ export async function processRequestItems(req, res) {
       if (item.approved) {
         // Check inventory
         const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [item.maThietBi]);
-        const [reqItem] = await conn.query("SELECT so_luong FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
+        const [reqItems] = await conn.query("SELECT so_luong, so_luong_co_so, don_vi_tinh FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
 
-        if (reqItem.length === 0) continue;
-        const soLuong = reqItem[0].so_luong;
+        if (reqItems.length === 0) continue;
+        const reqItem = reqItems[0];
+        const soLuong = reqItem.so_luong;
+        const soLuongCoSo = reqItem.so_luong_co_so;
 
-        if (inv.length === 0 || inv[0].so_luong_kho < soLuong) {
+        if (inv.length === 0 || inv[0].so_luong_kho < soLuongCoSo) {
           await conn.rollback();
-          return res.json({ success: false, message: `Không đủ tồn kho cho thiết bị ${item.maThietBi}. Hiện có: ${inv[0]?.so_luong_kho || 0}` });
+          return res.json({ success: false, message: `Không đủ tồn kho cho thiết bị ${item.maThietBi}. Hiện có: ${inv[0]?.so_luong_kho || 0} đơn vị cơ sở.` });
         }
 
         // Update item status
@@ -244,17 +257,17 @@ export async function processRequestItems(req, res) {
         if (isTieuHao) {
           await conn.query(
             "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ? WHERE ma_thiet_bi = ?",
-            [soLuong, item.maThietBi]
+            [soLuongCoSo, item.maThietBi]
           );
         } else {
           await conn.query(
             "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
-            [soLuong, soLuong, item.maThietBi]
+            [soLuongCoSo, soLuongCoSo, item.maThietBi]
           );
         }
 
         approvedCount++;
-        approvedDetails.push({ maThietBi: item.maThietBi, soLuong });
+        approvedDetails.push({ maThietBi: item.maThietBi, soLuong, soLuongCoSo, donViTinh: reqItem.don_vi_tinh });
       } else {
         // Reject item
         await conn.query(
@@ -274,8 +287,8 @@ export async function processRequestItems(req, res) {
 
       for (const det of approvedDetails) {
         await conn.query(
-          "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
-          [cpId, det.maThietBi, det.soLuong]
+          "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so) VALUES (?, ?, ?, ?, ?)",
+          [cpId, det.maThietBi, det.soLuong, det.donViTinh, det.soLuongCoSo]
         );
       }
 
