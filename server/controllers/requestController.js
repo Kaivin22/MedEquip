@@ -157,10 +157,20 @@ export async function processRequest(req, res) {
     );
 
     // Update inventory
-    await conn.query(
-      "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
-      [soLuongCapPhat, soLuongCapPhat, request.ma_thiet_bi]
-    );
+    const [tbRows] = await conn.query("SELECT loai_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [request.ma_thiet_bi]);
+    const isTieuHao = (tbRows[0]?.loai_thiet_bi === 'VAT_TU_TIEU_HAO');
+
+    if (isTieuHao) {
+      await conn.query(
+        "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ? WHERE ma_thiet_bi = ?",
+        [soLuongCapPhat, request.ma_thiet_bi]
+      );
+    } else {
+      await conn.query(
+        "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
+        [soLuongCapPhat, soLuongCapPhat, request.ma_thiet_bi]
+      );
+    }
 
     // Update request status
     await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [maPhieuYeuCau]);
