@@ -24,7 +24,7 @@ export async function getAllRequests(req, res) {
     if (req.query.trangThai) { sql += " AND trang_thai = ?"; params.push(req.query.trangThai); }
     sql += " ORDER BY ngay_tao DESC";
     const [rows] = await pool.query(sql, params);
-    
+
     // Fetch items for each request
     const requestsWithItems = await Promise.all(rows.map(async (row) => {
       const [items] = await pool.query(
@@ -43,7 +43,7 @@ export async function getAllRequests(req, res) {
         }))
       };
     }));
-    
+
     res.json(requestsWithItems);
   } catch (err) {
     console.error(err);
@@ -56,12 +56,12 @@ export async function createRequest(req, res) {
   try {
     await conn.beginTransaction();
     const { maNguoiYeuCau, maKhoa, lyDo, items } = req.body;
-    
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: "Danh sách thiết bị không hợp lệ." });
     }
 
-    const id = "YCCF-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
+    const id = "YCCF-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
     const firstItem = items[0];
 
     // Insert main request (backwards compatibility with ma_thiet_bi and so_luong_yeu_cau)
@@ -170,7 +170,7 @@ export async function scanRequest(req, res) {
     const { id } = req.params;
     const [rows] = await pool.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
     if (rows.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy phiếu." });
-    
+
     const request = mapRequest(rows[0]);
     const [items] = await pool.query(
       `SELECT ct.*, t.ten_thiet_bi, t.don_vi_tinh, tk.so_luong_kho 
@@ -222,7 +222,7 @@ export async function processRequestItems(req, res) {
         // Check inventory
         const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [item.maThietBi]);
         const [reqItem] = await conn.query("SELECT so_luong FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
-        
+
         if (reqItem.length === 0) continue;
         const soLuong = reqItem[0].so_luong;
 
@@ -237,11 +237,21 @@ export async function processRequestItems(req, res) {
           [id, item.maThietBi]
         );
 
-        // Update inventory
-        await conn.query(
-          "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
-          [soLuong, soLuong, item.maThietBi]
-        );
+        // Update inventory (Integrated logic for Reusable vs Consumable)
+        const [tbRows] = await conn.query("SELECT loai_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [item.maThietBi]);
+        const isTieuHao = (tbRows[0]?.loai_thiet_bi === 'VAT_TU_TIEU_HAO');
+
+        if (isTieuHao) {
+          await conn.query(
+            "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ? WHERE ma_thiet_bi = ?",
+            [soLuong, item.maThietBi]
+          );
+        } else {
+          await conn.query(
+            "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
+            [soLuong, soLuong, item.maThietBi]
+          );
+        }
 
         approvedCount++;
         approvedDetails.push({ maThietBi: item.maThietBi, soLuong });
@@ -256,7 +266,7 @@ export async function processRequestItems(req, res) {
 
     if (approvedCount > 0) {
       // Create allocation record
-      const cpId = "CP-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
+      const cpId = "CP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
       await conn.query(
         "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu, trang_thai_tra) VALUES (?, ?, ?, ?, ?, 'CHUA_TRA')",
         [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
@@ -278,10 +288,10 @@ export async function processRequestItems(req, res) {
     const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
     await conn.query(
       "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-      [notifId, approvedCount > 0 ? "Thiết bị đã sẵn sàng" : "Yêu cầu bị từ chối", 
-       approvedCount > 0 ? `Yêu cầu ${id} đã được cấp phát ${approvedCount} thiết bị.` : `Yêu cầu ${id} của bạn đã bị từ chối hoàn toàn.`,
-       approvedCount > 0 ? 'success' : 'error',
-       request.ma_nguoi_yeu_cau]
+      [notifId, approvedCount > 0 ? "Thiết bị đã sẵn sàng" : "Yêu cầu bị từ chối",
+        approvedCount > 0 ? `Yêu cầu ${id} đã được cấp phát ${approvedCount} thiết bị.` : `Yêu cầu ${id} của bạn đã bị từ chối hoàn toàn.`,
+        approvedCount > 0 ? 'success' : 'error',
+        request.ma_nguoi_yeu_cau]
     );
 
     await conn.commit();
@@ -305,7 +315,7 @@ export async function confirmReceived(req, res) {
 export async function deleteRequest(req, res) {
   try {
     const { id } = req.params;
-    
+
     // Check if request is referenced in phieu_cap_phat
     const [allocations] = await pool.query("SELECT * FROM phieu_cap_phat WHERE ma_phieu_yeu_cau = ?", [id]);
     if (allocations.length > 0) {
