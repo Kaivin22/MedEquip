@@ -10,40 +10,31 @@ export async function getAllExports(req, res) {
     const result = [];
     for (const row of rows) {
       const [details] = await pool.query(
-        `SELECT c.*, COALESCE(t.ten_thiet_bi, c.ma_thiet_bi) as ten_thiet_bi, t.don_vi_tinh
+        `SELECT c.*, COALESCE(t.ten_thiet_bi, c.ma_thiet_bi) as ten_thiet_bi, t.don_vi_co_so
          FROM chi_tiet_xuat_kho c
          LEFT JOIN thiet_bi t ON c.ma_thiet_bi = t.ma_thiet_bi
          WHERE c.ma_phieu_xuat = ?`,
         [row.ma_phieu]
       );
 
-      // Lấy tên khoa nhận
-      const [khoaRow] = row.ma_khoa_nhan
-        ? await pool.query("SELECT ten_khoa FROM khoa WHERE ma_khoa = ?", [row.ma_khoa_nhan])
-        : [[]];
-
       if (details.length > 0) {
         for (const d of details) {
           result.push({
             maPhieu: row.ma_phieu,
             maNhanVienKho: row.ma_nguoi_xuat,
-            maKhoaNhan: row.ma_khoa_nhan || "",
-            tenKhoaNhan: khoaRow[0]?.ten_khoa || "",
             ngayXuat: row.ngay_xuat,
             lyDoXuat: row.ly_do || "",
             trangThai: row.trang_thai,
             maThietBi: d.ma_thiet_bi,
             tenThietBi: d.ten_thiet_bi,
             soLuong: d.so_luong,
-            donViTinh: d.don_vi_tinh || "Cái"
+            donViTinh: d.don_vi_co_so || "Cái"
           });
         }
       } else {
         result.push({
           maPhieu: row.ma_phieu,
           maNhanVienKho: row.ma_nguoi_xuat,
-          maKhoaNhan: row.ma_khoa_nhan || "",
-          tenKhoaNhan: khoaRow[0]?.ten_khoa || "",
           ngayXuat: row.ngay_xuat,
           lyDoXuat: row.ly_do || "",
           trangThai: row.trang_thai,
@@ -60,14 +51,14 @@ export async function getAllExports(req, res) {
 
 // ──────────────────────────────────────────────
 // POST /exports — Tạo phiếu xuất kho thủ công (form UI)
-// Body: { maKhoaNhan, lyDo, items: [{maThietBi, soLuong}] }
+// Body: { lyDo, items: [{maThietBi, soLuong}] }
 // ──────────────────────────────────────────────
 export async function createExportManual(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    const { maKhoaNhan, lyDo, items } = req.body || {};
+    const { lyDo, items } = req.body || {};
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       await conn.rollback();
@@ -101,8 +92,8 @@ export async function createExportManual(req, res) {
     const phieuId = "XK-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
 
     await conn.query(
-      "INSERT INTO phieu_xuat_kho (ma_phieu, ma_nguoi_xuat, ma_khoa_nhan, ngay_xuat, ly_do, trang_thai) VALUES (?, ?, ?, NOW(), ?, 'DA_XUAT')",
-      [phieuId, userId, maKhoaNhan || null, lyDo || "Xuất kho"]
+      "INSERT INTO phieu_xuat_kho (ma_phieu, ma_nguoi_xuat, ngay_xuat, ly_do, trang_thai) VALUES (?, ?, NOW(), ?, 'DA_XUAT')",
+      [phieuId, userId, lyDo || "Xuất kho"]
     );
 
     for (const item of items) {
@@ -142,14 +133,13 @@ export async function createExportManual(req, res) {
 export async function exportToExcel(req, res) {
   try {
     const [rows] = await pool.query(`
-      SELECT px.ma_phieu, px.ngay_xuat, kh.ten_khoa, cx.so_luong,
+      SELECT px.ma_phieu, px.ngay_xuat, cx.so_luong,
              COALESCE(tb.ten_thiet_bi, cx.ma_thiet_bi) as ten_thiet_bi,
-             COALESCE(tb.don_vi_tinh, 'Cái') as don_vi_tinh,
+             COALESCE(tb.don_vi_co_so, 'Cái') as don_vi_tinh,
              px.ly_do, nd.ho_ten as nguoi_lap, px.trang_thai
       FROM phieu_xuat_kho px
       LEFT JOIN chi_tiet_xuat_kho cx ON px.ma_phieu = cx.ma_phieu_xuat
       LEFT JOIN thiet_bi tb ON cx.ma_thiet_bi = tb.ma_thiet_bi
-      LEFT JOIN khoa kh ON px.ma_khoa_nhan = kh.ma_khoa
       LEFT JOIN nguoi_dung nd ON px.ma_nguoi_xuat = nd.ma_nguoi_dung
       ORDER BY px.ngay_xuat DESC
     `);
@@ -157,7 +147,6 @@ export async function exportToExcel(req, res) {
     const data = rows.map(r => ({
       "Mã phiếu": r.ma_phieu,
       "Ngày xuất": r.ngay_xuat ? new Date(r.ngay_xuat).toLocaleString("vi-VN") : "",
-      "Khoa nhận": r.ten_khoa || "",
       "Thiết bị": r.ten_thiet_bi,
       "Số lượng": r.so_luong,
       "Đơn vị": r.don_vi_tinh,
@@ -168,7 +157,7 @@ export async function exportToExcel(req, res) {
 
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
-      { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 25 },
+      { wch: 18 }, { wch: 20 }, { wch: 25 },
       { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 12 }
     ];
     const wb = XLSX.utils.book_new();

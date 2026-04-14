@@ -32,11 +32,11 @@ export default function EquipmentPage() {
   const canEdit = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'NV_KHO';
 
   const [form, setForm] = useState<{
-    tenThietBi: string; loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG'; donViTinh: string;
+    tenThietBi: string; loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG'; donViCoSo: string; donViNhap: string;
     heSoQuyDoi: number; serialNumber: string; nguongCanhBao: number;
     moTa: string; maNhaCungCap: string; hinhAnh: string;
   }>({
-    tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViTinh: 'Cái',
+    tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViCoSo: 'Cái', donViNhap: 'Hộp',
     heSoQuyDoi: 1, serialNumber: '', nguongCanhBao: 10,
     moTa: '', maNhaCungCap: '', hinhAnh: ''
   });
@@ -68,7 +68,7 @@ export default function EquipmentPage() {
   const openAdd = () => {
     setEditing(null);
     setForm({
-      tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViTinh: 'Cái',
+      tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViCoSo: 'Cái', donViNhap: 'Hộp',
       heSoQuyDoi: 1, serialNumber: '', nguongCanhBao: 10,
       moTa: '', maNhaCungCap: '', hinhAnh: ''
     });
@@ -78,7 +78,7 @@ export default function EquipmentPage() {
   const openEdit = (tb: ThietBi) => {
     setEditing(tb);
     setForm({
-      tenThietBi: tb.tenThietBi, loaiThietBi: tb.loaiThietBi, donViTinh: tb.donViTinh || '',
+      tenThietBi: tb.tenThietBi, loaiThietBi: tb.loaiThietBi, donViCoSo: tb.donViCoSo || '', donViNhap: tb.donViNhap || '',
       heSoQuyDoi: tb.heSoQuyDoi || 1, serialNumber: tb.serialNumber || '', nguongCanhBao: tb.nguongCanhBao || 10,
       moTa: tb.moTa || '', maNhaCungCap: tb.maNhaCungCap || '', hinhAnh: tb.hinhAnh || ''
     });
@@ -99,7 +99,7 @@ export default function EquipmentPage() {
   };
 
   const handleSave = async () => {
-    if (!form.tenThietBi || !form.loaiThietBi || !form.donViTinh) {
+    if (!form.tenThietBi || !form.loaiThietBi || !form.donViCoSo || !form.donViNhap) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin bắt buộc', variant: 'destructive' });
       return;
     }
@@ -218,7 +218,7 @@ export default function EquipmentPage() {
                   </div>
                   
                   <div className="space-y-1 mb-3">
-                    <p className="text-xs text-muted-foreground">ĐVT: <span className="font-medium text-foreground">{tb.donViTinh}</span> (1 thùng = {tb.heSoQuyDoi || 1})</p>
+                    <p className="text-xs text-muted-foreground">ĐVT: <span className="font-medium text-foreground">{tb.donViCoSo}</span> (1 {tb.donViNhap || 'Hộp'} = {tb.heSoQuyDoi || 1} {tb.donViCoSo})</p>
                     {tb.loaiThietBi === 'TAI_SU_DUNG' && tb.serialNumber && (
                       <p className="text-xs text-muted-foreground">SN: <span className="font-mono text-foreground">{tb.serialNumber}</span></p>
                     )}
@@ -289,8 +289,9 @@ export default function EquipmentPage() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Đơn vị tính *</Label><Input value={form.donViTinh} onChange={e => setForm(f => ({ ...f, donViTinh: e.target.value }))} /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>ĐVT cơ sở *</Label><Input value={form.donViCoSo} onChange={e => setForm(f => ({ ...f, donViCoSo: e.target.value }))} placeholder="VD: Cái, Viên" /></div>
+                <div><Label>Đơn vị nhập *</Label><Input value={form.donViNhap} onChange={e => setForm(f => ({ ...f, donViNhap: e.target.value }))} placeholder="VD: Hộp, Thùng" /></div>
                 <div><Label>Hệ số quy đổi</Label><Input type="number" min={1} value={form.heSoQuyDoi} onChange={e => setForm(f => ({ ...f, heSoQuyDoi: parseInt(e.target.value) || 1 }))} /></div>
               </div>
 
@@ -362,8 +363,8 @@ export default function EquipmentPage() {
                 <div><span className="text-muted-foreground block text-xs">Mã thiết bị</span> <span className="font-mono font-medium">{viewing.maThietBi}</span></div>
                 <div><span className="text-muted-foreground block text-xs">Tên thiết bị</span> <span className="font-semibold">{viewing.tenThietBi}</span></div>
                 <div><span className="text-muted-foreground block text-xs">Phân loại</span> <span className={`px-2 py-0.5 rounded text-[10px] ${LOAI_THIET_BI_COLORS[viewing.loaiThietBi || 'TAI_SU_DUNG']}`}>{LOAI_THIET_BI_LABELS[viewing.loaiThietBi || 'TAI_SU_DUNG']}</span></div>
-                <div><span className="text-muted-foreground block text-xs">Đơn vị tính</span> <span>{viewing.donViTinh}</span></div>
-                <div><span className="text-muted-foreground block text-xs">Hệ số quy đổi</span> <span>1 thùng = {viewing.heSoQuyDoi || 1}</span></div>
+                <div><span className="text-muted-foreground block text-xs">Đơn vị cơ sở</span> <span>{viewing.donViCoSo}</span></div>
+                <div><span className="text-muted-foreground block text-xs">Quy đổi</span> <span>1 {viewing.donViNhap || 'Hộp'} = {viewing.heSoQuyDoi || 1} {viewing.donViCoSo}</span></div>
                 <div><span className="text-muted-foreground block text-xs">Mức cảnh báo tồn kho</span> <span>{viewing.nguongCanhBao || 10}</span></div>
                 
                 {viewing.loaiThietBi === 'TAI_SU_DUNG' && viewing.serialNumber && (

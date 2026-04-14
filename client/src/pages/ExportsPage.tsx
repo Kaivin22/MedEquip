@@ -24,7 +24,6 @@ export default function ExportsPage() {
   const [viewing, setViewing] = useState<any>(null);
 
   // Form state
-  const [maKhoaNhan, setMaKhoaNhan] = useState('');
   const [lyDo, setLyDo] = useState('');
   const [items, setItems] = useState<ExportItem[]>([{ maThietBi: '', soLuong: 1 }]);
 
@@ -71,9 +70,7 @@ export default function ExportsPage() {
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
   };
 
-  // Reset form
   const resetForm = () => {
-    setMaKhoaNhan('');
     setLyDo('');
     setItems([{ maThietBi: '', soLuong: 1 }]);
   };
@@ -95,7 +92,7 @@ export default function ExportsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`
         },
-        body: JSON.stringify({ maKhoaNhan, lyDo, items: validItems })
+        body: JSON.stringify({ lyDo, items: validItems })
       });
 
       let result: any;
@@ -149,8 +146,8 @@ export default function ExportsPage() {
   // Nhóm theo phiếu xuất để hiển thị
   const filtered = data.filter(d =>
     d.maPhieu.toLowerCase().includes(search.toLowerCase()) ||
-    (d.tenKhoaNhan || '').toLowerCase().includes(search.toLowerCase()) ||
-    (d.lyDoXuat || '').toLowerCase().includes(search.toLowerCase())
+    (d.maThietBi || '').toLowerCase().includes(search.toLowerCase()) ||
+    (d.tenThietBi || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const groupedExports = Object.values(
@@ -195,7 +192,7 @@ export default function ExportsPage() {
         <div className="relative max-w-sm w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Tìm mã phiếu, khoa nhận, lý do..."
+            placeholder="Tìm mã phiếu, mã thiết bị, tên thiết bị..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-10 h-9"
@@ -220,11 +217,6 @@ export default function ExportsPage() {
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                {phieu.tenKhoaNhan && (
-                  <span className="text-xs">
-                    Khoa nhận: <span className="font-medium">{phieu.tenKhoaNhan}</span>
-                  </span>
-                )}
                 {phieu.lyDoXuat && (
                   <span className="text-xs italic text-muted-foreground truncate max-w-[180px]">
                     "{phieu.lyDoXuat}"
@@ -281,27 +273,11 @@ export default function ExportsPage() {
 
           <div className="flex-1 overflow-auto space-y-4 py-2 pr-1">
             {/* Thông tin chung */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Khoa nhận <span className="text-muted-foreground">(không bắt buộc)</span></label>
-                <div className="relative">
-                  <select
-                    value={maKhoaNhan}
-                    onChange={e => setMaKhoaNhan(e.target.value)}
-                    className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="">-- Chọn khoa nhận --</option>
-                    {departments.map(d => (
-                      <option key={d.maKhoa} value={d.maKhoa}>{d.tenKhoa}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Lý do xuất kho <span className="text-muted-foreground">(không bắt buộc)</span></label>
                 <Input
-                  placeholder="VD: Cấp cho phòng khám, hỗ trợ phẫu thuật..."
+                  placeholder="VD: Chuyển khỏi bệnh viện, hỗ trợ..."
                   value={lyDo}
                   onChange={e => setLyDo(e.target.value)}
                   className="h-9"
@@ -412,12 +388,6 @@ export default function ExportsPage() {
                     <span className="font-bold text-orange-600 dark:text-orange-400">-{item.soLuong}</span>
                   </div>
                 ))}
-                {maKhoaNhan && (
-                  <div className="flex justify-between items-center pt-1 border-t">
-                    <span className="text-muted-foreground">Khoa nhận</span>
-                    <span className="font-medium">{departments.find(d => d.maKhoa === maKhoaNhan)?.tenKhoa || maKhoaNhan}</span>
-                  </div>
-                )}
               </div>
             )}
           </div>

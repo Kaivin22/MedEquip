@@ -38,7 +38,7 @@ export async function getAllImports(req, res) {
     const result = [];
     for (const row of rows) {
       const [details] = await pool.query(
-        `SELECT c.*, COALESCE(t.ten_thiet_bi, c.ma_thiet_bi) as ten_thiet_bi
+        `SELECT c.*, COALESCE(t.ten_thiet_bi, c.ma_thiet_bi) as ten_thiet_bi, t.don_vi_co_so
          FROM chi_tiet_nhap_kho c
          LEFT JOIN thiet_bi t ON c.ma_thiet_bi = t.ma_thiet_bi
          WHERE c.ma_phieu_nhap = ?`,
@@ -55,8 +55,10 @@ export async function getAllImports(req, res) {
           ghiChu: row.ghi_chu || "",
           maThietBi: d.ma_thiet_bi,
           tenThietBi: d.ten_thiet_bi || d.ma_thiet_bi,
-          soLuongNhap: d.so_luong,
-          donViTinh: d.don_vi_tinh || "Cái",
+          soLuongNhap: d.so_luong_giao_dich || d.so_luong_co_so || 0,
+          donViTinh: d.don_vi_giao_dich || "Cái",
+          donViCoSo: d.don_vi_co_so || "Cái",
+          soLuongCoSo: d.so_luong_co_so || 0,
           donGia: d.don_gia || 0,
           soLo: d.so_lo || "",
           hanSuDung: d.han_su_dung || null,
@@ -127,7 +129,8 @@ export async function parseExcelPreview(req, res) {
       const tenThietBi  = String(row.ten_thiet_bi || "").trim();
       const loai        = String(row.loai || "").trim();
       const soLuong     = parseInt(row.so_luong) || 0;
-      const donViTinh   = String(row.don_vi_tinh || "Cái").trim();
+      const donViCoSo   = String(row.don_vi_co_so || "Cái").trim();
+      const donViNhap   = String(row.don_vi_nhap || row.don_vi_tinh || "Hộp").trim();
       const heSoQuyDoi  = parseInt(row.he_so_quy_doi) || 1;
       const donGia      = parseFloat(row.don_gia) || 0;
       const soLo        = String(row.so_lo || "").trim();
@@ -142,7 +145,7 @@ export async function parseExcelPreview(req, res) {
       if (!tenThietBi) errors.push("Thiếu tên thiết bị");
       if (!["VAT_TU_TIEU_HAO", "TAI_SU_DUNG"].includes(loai)) errors.push("Loại phải là VAT_TU_TIEU_HAO hoặc TAI_SU_DUNG");
       if (soLuong <= 0) errors.push("Số lượng phải > 0");
-      if (!donViTinh) errors.push("Thiếu đơn vị tính");
+      if (!donViNhap) errors.push("Thiếu đơn vị nhập");
       if (!maNcc) errors.push("Thiếu mã NCC");
       if (maNcc && !nccSet.has(maNcc)) errors.push(`Nhà cung cấp "${maNcc}" không tồn tại trong hệ thống`);
       if (loai === "VAT_TU_TIEU_HAO") {
@@ -155,7 +158,7 @@ export async function parseExcelPreview(req, res) {
 
       return {
         rowIndex: idx + 2, // Dòng trong Excel (1-indexed, header ở dòng 1)
-        maThietBi, tenThietBi, loai, soLuong, donViTinh, heSoQuyDoi,
+        maThietBi, tenThietBi, loai, soLuong, donViCoSo, donViNhap, heSoQuyDoi,
         donGia, soLo, hanSuDung, serialNumber, maNcc, nguongCanhBao,
         urlAnh, ghiChu,
         action, // CREATE (mới) | UPDATE (cộng thêm)
@@ -212,31 +215,33 @@ export async function confirmImportFromExcel(req, res) {
     );
 
     for (const row of validRows) {
-      const { maThietBi, tenThietBi, loai, soLuong, donViTinh, heSoQuyDoi,
+      const { maThietBi, tenThietBi, loai, soLuong, donViCoSo, donViNhap, heSoQuyDoi,
               donGia, soLo, hanSuDung, serialNumber, maNcc, nguongCanhBao, urlAnh } = row;
+
+      const soLuongCoSo = soLuong * heSoQuyDoi;
 
       // UPSERT thiet_bi
       const [existing] = await conn.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [maThietBi]);
       if (existing.length === 0) {
         // INSERT thiết bị mới
         await conn.query(
-          `INSERT INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_tinh,
+          `INSERT INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_co_so, don_vi_nhap, he_so_quy_doi,
            ma_nha_cung_cap, hinh_anh, trang_thai)
-           VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-          [maThietBi, tenThietBi, loai, donViTinh,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+          [maThietBi, tenThietBi, loai, donViCoSo, donViNhap, heSoQuyDoi,
            maNcc, urlAnh || ""]
         );
         // Insert tồn kho ban đầu
         const tkId = "TK-" + maThietBi;
         await conn.query(
           "INSERT INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES (?, ?, ?, 0, 0)",
-          [tkId, maThietBi, soLuong]
+          [tkId, maThietBi, soLuongCoSo]
         );
       } else {
         // Cộng thêm số lượng vào tồn kho
         await conn.query(
           "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ? WHERE ma_thiet_bi = ?",
-          [soLuong, maThietBi]
+          [soLuongCoSo, maThietBi]
         );
         // Cập nhật URL ảnh nếu có trong Excel
         if (urlAnh) {
@@ -255,9 +260,9 @@ export async function confirmImportFromExcel(req, res) {
 
       await conn.query(
         `INSERT INTO chi_tiet_nhap_kho
-         (ma_phieu_nhap, ma_thiet_bi, so_luong, don_gia, so_lo, han_su_dung)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [phieuId, maThietBi, soLuong, donGia, soLo || null, hanSuDungDate]
+         (ma_phieu_nhap, ma_thiet_bi, so_luong_giao_dich, so_luong_co_so, don_gia, don_vi_giao_dich, so_lo, han_su_dung)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [phieuId, maThietBi, soLuong, soLuongCoSo, donGia, donViNhap, soLo || null, hanSuDungDate]
       );
     }
 
@@ -285,7 +290,7 @@ export async function downloadTemplate(req, res) {
   try {
     const wb = XLSX.utils.book_new();
     const headers = [
-      "ma_thiet_bi", "ten_thiet_bi", "loai", "so_luong", "don_vi_tinh",
+      "ma_thiet_bi", "ten_thiet_bi", "loai", "so_luong", "don_vi_co_so", "don_vi_nhap",
       "he_so_quy_doi", "don_gia", "so_lo", "han_su_dung", "serial_number",
       "ma_ncc", "nguong_canh_bao", "url_anh", "ghi_chu"
     ];
@@ -294,8 +299,9 @@ export async function downloadTemplate(req, res) {
       "Tên thiết bị (bắt buộc)",
       "TAI_SU_DUNG hoặc VAT_TU_TIEU_HAO",
       "Số lượng nhập (bắt buộc, > 0)",
-      "Đơn vị tính (VD: Cái, Thùng, Hộp)",
-      "Hệ số quy đổi (mặc định 1)",
+      "Đơn vị cơ sở (VD: Cái)",
+      "Đơn vị nhập (VD: Thùng, Hộp)",
+      "Hệ số quy đổi (1 Đơn vị nhập = N Cơ sở, VD: 50)",
       "Đơn giá (VND)",
       "Số lô (bắt buộc với VTTH)",
       "Hạn sử dụng DD/MM/YYYY (bắt buộc với VTTH)",
@@ -306,12 +312,12 @@ export async function downloadTemplate(req, res) {
       "Ghi chú (không bắt buộc)"
     ];
     const example = [
-      "TB-001", "Máy đo huyết áp", "TAI_SU_DUNG", 5, "Cái",
+      "TB-001", "Máy đo huyết áp", "TAI_SU_DUNG", 5, "Cái", "Hộp",
       1, 2500000, "", "", "SN-001",
       "NCC-001", 2, "https://example.com/image.jpg", "Thiết bị tái sử dụng"
     ];
     const example2 = [
-      "VT-001", "Kim tiêm 5ml", "VAT_TU_TIEU_HAO", 20, "Thùng",
+      "VT-001", "Kim tiêm 5ml", "VAT_TU_TIEU_HAO", 20, "Cái", "Thùng",
       1000, 120000, "LOT-2026-001", "31/12/2028", "",
       "NCC-002", 5, "https://example.com/needle.jpg", "1 thùng = 1000 cái"
     ];

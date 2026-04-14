@@ -137,9 +137,9 @@ export default function ImportsPage() {
 
   const filtered = data.filter(d => 
     d.maPhieu.toLowerCase().includes(search.toLowerCase()) ||
-    (d as any).tenThietBi?.toLowerCase().includes(search.toLowerCase()) ||
-    ((d as any).tenNhaCungCap || suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap)?.toLowerCase().includes(search.toLowerCase()) ||
-    ((d as any).tenNhanVienKho || users.find(u => u.maNguoiDung === d.maNhanVienKho)?.hoTen)?.toLowerCase().includes(search.toLowerCase())
+    d.maThietBi?.toLowerCase().includes(search.toLowerCase()) ||
+    d.tenThietBi?.toLowerCase().includes(search.toLowerCase()) ||
+    (d.tenNhaCungCap || suppliers.find(s => s.maNhaCungCap === d.maNhaCungCap)?.tenNhaCungCap)?.toLowerCase().includes(search.toLowerCase())
   );
 
   // Nhóm theo phiếu nhập
@@ -237,7 +237,14 @@ export default function ImportsPage() {
                         {ct.hanSuDung ? <span className="block text-muted-foreground">{new Date(ct.hanSuDung).toLocaleDateString('vi-VN')}</span> : ''}
                       </td>
                       <td className="p-2 text-right text-xs">{ct.donGia ? ct.donGia.toLocaleString('vi-VN') + ' đ' : '-'}</td>
-                      <td className="p-2 pr-4 text-right font-medium text-success">+{ct.soLuongNhap} {ct.donViTinh}</td>
+                      <td className="p-2 pr-4 text-right">
+                        <span className="font-medium text-success whitespace-nowrap">+{ct.soLuongNhap} {ct.donViTinh}</span>
+                        {ct.soLuongCoSo > 0 && ct.donViCoSo && ct.soLuongNhap !== ct.soLuongCoSo && (
+                          <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                            Quy đổi: {ct.soLuongCoSo} {ct.donViCoSo}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -320,10 +327,15 @@ export default function ImportsPage() {
                     <td className="p-2 border-r font-mono">{row.maThietBi}</td>
                     <td className="p-2 border-r">
                       <div className="font-semibold truncate max-w-[200px]" title={row.tenThietBi}>{row.tenThietBi}</div>
-                      <div className="text-[10px] text-muted-foreground">{row.loai === 'TAI_SU_DUNG' ? 'Tái sử dụng' : 'Tiêu hao'} - ĐVT: {row.donViTinh}</div>
+                      <div className="text-[10px] text-muted-foreground">{row.loai === 'TAI_SU_DUNG' ? 'Tái sử dụng' : 'Tiêu hao'}</div>
                     </td>
                     <td className="p-2 border-r truncate max-w-[120px]">{row.maNcc}</td>
-                    <td className="p-2 border-r text-right font-medium text-success whitespace-nowrap">+{row.soLuong}</td>
+                    <td className="p-2 border-r text-right font-medium text-success whitespace-nowrap">
+                      +{row.soLuong} <span className="text-xs text-muted-foreground font-normal">{row.donViNhap || 'Hộp'}</span>
+                      <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                        Thực nhập: {row.soLuong * (row.heSoQuyDoi || 1)} {row.donViCoSo}
+                      </div>
+                    </td>
                     <td className="p-2 border-r text-right font-mono text-[10px] sm:text-xs whitespace-nowrap">{row.donGia ? new Intl.NumberFormat('vi-VN').format(row.donGia) + ' đ' : '-'}</td>
                     <td className="p-2 border-r text-right font-mono text-[10px] sm:text-xs whitespace-nowrap font-semibold text-amber-600 dark:text-amber-500">
                       {row.donGia ? new Intl.NumberFormat('vi-VN').format(row.donGia * row.soLuong) + ' đ' : '-'}

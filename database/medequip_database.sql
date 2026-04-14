@@ -51,8 +51,9 @@ CREATE TABLE IF NOT EXISTS thiet_bi (
     ma_thiet_bi VARCHAR(20) PRIMARY KEY,
     ten_thiet_bi VARCHAR(200) NOT NULL,
     loai_thiet_bi ENUM('VAT_TU_TIEU_HAO', 'TAI_SU_DUNG') NOT NULL DEFAULT 'TAI_SU_DUNG',
-    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
-    he_so_quy_doi INT DEFAULT 1 COMMENT '1 thùng = N cái',
+    don_vi_co_so VARCHAR(50) DEFAULT 'Cái',
+    don_vi_nhap VARCHAR(50) DEFAULT 'Hộp',
+    he_so_quy_doi INT DEFAULT 1 COMMENT '1 hộp = N cái',
     serial_number VARCHAR(100) DEFAULT NULL COMMENT 'Chỉ dùng cho TAI_SU_DUNG',
     nguong_canh_bao INT DEFAULT 10 COMMENT 'Cảnh báo khi tồn kho xuống dưới mức này',
     mo_ta TEXT,
@@ -137,9 +138,10 @@ CREATE TABLE IF NOT EXISTS chi_tiet_nhap_kho (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ma_phieu_nhap VARCHAR(30) NOT NULL,
     ma_thiet_bi VARCHAR(20) NOT NULL,
-    so_luong INT NOT NULL,
+    so_luong_giao_dich INT NOT NULL,
+    so_luong_co_so INT NULL,
     don_gia DECIMAL(15,2) DEFAULT 0,
-    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
+    don_vi_giao_dich VARCHAR(50) DEFAULT 'Cái',
     so_lo VARCHAR(50) NULL,
     han_su_dung DATE NULL,
     url_anh VARCHAR(500) DEFAULT NULL COMMENT 'URL ảnh từ internet',
@@ -264,10 +266,10 @@ INSERT IGNORE INTO nha_cung_cap (ma_nha_cung_cap, ten_nha_cung_cap) VALUES
 ('NCC-001', 'Công ty Phương Nam'),
 ('NCC-002', 'Công ty thiết bị Việt');
 
-INSERT IGNORE INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_tinh, ma_nha_cung_cap) VALUES
-('TB-001', 'Máy đo huyết áp', 'TAI_SU_DUNG', 'Cái', 'NCC-001'),
-('TB-002', 'Ống nghe y khoa', 'TAI_SU_DUNG', 'Cái', 'NCC-001'),
-('TB-003', 'Máy siêu âm', 'TAI_SU_DUNG', 'Bộ', 'NCC-002');
+INSERT IGNORE INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_co_so, don_vi_nhap, ma_nha_cung_cap) VALUES
+('TB-001', 'Máy đo huyết áp', 'TAI_SU_DUNG', 'Cái', 'Hộp', 'NCC-001'),
+('TB-002', 'Ống nghe y khoa', 'TAI_SU_DUNG', 'Cái', 'Hộp', 'NCC-001'),
+('TB-003', 'Máy siêu âm', 'TAI_SU_DUNG', 'Bộ', 'Bộ', 'NCC-002');
 
 INSERT IGNORE INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES
 ('TK-001', 'TB-001', 50, 0, 30),

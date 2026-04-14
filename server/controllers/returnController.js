@@ -1,4 +1,4 @@
-import { pool } from "../config/db.js";
+import { pool } from "./server/config/db.js"; // Lưu ý: Đường dẫn dành cho file ở gốc
 
 function mapReturn(row, details = []) {
   return {
@@ -11,7 +11,7 @@ function mapReturn(row, details = []) {
     qrData: row.qr_data || "",
     chiTiet: details.map(d => {
       let meta = {};
-      try { meta = JSON.parse(d.anh_chung_minh); } catch(e) {}
+      try { meta = JSON.parse(d.anh_chung_minh); } catch (e) { }
       return {
         maPhieuCapPhat: meta.maPhieuCapPhat || row.ma_phieu_cap_phat,
         maThietBi: d.ma_thiet_bi,
@@ -29,7 +29,6 @@ export async function createReturn(req, res) {
   try {
     await conn.beginTransaction();
     const { chiTiet, ghiChu, qrData } = req.body;
-    // chiTiet: [{ maPhieuCapPhat, maThietBi, soLuong, tinhTrangKhiTra }]
 
     if (!chiTiet || chiTiet.length === 0) {
       await conn.rollback();
@@ -49,22 +48,21 @@ export async function createReturn(req, res) {
     );
     const parentId = insertResult.insertId;
 
-    // Ghi chi tiết và cập nhật trạng thái phiếu cấp phát
     const processedCapPhats = new Set();
     for (const item of chiTiet) {
       if (!item.maPhieuCapPhat) continue;
 
       // Kiểm tra trạng thái phiếu cấp phát xem đã được yêu cầu trả chưa
       const [cpRows] = await conn.query(
-        "SELECT trang_thai_tra FROM phieu_cap_phat WHERE ma_phieu = ? FOR UPDATE", 
+        "SELECT trang_thai_tra FROM phieu_cap_phat WHERE ma_phieu = ? FOR UPDATE",
         [item.maPhieuCapPhat]
       );
 
       if (cpRows.length === 0 || cpRows[0].trang_thai_tra === 'YEU_CAU_TRA' || cpRows[0].trang_thai_tra === 'DA_TRA') {
         await conn.rollback();
-        return res.status(400).json({ 
-          success: false, 
-          message: `Thiết bị từ phiếu ${item.maPhieuCapPhat} đã được yêu cầu trả hoặc đã trả xong. Vui lòng kiểm tra lại.` 
+        return res.status(400).json({
+          success: false,
+          message: `Thiết bị từ phiếu ${item.maPhieuCapPhat} đã được yêu cầu trả hoặc đã trả xong.`
         });
       }
 
@@ -78,15 +76,13 @@ export async function createReturn(req, res) {
       processedCapPhats.add(item.maPhieuCapPhat);
     }
 
-    // Thông báo cho NV_KHO
+    // Thông báo cho nhân viên kho
     const [khoStaff] = await conn.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro = 'NV_KHO' AND trang_thai = TRUE");
     for (const kho of khoStaff) {
       const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
       await conn.query(
         "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'info', ?)",
-        [notifId, `Yêu cầu trả thiết bị mới: ${maPhieuTra}`,
-         `Trưởng khoa vừa tạo phiếu trả ${maPhieuTra} cho ${processedCapPhats.size} mục cấp phát. Vui lòng xác nhận.`,
-         kho.ma_nguoi_dung]
+        [notifId, `Yêu cầu trả thiết bị mới: ${maPhieuTra}`, `Trưởng khoa vừa tạo phiếu trả mới.`, kho.ma_nguoi_dung]
       );
     }
 
@@ -94,7 +90,6 @@ export async function createReturn(req, res) {
     res.json({ success: true, maPhieuTra, message: "Đã tạo phiếu trả thành công." });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
   } finally {
     conn.release();
@@ -124,7 +119,6 @@ export async function getAllReturns(req, res) {
     }
     res.json(result);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Lỗi máy chủ." });
   }
 }
@@ -153,7 +147,6 @@ export async function getMyReturns(req, res) {
     }
     res.json(result);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Lỗi máy chủ." });
   }
 }
@@ -181,48 +174,44 @@ export async function confirmReturn(req, res) {
 
     for (const d of details) {
       let meta = {};
-      try { meta = JSON.parse(d.anh_chung_minh); } catch(e) {}
+      try { meta = JSON.parse(d.anh_chung_minh); } catch (e) { }
       const curMaPhieuCapPhat = meta.maPhieuCapPhat || phieu.ma_phieu_cap_phat;
 
       if (approved) {
-        // KIỂM TRA LẠI TRẠNG THÁI CỦA PHIẾU CẤP PHÁT GỐC để phòng TH trùng lặp
         const [cpRows] = await conn.query(
           "SELECT trang_thai_tra FROM phieu_cap_phat WHERE ma_phieu = ?", [curMaPhieuCapPhat]
         );
 
         if (cpRows.length > 0 && cpRows[0].trang_thai_tra !== 'YEU_CAU_TRA') {
-           // Nếu đã trả rồi hoặc chưa bao giờ yêu cầu trả thì bỏ qua dòng này để tránh độn kho
-           console.log(`Bỏ qua mục ${curMaPhieuCapPhat} vì trạng thái không hợp lệ: ${cpRows[0].trang_thai_tra}`);
-           continue; 
+          // Nếu đã trả rồi hoặc chưa bao giờ yêu cầu trả thì bỏ quả để tránh sai lệch kho
+          continue;
         }
 
-        // Tìm loại thiết bị
         const [tbRows] = await conn.query("SELECT loai_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [d.ma_thiet_bi]);
         const loaiTB = tbRows[0]?.loai_thiet_bi || "TAI_SU_DUNG";
 
         // Cộng lại tồn kho cho các thiết bị được trả
         if (d.tinh_trang_khi_tra !== "HONG") {
-          // Đối với vật tư tiêu hao và đã bóc seal -> Khấu trừ vĩnh viễn (không cộng lại kho)
           if (loaiTB === 'VAT_TU_TIEU_HAO' && d.tinh_trang_khi_tra === 'DA_BOC_SEAL') {
-             await conn.query(
-                "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-                [d.so_luong, d.ma_thiet_bi]
-             );
+            await conn.query(
+              "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
+              [d.so_luong, d.ma_thiet_bi]
+            );
           } else {
-             // Tái sử dụng hoặc Vật tư tiêu hao nguyên seal
-             await conn.query(
-                "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ?, so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-                [d.so_luong, d.so_luong, d.ma_thiet_bi]
-             );
+            // Tái sử dụng hoặc Vật tư nguyên seal
+            await conn.query(
+              "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ?, so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
+              [d.so_luong, d.so_luong, d.ma_thiet_bi]
+            );
           }
         } else {
           // Thiết bị hỏng: trừ dang_dung, cộng hu
-          // Nếu là tiêu hao mà hỏng thì cũng đưa vào số lượng hư để theo dõi
           await conn.query(
             "UPDATE ton_kho SET so_luong_hu = so_luong_hu + ?, so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
             [d.so_luong, d.so_luong, d.ma_thiet_bi]
           );
         }
+
         // Cập nhật phiếu cấp phát thành DA_TRA
         await conn.query("UPDATE phieu_cap_phat SET trang_thai_tra = 'DA_TRA' WHERE ma_phieu = ?", [curMaPhieuCapPhat]);
       } else {
@@ -231,43 +220,29 @@ export async function confirmReturn(req, res) {
       }
     }
 
-    // Thông báo cho TK
-    const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-    const msg = approved
-      ? `Phiếu trả ${phieu.ma_phieu_tra} đã được xác nhận. Thiết bị đã cập nhật về kho.`
-      : `Phiếu trả ${phieu.ma_phieu_tra} bị từ chối. ${lyDo ? "Lý do: " + lyDo : ""}`;
-    await conn.query(
-      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-      [notifId,
-       approved ? "Phiếu trả được xác nhận ✓" : "Phiếu trả bị từ chối ✗",
-       msg, approved ? "success" : "error",
-       phieu.ma_truong_khoa]
-    );
-
     await conn.commit();
-    res.json({ success: true, message: approved ? "Đã xác nhận nhận hàng trả. Tồn kho đã cập nhật." : "Đã từ chối phiếu trả." });
+    res.json({ success: true, message: approved ? "Đã xác nhận nhận hàng trả." : "Đã từ chối phiếu trả." });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
   } finally {
     conn.release();
   }
 }
+
+// Xóa phiếu trả (Xóa mềm)
 export async function deleteReturn(req, res) {
   try {
     const { id } = req.params;
-    const role = req.user.role; 
+    const role = req.user.vaiTro;
 
     if (role === 'TRUONG_KHOA') {
       await pool.query("UPDATE phieu_tra_thiet_bi SET ghi_chu = CONCAT(IFNULL(ghi_chu, ''), ' [DELETED_BY_TK]') WHERE ma_phieu_tra = ?", [id]);
     } else {
       await pool.query("UPDATE phieu_tra_thiet_bi SET ghi_chu = CONCAT(IFNULL(ghi_chu, ''), ' [DELETED_BY_NVKHO]') WHERE ma_phieu_tra = ?", [id]);
     }
-
-    res.json({ success: true, message: "Đã xóa phiếu trả khỏi danh sách của bạn." });
+    res.json({ success: true, message: "Đã xóa phiếu trả thành công." });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Lỗi máy chủ." });
   }
 }
@@ -282,13 +257,13 @@ export async function cancelReturn(req, res) {
     const [rows] = await conn.query("SELECT * FROM phieu_tra_thiet_bi WHERE ma_phieu_tra = ? AND ma_truong_khoa = ?", [id, userId]);
     if (rows.length === 0) {
       await conn.rollback();
-      return res.status(404).json({ success: false, message: "Không tìm thấy phiếu trả hoặc bạn không có quyền hủy." });
+      return res.status(404).json({ success: false, message: "Không tìm thấy hoặc không có quyền." });
     }
 
     const phieu = rows[0];
     if (phieu.trang_thai !== 'CHO_XAC_NHAN') {
       await conn.rollback();
-      return res.status(400).json({ success: false, message: "Chỉ có thể hủy phiếu đang ở trạng thái Chờ xác nhận." });
+      return res.status(400).json({ success: false, message: "Chỉ có thể hủy phiếu Đang chờ xác nhận." });
     }
 
     // Cập nhật trạng thái phiếu trả
@@ -298,16 +273,15 @@ export async function cancelReturn(req, res) {
     const [details] = await conn.query("SELECT anh_chung_minh FROM chi_tiet_phieu_tra WHERE ma_phieu_tra = ?", [phieu.id]);
     for (const d of details) {
       let meta = {};
-      try { meta = JSON.parse(d.anh_chung_minh); } catch(e) {}
+      try { meta = JSON.parse(d.anh_chung_minh); } catch (e) { }
       const curMaPhieuCapPhat = meta.maPhieuCapPhat || phieu.ma_phieu_cap_phat;
       await conn.query("UPDATE phieu_cap_phat SET trang_thai_tra = 'CHUA_TRA' WHERE ma_phieu = ?", [curMaPhieuCapPhat]);
     }
 
     await conn.commit();
-    res.json({ success: true, message: "Đã hủy yêu cầu trả thiết bị." });
+    res.json({ success: true, message: "Đã hủy yêu cầu trả thành công." });
   } catch (err) {
     await conn.rollback();
-    console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
   } finally {
     conn.release();
