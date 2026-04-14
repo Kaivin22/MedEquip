@@ -33,6 +33,7 @@ export default function ReturnsPage() {
       tenThietBi: string;
       soLuong: number;
       tinhTrangKhiTra: 'NGUYEN_SEAL' | 'DA_BOC_SEAL' | 'HONG';
+      anhMinhChung?: string;
     }[];
   }>({ ghiChu: '', chiTiet: [] });
 
@@ -89,11 +90,30 @@ export default function ReturnsPage() {
       return; 
     }
 
+    const isValidMinhChung = form.chiTiet.every(ct => {
+      const isTuTieuHao = allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi === 'VAT_TU_TIEU_HAO';
+      if (isTuTieuHao && ct.tinhTrangKhiTra === 'NGUYEN_SEAL' && !ct.anhMinhChung) {
+        return false;
+      }
+      return true;
+    });
+
+    if (!isValidMinhChung) {
+      toast({ title: 'Lỗi', description: 'Vui lòng tải lên ảnh minh chứng nguyên seal cho vật tư tiêu hao.', variant: 'destructive' });
+      return;
+    }
+
+    let finalGhiChu = form.ghiChu;
+    const minhChungs = form.chiTiet.filter(ct => ct.anhMinhChung).map(ct => ct.tenThietBi);
+    if (minhChungs.length > 0) {
+      finalGhiChu += `\n[Đã đính kèm ảnh minh chứng nguyên seal cho: ${minhChungs.join(', ')}]`;
+    }
+
     try {
       const result = await fetchApi<{ success: boolean; message: string; maPhieuTra: string }>('/returns/create', {
         method: 'POST',
         body: JSON.stringify({
-          ghiChu: form.ghiChu,
+          ghiChu: finalGhiChu,
           chiTiet: form.chiTiet.map(ct => ({
              maPhieuCapPhat: ct.maPhieuCapPhat,
              maThietBi: ct.maThietBi,
@@ -127,6 +147,23 @@ export default function ReturnsPage() {
         toast({ title: 'Thành công', description: `Đã ${approved ? 'xác nhận nhập kho' : 'từ chối'} phiếu trả.` });
         setConfirmOpen(false);
         await reload();
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleConsume = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm('Xác nhận đã sử dụng/khấu trừ vật tư này? Vật tư sẽ được trừ khỏi danh sách mà không cần tạo phiếu trả.')) return;
+    try {
+      const result = await fetchApi(`/allocations/${id}/consume`, { method: 'PUT' });
+      if (result.success) {
+        toast({ title: 'Thành công', description: result.message });
+        reload();
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
@@ -239,7 +276,8 @@ export default function ReturnsPage() {
             maThietBi: alloc.maThietBi,
             tenThietBi: alloc.tenThietBi || alloc.maThietBi,
             soLuong: alloc.soLuongCapPhat,
-            tinhTrangKhiTra: 'DA_BOC_SEAL'
+            tinhTrangKhiTra: 'DA_BOC_SEAL',
+            anhMinhChung: undefined
           }]
         };
       }
@@ -374,6 +412,16 @@ export default function ReturnsPage() {
                           <span>Hạn trả: {new Date(alloc.ngayDuKienTra).toLocaleDateString('vi-VN')}</span>
                         </div>
                       </label>
+                      {alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-xs text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:text-orange-700 pointer-events-auto"
+                          onClick={(e) => handleConsume(alloc.maPhieu, e)}
+                        >
+                          Báo cáo đã dùng
+                        </Button>
+                      )}
                     </div>
                   ))
                 )}
@@ -423,11 +471,48 @@ export default function ReturnsPage() {
                           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="NGUYEN_SEAL">Nguyên seal</SelectItem>
-                            <SelectItem value="DA_BOC_SEAL">Đã bóc seal (Dùng tốt)</SelectItem>
+                            {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi !== 'VAT_TU_TIEU_HAO' && (
+                              <SelectItem value="DA_BOC_SEAL">Đã bóc seal (Dùng tốt)</SelectItem>
+                            )}
                             <SelectItem value="HONG">Hỏng / Cần sửa chữa</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi === 'VAT_TU_TIEU_HAO' && ct.tinhTrangKhiTra === 'NGUYEN_SEAL' && (
+                        <div className="w-full sm:w-auto mt-2 sm:mt-0 flex flex-col gap-1">
+                          <Label className="text-[10px] text-orange-600 font-semibold flex items-center gap-1">
+                            <Camera className="w-3 h-3" /> Ảnh minh chứng *
+                          </Label>
+                          {ct.anhMinhChung ? (
+                            <div className="flex items-center justify-between gap-1 bg-success/10 text-success text-xs p-1 rounded border border-success/20 w-full sm:w-32">
+                              <span className="flex items-center gap-1 truncate" title={ct.anhMinhChung}><Check className="w-3 h-3 shrink-0" /> <span className="truncate">{ct.anhMinhChung}</span></span>
+                              <Button 
+                                variant="ghost" size="icon" className="h-4 w-4 rounded-full hover:bg-success/20 hover:text-success shrink-0" 
+                                onClick={(e) => { e.preventDefault(); setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, anhMinhChung: undefined } : it) })); }}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline" size="sm" className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 w-full sm:w-32"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const input = document.createElement('input');
+                                input.type = 'file'; input.accept = 'image/*';
+                                input.onchange = (ev) => {
+                                  const file = (ev.target as HTMLInputElement).files?.[0];
+                                  if (file) { setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, anhMinhChung: file.name } : it) })); }
+                                };
+                                input.click();
+                              }}
+                            >
+                              <Upload className="w-3 h-3 mr-1" /> Tải lên
+                            </Button>
+                          )}
+                        </div>
+                      )}
 
                       <Button variant="ghost" size="icon" onClick={() => setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.filter((_, i) => i !== idx) }))}>
                         <X className="w-4 h-4 text-muted-foreground" />

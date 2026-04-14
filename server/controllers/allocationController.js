@@ -190,3 +190,46 @@ export async function extendApprove(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+
+// PUT /allocations/:id/consume — TK xác nhận đã khấu trừ vật tư tiêu hao
+export async function consumeAllocation(req, res) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const { id } = req.params;
+
+    const [cpRows] = await conn.query("SELECT * FROM phieu_cap_phat WHERE ma_phieu = ? FOR UPDATE", [id]);
+    if (cpRows.length === 0 || cpRows[0].trang_thai_tra !== 'CHUA_TRA') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Phiếu không hợp lệ hoặc đã xử lý." });
+    }
+
+    // Since we didn't add it to so_luong_dang_dung during allocation for new items, and we might have for old items:
+    // To be perfectly safe across old/new data without causing negative dang_dung, we can just deduct conditionally or use GREATEST.
+    const [details] = await conn.query(
+      "SELECT ct.*, tb.loai_thiet_bi FROM chi_tiet_cap_phat ct JOIN thiet_bi tb ON ct.ma_thiet_bi = tb.ma_thiet_bi WHERE ma_phieu_cap_phat = ?", 
+      [id]
+    );
+
+    for (const d of details) {
+      if (d.loai_thiet_bi === 'VAT_TU_TIEU_HAO') {
+        // Just in case it was an old allocation that added to dang_dung, deduct it. If new, GREATEST(0,0-N) will keep it 0.
+        await conn.query(
+          "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
+          [d.so_luong, d.ma_thiet_bi]
+        );
+      }
+    }
+
+    await conn.query("UPDATE phieu_cap_phat SET trang_thai_tra = 'DA_TRA' WHERE ma_phieu = ?", [id]);
+
+    await conn.commit();
+    res.json({ success: true, message: "Đã sử dụng/Khấu trừ thành công. Đã xóa khỏi lịch sử mượn." });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  } finally {
+    conn.release();
+  }
+}
