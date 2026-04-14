@@ -99,7 +99,6 @@ export async function getAllReturns(req, res) {
       SELECT ptt.*, nd.ho_ten as ten_truong_khoa
       FROM phieu_tra_thiet_bi ptt
       JOIN nguoi_dung nd ON ptt.ma_truong_khoa = nd.ma_nguoi_dung
-      WHERE ptt.xoa_boi_nvkho = FALSE
       ORDER BY ptt.ngay_tao DESC
     `);
 
@@ -128,7 +127,7 @@ export async function getMyReturns(req, res) {
       SELECT ptt.*, nd.ho_ten as ten_truong_khoa
       FROM phieu_tra_thiet_bi ptt
       JOIN nguoi_dung nd ON ptt.ma_truong_khoa = nd.ma_nguoi_dung
-      WHERE ptt.ma_truong_khoa = ? AND ptt.xoa_boi_tk = FALSE
+      WHERE ptt.ma_truong_khoa = ?
       ORDER BY ptt.ngay_tao DESC
     `, [userId]);
 
@@ -230,15 +229,13 @@ export async function confirmReturn(req, res) {
 export async function deleteReturn(req, res) {
   try {
     const { id } = req.params;
-    const role = req.user.role; 
-
-    if (role === 'TRUONG_KHOA') {
-      await pool.query("UPDATE phieu_tra_thiet_bi SET xoa_boi_tk = TRUE WHERE ma_phieu_tra = ?", [id]);
-    } else {
-      await pool.query("UPDATE phieu_tra_thiet_bi SET xoa_boi_nvkho = TRUE WHERE ma_phieu_tra = ?", [id]);
+    // Hard delete logic since xoa_boi logic is removed
+    const [phieu] = await pool.query("SELECT id FROM phieu_tra_thiet_bi WHERE ma_phieu_tra = ?", [id]);
+    if (phieu.length > 0) {
+       await pool.query("DELETE FROM chi_tiet_phieu_tra WHERE ma_phieu_tra = ?", [phieu[0].id]);
+       await pool.query("DELETE FROM phieu_tra_thiet_bi WHERE ma_phieu_tra = ?", [id]);
     }
-
-    res.json({ success: true, message: "Đã xóa phiếu trả khỏi danh sách của bạn." });
+    res.json({ success: true, message: "Đã xóa phiếu trả khỏi hệ thống." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Lỗi máy chủ." });

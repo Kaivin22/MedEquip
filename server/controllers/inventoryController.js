@@ -32,7 +32,7 @@ export async function getAllInventory(req, res) {
 export async function getLowStock(req, res) {
   try {
     const [rows] = await pool.query(`
-      SELECT tk.*, tb.ten_thiet_bi, tb.loai_thiet_bi, tb.don_vi_tinh, tb.nguong_canh_bao,
+      SELECT tk.*, tb.ten_thiet_bi, tb.loai_thiet_bi, tb.don_vi_co_so, tb.nguong_canh_bao,
              (SELECT ctnk.don_gia 
               FROM chi_tiet_nhap_kho ctnk 
               WHERE ctnk.ma_thiet_bi = tk.ma_thiet_bi 
@@ -46,7 +46,7 @@ export async function getLowStock(req, res) {
       ...mapInventory(row),
       tenThietBi: row.ten_thiet_bi,
       loaiThietBi: row.loai_thiet_bi,
-      donViTinh: row.don_vi_tinh,
+      donViTinh: row.don_vi_co_so,
       nguongCanhBao: row.nguong_canh_bao
     })));
   } catch (err) {

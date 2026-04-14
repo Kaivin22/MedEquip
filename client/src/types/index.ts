@@ -20,7 +20,8 @@ export interface ThietBi {
   maThietBi: string;
   tenThietBi: string;
   loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG';
-  donViTinh: string;
+  donViCoSo: string;
+  donViNhap: string;
   heSoQuyDoi: number;
   serialNumber?: string;
   nguongCanhBao: number;
@@ -43,7 +44,7 @@ export interface TonKho {
   // low-stock join fields
   tenThietBi?: string;
   loaiThietBi?: string;
-  donViTinh?: string;
+  donViCoSo?: string;
   nguongCanhBao?: number;
   donGia?: number;
 }
@@ -86,7 +87,7 @@ export interface PhieuCapPhat {
   maThietBi: string;
   tenThietBi?: string;
   loaiThietBi?: string;
-  donViTinh?: string;
+  donViCoSo?: string;
   maNguoiMuon: string;
   maKhoa: string;
   soLuongCapPhat: number;
@@ -104,7 +105,8 @@ export interface PhieuNhapKho {
   maThietBi: string;
   tenThietBi?: string;
   soLuongNhap: number;
-  donViTinh?: string;
+  donViCoSo?: string;
+  donViNhap?: string;
   donGia?: number;
   soLo?: string;
   hanSuDung?: string;
@@ -122,7 +124,8 @@ export interface ExcelPreviewRow {
   tenThietBi: string;
   loai: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG';
   soLuong: number;
-  donViTinh: string;
+  donViCoSo: string;
+  donViNhap: string;
   heSoQuyDoi: number;
   donGia: number;
   soLo: string;
@@ -145,7 +148,7 @@ export interface PhieuXuatKho {
     maThietBi: string;
     tenThietBi?: string;
     soLuong: number;
-    donViTinh?: string;
+    donViCoSo?: string;
   }[];
   trangThai: 'DA_LAP' | 'DA_XUAT' | 'DA_HUY';
   ngayXuat: string;

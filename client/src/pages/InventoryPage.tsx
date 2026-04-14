@@ -19,6 +19,7 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [sortOption, setSortOption] = useState('nameAsc');
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -36,8 +37,9 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
   });
 
   const data = useMemo(() => {
+    let result: any[] = [];
     if (isTrưởngKhoa) {
-      return allocations
+      result = allocations
         .filter(a => a.maKhoa === user?.maKhoa && a.trangThaiTra !== 'DA_TRA')
         .map(a => {
           const eq = equipment.find(e => e.maThietBi === a.maThietBi);
@@ -47,31 +49,53 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
             soLuongKho: 0, 
             soLuongDangDung: a.soLuongCapPhat,
             soLuongHu: 0,
-            maTonKho: a.maPhieu
+            maTonKho: a.maPhieu,
+            donGia: 0
           };
         })
         .filter(d => 
-          d.thietBi?.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
-          d.maThietBi.toLowerCase().includes(search.toLowerCase())
+          String(d.thietBi?.tenThietBi || '').toLowerCase().includes(search.toLowerCase()) ||
+          String(d.maThietBi || '').toLowerCase().includes(search.toLowerCase())
         );
+    } else {
+      result = inventory.map(inv => ({
+        ...inv,
+        thietBi: equipment.find(e => e.maThietBi === inv.maThietBi),
+      })).filter(d => {
+        const matchSearch = String(d.thietBi?.tenThietBi || '').toLowerCase().includes(search.toLowerCase()) ||
+                            String(d.maThietBi || '').toLowerCase().includes(search.toLowerCase());
+        if (!matchSearch) return false;
+        
+        if (filterStatus === 'TRONG_KHO') return d.soLuongKho > 0;
+        if (filterStatus === 'DANG_DUNG') return d.soLuongDangDung > 0;
+        if (filterStatus === 'HU_HONG') return d.soLuongHu > 0;
+        if (filterStatus === 'HET_HANG') return (d.soLuongKho === 0 && d.soLuongDangDung === 0 && d.soLuongHu === 0);
+        
+        return true;
+      });
     }
 
-    return inventory.map(inv => ({
-      ...inv,
-      thietBi: equipment.find(e => e.maThietBi === inv.maThietBi),
-    })).filter(d => {
-      const matchSearch = d.thietBi?.tenThietBi.toLowerCase().includes(search.toLowerCase()) ||
-                          d.maThietBi.toLowerCase().includes(search.toLowerCase());
-      if (!matchSearch) return false;
-      
-      if (filterStatus === 'TRONG_KHO') return d.soLuongKho > 0;
-      if (filterStatus === 'DANG_DUNG') return d.soLuongDangDung > 0;
-      if (filterStatus === 'HU_HONG') return d.soLuongHu > 0;
-      if (filterStatus === 'HET_HANG') return (d.soLuongKho === 0 && d.soLuongDangDung === 0 && d.soLuongHu === 0);
-      
-      return true;
+    result.sort((a, b) => {
+      const nameA = String(a.thietBi?.tenThietBi || a.maThietBi).toLowerCase();
+      const nameB = String(b.thietBi?.tenThietBi || b.maThietBi).toLowerCase();
+      const qtyA = (a.soLuongKho || 0) + (a.soLuongDangDung || 0) + (a.soLuongHu || 0);
+      const qtyB = (b.soLuongKho || 0) + (b.soLuongDangDung || 0) + (b.soLuongHu || 0);
+      const valA = (a.donGia || 0) * qtyA;
+      const valB = (b.donGia || 0) * qtyB;
+
+      switch(sortOption) {
+        case 'nameAsc': return nameA.localeCompare(nameB);
+        case 'nameDesc': return nameB.localeCompare(nameA);
+        case 'qtyAsc': return qtyA - qtyB;
+        case 'qtyDesc': return qtyB - qtyA;
+        case 'valAsc': return valA - valB;
+        case 'valDesc': return valB - valA;
+        default: return nameA.localeCompare(nameB);
+      }
     });
-  }, [inventory, equipment, allocations, search, filterStatus, isTrưởngKhoa, user?.maKhoa]);
+
+    return result;
+  }, [inventory, equipment, allocations, search, filterStatus, sortOption, isTrưởngKhoa, user?.maKhoa]);
 
   const openAdd = () => {
     setSelectedItem(null);
@@ -159,6 +183,23 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
               <SelectItem value="HET_HANG">Đã hết sạch hàng</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={sortOption} onValueChange={setSortOption}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Sắp xếp" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nameAsc">Tên TB A → Z</SelectItem>
+              <SelectItem value="nameDesc">Tên TB Z → A</SelectItem>
+              <SelectItem value="qtyAsc">Số lượng tăng dần</SelectItem>
+              <SelectItem value="qtyDesc">Số lượng giảm dần</SelectItem>
+              {!isTrưởngKhoa && (
+                <>
+                  <SelectItem value="valAsc">Giá trị tăng dần</SelectItem>
+                  <SelectItem value="valDesc">Giá trị giảm dần</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -194,7 +235,6 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
                   <th className="text-center p-4 font-medium text-muted-foreground">Hư hỏng</th>
                   <th className="text-center p-4 font-medium text-muted-foreground">Tổng cộng SL</th>
                   <th className="text-right p-4 font-medium text-muted-foreground w-36">Tổng trị giá</th>
-                  <th className="text-center p-4 font-medium text-muted-foreground">Thao tác</th>
                 </>
               )}
             </tr>
@@ -231,36 +271,26 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
                   <>
                     <td className="p-4 text-center">
                       <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-primary/10 text-primary font-semibold">
-                        {d.soLuongKho}
+                        {d.soLuongKho} <span className="text-[10px] ml-1">{d.thietBi?.donViCoSo}</span>
                       </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-secondary/10 text-secondary-foreground font-semibold">
-                        {d.soLuongDangDung}
+                        {d.soLuongDangDung} <span className="text-[10px] ml-1">{d.thietBi?.donViCoSo}</span>
                       </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-md bg-warning/10 text-warning font-semibold">
-                        {d.soLuongHu}
+                        {d.soLuongHu} <span className="text-[10px] ml-1">{d.thietBi?.donViCoSo}</span>
                       </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className="text-base font-bold text-foreground">
-                        {d.soLuongKho + d.soLuongDangDung + d.soLuongHu}
+                        {d.soLuongKho + d.soLuongDangDung + d.soLuongHu} <span className="text-xs font-normal text-muted-foreground">{d.thietBi?.donViCoSo}</span>
                       </span>
                     </td>
                     <td className="p-4 text-right font-mono font-semibold text-primary">
                       {d.donGia ? new Intl.NumberFormat('vi-VN').format(d.donGia * (d.soLuongKho + d.soLuongDangDung + d.soLuongHu)) + ' đ' : '-'}
-                    </td>
-                    <td className="p-4 text-center">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={(e) => handleDelete(d.maThietBi, e)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </td>
                   </>
                 )}

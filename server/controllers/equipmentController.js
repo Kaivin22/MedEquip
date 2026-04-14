@@ -5,7 +5,8 @@ function mapEquipment(row) {
     maThietBi: row.ma_thiet_bi,
     tenThietBi: row.ten_thiet_bi,
     loaiThietBi: row.loai_thiet_bi,
-    donViTinh: row.don_vi_tinh,
+    donViCoSo: row.don_vi_co_so,
+    donViNhap: row.don_vi_nhap,
     heSoQuyDoi: row.he_so_quy_doi || 1,
     serialNumber: row.serial_number || "",
     nguongCanhBao: row.nguong_canh_bao || 10,
@@ -53,7 +54,7 @@ export async function getAllEquipment(req, res) {
 
 export async function createEquipment(req, res) {
   try {
-    const { tenThietBi, loaiThietBi, donViTinh, heSoQuyDoi, serialNumber, nguongCanhBao, moTa, maNhaCungCap, hinhAnh } = req.body;
+    const { tenThietBi, loaiThietBi, donViCoSo, donViNhap, heSoQuyDoi, serialNumber, nguongCanhBao, moTa, maNhaCungCap, hinhAnh } = req.body;
 
     if (!tenThietBi || !loaiThietBi) {
       return res.json({ success: false, message: "Tên thiết bị và loại là bắt buộc." });
@@ -64,8 +65,8 @@ export async function createEquipment(req, res) {
 
     const id = "TB-" + String(Date.now()).slice(-6);
     await pool.query(
-      "INSERT INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_tinh, he_so_quy_doi, serial_number, nguong_canh_bao, mo_ta, ma_nha_cung_cap, hinh_anh, trang_thai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)",
-      [id, tenThietBi, loaiThietBi || "TAI_SU_DUNG", donViTinh || "Cái", heSoQuyDoi || 1,
+      "INSERT INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_co_so, don_vi_nhap, he_so_quy_doi, serial_number, nguong_canh_bao, mo_ta, ma_nha_cung_cap, hinh_anh, trang_thai) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)",
+      [id, tenThietBi, loaiThietBi || "TAI_SU_DUNG", donViCoSo || "Cái", donViNhap || "Hộp", heSoQuyDoi || 1,
        loaiThietBi === "TAI_SU_DUNG" ? (serialNumber || null) : null,
        nguongCanhBao || 10, moTa || "", maNhaCungCap || null, hinhAnh || ""]
     );
@@ -105,7 +106,7 @@ export async function deleteEquipment(req, res) {
 
 export async function updateEquipment(req, res) {
   try {
-    const { tenThietBi, loaiThietBi, donViTinh, heSoQuyDoi, serialNumber, nguongCanhBao, moTa, maNhaCungCap, hinhAnh, trangThai } = req.body;
+    const { tenThietBi, loaiThietBi, donViCoSo, donViNhap, heSoQuyDoi, serialNumber, nguongCanhBao, moTa, maNhaCungCap, hinhAnh, trangThai } = req.body;
     const id = req.params.id;
 
     const [existing] = await pool.query("SELECT * FROM thiet_bi WHERE ma_thiet_bi = ?", [id]);
@@ -115,8 +116,8 @@ export async function updateEquipment(req, res) {
     const newSerial = loaiThietBi === "TAI_SU_DUNG" ? (serialNumber || null) : null;
 
     await pool.query(
-      "UPDATE thiet_bi SET ten_thiet_bi=?, loai_thiet_bi=?, don_vi_tinh=?, he_so_quy_doi=?, serial_number=?, nguong_canh_bao=?, mo_ta=?, ma_nha_cung_cap=?, hinh_anh=?, trang_thai=? WHERE ma_thiet_bi=?",
-      [tenThietBi, loaiThietBi || "TAI_SU_DUNG", donViTinh || "Cái", heSoQuyDoi || 1,
+      "UPDATE thiet_bi SET ten_thiet_bi=?, loai_thiet_bi=?, don_vi_co_so=?, don_vi_nhap=?, he_so_quy_doi=?, serial_number=?, nguong_canh_bao=?, mo_ta=?, ma_nha_cung_cap=?, hinh_anh=?, trang_thai=? WHERE ma_thiet_bi=?",
+      [tenThietBi, loaiThietBi || "TAI_SU_DUNG", donViCoSo || "Cái", donViNhap || "Hộp", heSoQuyDoi || 1,
        newSerial, nguongCanhBao || 10, moTa || "", maNhaCungCap || null, hinhAnh || "", newTrangThai, id]
     );
 
