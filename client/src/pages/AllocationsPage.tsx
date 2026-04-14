@@ -36,11 +36,11 @@ export default function AllocationsPage() {
   const [requestForm, setRequestForm] = useState<{
     maKhoa: string;
     lyDo: string;
-    items: RequestItem[];
+    items: { maThietBi: string, soLuong: number, donVi: string }[];
   }>({
     maKhoa: user?.maKhoa || '',
     lyDo: '',
-    items: [{ maThietBi: '', soLuong: 1 }]
+    items: [{ maThietBi: '', soLuong: 1, donVi: '' }]
   });
 
   // States for processing a request
@@ -73,7 +73,7 @@ export default function AllocationsPage() {
 
   // Create Request Handlers
   const addRequestItem = () => {
-    setRequestForm(prev => ({ ...prev, items: [...prev.items, { maThietBi: '', soLuong: 1 }] }));
+    setRequestForm(prev => ({ ...prev, items: [...prev.items, { maThietBi: '', soLuong: 1, donVi: '' }] }));
   };
 
   const removeRequestItem = (index: number) => {
@@ -81,9 +81,16 @@ export default function AllocationsPage() {
     setRequestForm(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
   };
 
-  const updateRequestItem = (index: number, field: keyof RequestItem, value: any) => {
+  const updateRequestItem = (index: number, field: string, value: any) => {
     const newItems = [...requestForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    (newItems[index] as any)[field] = value;
+    
+    // Auto-fill unit if device changes
+    if (field === 'maThietBi') {
+      const tb = equipment.find(e => e.maThietBi === value);
+      if (tb) (newItems[index] as any).donVi = tb.donViCoSo;
+    }
+    
     setRequestForm(prev => ({ ...prev, items: newItems }));
   };
 
@@ -228,7 +235,7 @@ export default function AllocationsPage() {
                     <th className="text-left p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Thiết bị</th>
                     <th className="text-left p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Người nhận</th>
                     <th className="text-left p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Khoa</th>
-                    <th className="text-center p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">SL</th>
+                    <th className="text-center p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Số lượng</th>
                     <th className="text-right p-4 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Ngày cấp</th>
                   </tr>
                 </thead>
@@ -245,7 +252,12 @@ export default function AllocationsPage() {
                         </td>
                         <td className="p-4 text-muted-foreground">{nguoiMuon?.hoTen || '-'}</td>
                         <td className="p-4"><Badge variant="outline" className="font-normal">{khoa?.tenKhoa || '-'}</Badge></td>
-                        <td className="p-4 text-center font-bold text-lg text-primary">{d.soLuongCapPhat}</td>
+                        <td className="p-4 text-center">
+                          <div className="font-bold text-lg text-primary">{d.soLuongCapPhat} {d.donViTinh || 'Cái'}</div>
+                          {(d.soLuongCoSo && d.soLuongCoSo !== d.soLuongCapPhat) && (
+                            <div className="text-[10px] text-muted-foreground italic">= {d.soLuongCoSo} {d.donViCoSo}</div>
+                          )}
+                        </td>
                         <td className="p-4 text-right text-xs text-muted-foreground">{new Date(d.ngayCapPhat).toLocaleString('vi-VN')}</td>
                       </tr>
                     );
@@ -427,8 +439,9 @@ export default function AllocationsPage() {
                     <thead>
                       <tr className="bg-muted/50 border-b">
                         <th className="text-left p-3 font-medium text-muted-foreground w-1/2">Thiết bị</th>
-                        <th className="text-center p-3 font-medium text-muted-foreground w-1/4">Phân loại</th>
-                        <th className="text-center p-3 font-medium text-muted-foreground w-1/4">Số lượng</th>
+                        <th className="text-center p-3 font-medium text-muted-foreground">Phân loại</th>
+                        <th className="text-center p-3 font-medium text-muted-foreground">Số lượng</th>
+                        <th className="text-center p-3 font-medium text-muted-foreground">Đơn vị</th>
                         <th className="p-3 w-10"></th>
                       </tr>
                     </thead>
@@ -464,8 +477,22 @@ export default function AllocationsPage() {
                                   const val = parseInt(e.target.value) || 0;
                                   updateRequestItem(idx, 'soLuong', val < 1 ? 1 : val);
                                 }}
-                                className="h-9 text-center w-20 mx-auto"
+                                 className="h-9 text-center w-16 mx-auto bg-muted/20"
                               />
+                            </td>
+                            <td className="p-2">
+                              <Select 
+                                value={item.donVi} 
+                                onValueChange={v => updateRequestItem(idx, 'donVi', v)}
+                              >
+                                <SelectTrigger className="h-9 border-none bg-transparent focus:ring-0 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {tb && <SelectItem value={tb.donViCoSo}>{tb.donViCoSo}</SelectItem>}
+                                  {tb?.donViNhap && tb.donViNhap !== tb.donViCoSo && <SelectItem value={tb.donViNhap}>{tb.donViNhap}</SelectItem>}
+                                </SelectContent>
+                              </Select>
                             </td>
                             <td className="p-2">
                               <Button 
@@ -534,7 +561,7 @@ export default function AllocationsPage() {
                         <thead className="bg-muted/50 border-b">
                           <tr>
                             <th className="text-left p-3 font-medium text-muted-foreground w-2/5">Thiết bị</th>
-                            <th className="text-center p-3 font-medium text-muted-foreground">Yêu cầu</th>
+                            <th className="text-center p-3 font-medium text-muted-foreground">Số lượng</th>
                             <th className="text-center p-3 font-medium text-muted-foreground">Tồn kho</th>
                             <th className="text-center p-3 font-medium text-muted-foreground w-1/4">Quyết định</th>
                             <th className="text-left p-3 font-medium text-muted-foreground">Lý do từ chối</th>
@@ -551,10 +578,15 @@ export default function AllocationsPage() {
                                   <div className="font-medium">{details.tenThietBi}</div>
                                   <div className="text-[10px] text-muted-foreground font-mono">{item.maThietBi}</div>
                                 </td>
-                                <td className="p-3 text-center font-semibold">{details.soLuong}</td>
                                 <td className="p-3 text-center">
-                                  <span className={cn(details.tonKho < details.soLuong ? 'text-destructive font-bold' : 'text-success font-medium')}>
-                                    {details.tonKho}
+                                  <div className="font-bold text-base">{details.soLuong} {details.donViTinh}</div>
+                                  {details.donViTinh !== details.donViCoSo && (
+                                    <div className="text-[10px] text-muted-foreground">= {details.soLuongCoSo} {details.donViCoSo}</div>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className={cn(details.tonKho < (details.soLuongCoSo || details.soLuong) ? 'text-destructive font-bold' : 'text-success font-medium')}>
+                                    {details.tonKho} {(details.donViCoSo || 'Cái')}
                                   </span>
                                 </td>
                                 <td className="p-3">
@@ -630,7 +662,7 @@ export default function AllocationsPage() {
                 <Button variant="ghost" onClick={() => setProcessDialogOpen(false)} disabled={loading}>Đóng</Button>
                 <Button 
                   onClick={handleProcessFinish} 
-                  disabled={loading || processItems.some(i => i.approved && (processingRequest as any).items?.find((it: any) => it.maThietBi === i.maThietBi)?.tonKho < (processingRequest as any).items?.find((it: any) => it.maThietBi === i.maThietBi)?.soLuong)}
+                  disabled={loading || processItems.some(i => i.approved && (processingRequest as any).items?.find((it: any) => it.maThietBi === i.maThietBi)?.tonKho < ((processingRequest as any).items?.find((it: any) => it.maThietBi === i.maThietBi)?.soLuongCoSo || (processingRequest as any).items?.find((it: any) => it.maThietBi === i.maThietBi)?.soLuong))}
                   className="gradient-primary text-primary-foreground min-w-[140px]"
                 >
                   {loading ? 'Đang lưu...' : 'Xác nhận xử lý'}

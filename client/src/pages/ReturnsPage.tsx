@@ -408,7 +408,8 @@ export default function ReturnsPage() {
                         <div className="text-sm font-medium">{alloc.tenThietBi}</div>
                         <div className="text-[10px] text-muted-foreground flex gap-3">
                           <span>Mã CP: {alloc.maPhieu}</span>
-                          <span>Số lượng: {alloc.soLuongCapPhat}</span>
+                          <span className="font-bold text-primary">Số lượng mượn: {alloc.soLuongCapPhat} {alloc.donViTinh}</span>
+                          {alloc.donViTinh !== alloc.donViCoSo && <span>(= {alloc.soLuongCoSo} {alloc.donViCoSo})</span>}
                           <span>Hạn trả: {new Date(alloc.ngayDuKienTra).toLocaleDateString('vi-VN')}</span>
                         </div>
                       </label>
@@ -436,7 +437,9 @@ export default function ReturnsPage() {
                     <div key={ct.maPhieuCapPhat} className="bg-card p-3 rounded-lg border shadow-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                       <div className="flex-1 min-w-[150px]">
                         <div className="text-sm font-semibold text-primary">{ct.tenThietBi}</div>
-                        <div className="text-[10px] text-muted-foreground">Mã CP: {ct.maPhieuCapPhat}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Mã CP: {ct.maPhieuCapPhat} • Đơn vị trả: {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.donViTinh}
+                        </div>
                       </div>
                       
                       <div className="w-full sm:w-24">
@@ -571,7 +574,12 @@ export default function ReturnsPage() {
                       {viewingPhieu.chiTiet.map((ct, i) => (
                         <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                           <td className="p-2 font-medium">{ct.tenThietBi}</td>
-                          <td className="p-2 text-center font-bold text-primary">{ct.soLuong}</td>
+                          <td className="p-2 text-center">
+                             <div className="font-bold text-primary">{(ct as any).soLuong} {(ct as any).donViTinh}</div>
+                             {(ct as any).donViTinh !== (ct as any).donViCoSo && (
+                                <div className="text-[9px] text-muted-foreground italic">= {(ct as any).soLuongCoSo} {(ct as any).donViCoSo}</div>
+                             )}
+                          </td>
                           <td className="p-2">
                             <span className={ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive font-semibold' : ''}>
                               {TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}
@@ -684,7 +692,16 @@ export default function ReturnsPage() {
                 {confirmingPhieu.chiTiet.map((ct, i) => (
                   <div key={i} className="pt-2 border-t mt-2">
                     <div className="flex justify-between"><span className="text-muted-foreground text-sm">Thiết bị:</span> <span className="font-medium text-right max-w-[200px]">{ct.tenThietBi}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground text-sm">Số lượng:</span> <span className="font-bold text-primary">{ct.soLuong}</span></div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground text-sm">Số lượng:</span> 
+                      <span className="font-bold text-primary">{(ct as any).soLuong} {(ct as any).donViTinh}</span>
+                    </div>
+                    {(ct as any).donViTinh !== (ct as any).donViCoSo && (
+                      <div className="flex justify-between text-[10px] italic text-muted-foreground">
+                        <span>Quy đổi:</span>
+                        <span>= {(ct as any).soLuongCoSo} {(ct as any).donViCoSo}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between"><span className="text-muted-foreground text-sm">Tình trạng:</span> <span className={`font-semibold ${ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive' : 'text-success'}`}>{TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}</span></div>
                   </div>
                 ))}

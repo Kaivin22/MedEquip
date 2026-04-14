@@ -42,7 +42,7 @@ export default function RequestsPage() {
 
   // Cart state
   const [cartOpen, setCartOpen] = useState(false);
-  const [cart, setCart] = useState<{tb: ThietBi, soLuong: number}[]>([]);
+  const [cart, setCart] = useState<{tb: ThietBi, soLuong: number, donVi: string}[]>([]);
   const [lyDo, setLyDo] = useState('');
   const [khoaYeuCau, setKhoaYeuCau] = useState(user?.maKhoa || '');
 
@@ -101,7 +101,7 @@ export default function RequestsPage() {
       if (existing) {
         return prev.map(item => item.tb.maThietBi === tb.maThietBi ? { ...item, soLuong: item.soLuong + 1 } : item);
       }
-      return [...prev, { tb, soLuong: 1 }];
+      return [...prev, { tb, soLuong: 1, donVi: tb.donViCoSo }];
     });
     toast({ title: 'Đã thêm vào giỏ', description: `${tb.tenThietBi}` });
   };
@@ -109,6 +109,10 @@ export default function RequestsPage() {
   const updateCartQty = (id: string, qty: number) => {
     if (qty <= 0) setCart(prev => prev.filter(i => i.tb.maThietBi !== id));
     else setCart(prev => prev.map(i => i.tb.maThietBi === id ? { ...i, soLuong: qty } : i));
+  };
+
+  const updateCartUnit = (id: string, unit: string) => {
+    setCart(prev => prev.map(i => i.tb.maThietBi === id ? { ...i, donVi: unit } : i));
   };
 
   const submitCart = async () => {
@@ -121,8 +125,15 @@ export default function RequestsPage() {
     let hasError = false;
     for (const item of cart) {
       const inv = inventory.find(i => i.maThietBi === item.tb.maThietBi);
-      if (!inv || item.soLuong > inv.soLuongKho) {
-        toast({ title: 'Tồn kho không đủ', description: `${item.tb.tenThietBi} chỉ còn ${inv?.soLuongKho || 0} món.`, variant: 'destructive' });
+      const factor = item.donVi === item.tb.donViNhap ? (item.tb.heSoQuyDoi || 1) : 1;
+      const totalBaseQty = item.soLuong * factor;
+
+      if (!inv || totalBaseQty > inv.soLuongKho) {
+        toast({ 
+          title: 'Tồn kho không đủ', 
+          description: `${item.tb.tenThietBi} yêu cầu quy đổi ${totalBaseQty} ${item.tb.donViCoSo}, nhưng kho chỉ còn ${inv?.soLuongKho || 0} ${item.tb.donViCoSo}.`, 
+          variant: 'destructive' 
+        });
         hasError = true; break;
       }
     }
@@ -135,7 +146,8 @@ export default function RequestsPage() {
         lyDo,
         items: cart.map(item => ({
           maThietBi: item.tb.maThietBi,
-          soLuong: item.soLuong
+          soLuong: item.soLuong,
+          donVi: item.donVi
         }))
       });
       
@@ -429,8 +441,34 @@ export default function RequestsPage() {
                         </div>
                         <div className="min-w-0 pr-2">
                           <div className="font-bold text-sm truncate">{item.tb.tenThietBi}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">{item.tb.maThietBi} • Tồn: {maxKho}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {item.tb.maThietBi} • Tồn: {inventory.find(i => i.maThietBi === item.tb.maThietBi)?.soLuongKho} {item.tb.donViCoSo}
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-lg border">
+                          <button 
+                            className={cn("px-2 py-0.5 text-[10px] rounded transition-all", item.donVi === item.tb.donViCoSo ? "bg-white shadow-sm font-bold text-primary" : "text-muted-foreground")}
+                            onClick={() => updateCartUnit(item.tb.maThietBi, item.tb.donViCoSo)}
+                          >
+                            {item.tb.donViCoSo}
+                          </button>
+                          {item.tb.donViNhap && item.tb.donViNhap !== item.tb.donViCoSo && (
+                            <button 
+                              className={cn("px-2 py-0.5 text-[10px] rounded transition-all", item.donVi === item.tb.donViNhap ? "bg-white shadow-sm font-bold text-primary" : "text-muted-foreground")}
+                              onClick={() => updateCartUnit(item.tb.maThietBi, item.tb.donViNhap || 'Hộp')}
+                            >
+                              {item.tb.donViNhap}
+                            </button>
+                          )}
+                        </div>
+                        {item.donVi === item.tb.donViNhap && (
+                          <div className="text-[9px] text-primary/70 font-medium">
+                            Quy đổi: {item.soLuong * (item.tb.heSoQuyDoi || 1)} {item.tb.donViCoSo}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex items-center gap-2 border bg-muted/20 p-1 rounded-lg w-full sm:w-auto justify-end">
@@ -538,7 +576,14 @@ export default function RequestsPage() {
                                      )}>{STATUS_MAP[itemStatus as keyof typeof STATUS_MAP] || itemStatus}</Badge>
                                   )}
                                 </td>
-                                <td className="p-3 text-center font-bold text-base">{details.soLuong}</td>
+                                <td className="p-3 text-center border-r">
+                                  <div className="font-bold text-base">{details.soLuong} {details.donViTinh}</div>
+                                  {details.donViTinh !== details.donViCoSo && (
+                                    <div className="text-[10px] text-muted-foreground">
+                                      = {details.soLuongCoSo} {details.donViCoSo}
+                                    </div>
+                                  )}
+                                </td>
                                 {isNvkho && (
                                   <td className="p-3 text-center">
                                     <span className={cn(details.tonKho < (details.soLuong || 0) ? 'text-destructive font-bold' : 'text-success')}>

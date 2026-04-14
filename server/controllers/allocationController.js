@@ -7,7 +7,7 @@ export async function getAllAllocations(req, res) {
     for (const row of rows) {
       const [details] = await pool.query(
         `SELECT c.*, COALESCE(t.ten_thiet_bi, c.ma_thiet_bi) as ten_thiet_bi,
-                t.loai_thiet_bi, t.don_vi_tinh
+                t.loai_thiet_bi, t.don_vi_co_so
          FROM chi_tiet_cap_phat c
          LEFT JOIN thiet_bi t ON c.ma_thiet_bi = t.ma_thiet_bi
          WHERE c.ma_phieu_cap_phat = ?`,
@@ -24,7 +24,7 @@ export async function getAllAllocations(req, res) {
           maThietBi: d.ma_thiet_bi,
           tenThietBi: d.ten_thiet_bi || d.ma_thiet_bi,
           loaiThietBi: d.loai_thiet_bi || "TAI_SU_DUNG",
-          donViTinh: d.don_vi_tinh || "Cái",
+          donViTinh: d.don_vi_co_so || "Cái",
           maNguoiMuon: request ? request.ma_nguoi_yeu_cau : "",
           maKhoa: row.ma_khoa_nhan,
           soLuongCapPhat: d.so_luong,
