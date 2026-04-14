@@ -24,37 +24,78 @@ export async function getAllRequests(req, res) {
     if (req.query.trangThai) { sql += " AND trang_thai = ?"; params.push(req.query.trangThai); }
     sql += " ORDER BY ngay_tao DESC";
     const [rows] = await pool.query(sql, params);
-    res.json(rows.map(mapRequest));
+    
+    // Fetch items for each request
+    const requestsWithItems = await Promise.all(rows.map(async (row) => {
+      const [items] = await pool.query(
+        "SELECT ct.*, t.ten_thiet_bi, t.don_vi_tinh FROM chi_tiet_yeu_cau ct JOIN thiet_bi t ON ct.ma_thiet_bi = t.ma_thiet_bi WHERE ct.ma_phieu_yeu_cau = ?",
+        [row.ma_phieu]
+      );
+      return {
+        ...mapRequest(row),
+        items: items.map(i => ({
+          maThietBi: i.ma_thiet_bi,
+          tenThietBi: i.ten_thiet_bi,
+          soLuong: i.so_luong,
+          trangThai: i.trang_thai,
+          donViTinh: i.don_vi_tinh,
+          lyDoTuChoi: i.ly_do_tu_choi || ""
+        }))
+      };
+    }));
+    
+    res.json(requestsWithItems);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Lỗi máy chủ." });
   }
 }
 
 export async function createRequest(req, res) {
+  const conn = await pool.getConnection();
   try {
-    const { maNguoiYeuCau, maThietBi, maKhoa, soLuongYeuCau, lyDo } = req.body;
-    const id = "YCCF-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
+    await conn.beginTransaction();
+    const { maNguoiYeuCau, maKhoa, lyDo, items } = req.body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Danh sách thiết bị không hợp lệ." });
+    }
 
-    await pool.query(
+    const id = "YCCF-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
+    const firstItem = items[0];
+
+    // Insert main request (backwards compatibility with ma_thiet_bi and so_luong_yeu_cau)
+    await conn.query(
       "INSERT INTO phieu_yeu_cau (ma_phieu, ma_nguoi_yeu_cau, ma_thiet_bi, ma_khoa, so_luong_yeu_cau, ly_do, trang_thai) VALUES (?, ?, ?, ?, ?, ?, 'CHO_DUYET')",
-      [id, maNguoiYeuCau || req.user.userId, maThietBi, maKhoa, soLuongYeuCau, lyDo || ""]
+      [id, maNguoiYeuCau || req.user.userId, firstItem.maThietBi, maKhoa, firstItem.soLuong, lyDo || ""]
     );
 
-    // Notify all Managers and Admins
-    const [managers] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro IN ('ADMIN', 'TRUONG_KHOA')");
-    for (const m of managers) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-      await pool.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'info', ?)",
-        [notifId, "Yêu cầu cấp phát mới", `Nhân viên ${maNguoiYeuCau || req.user.userId} vừa tạo yêu cầu cấp phát mới mã ${id}`, m.ma_nguoi_dung]
+    // Insert all items
+    for (const item of items) {
+      await conn.query(
+        "INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong, trang_thai) VALUES (?, ?, ?, 'CHO_DUYET')",
+        [id, item.maThietBi, item.soLuong]
       );
     }
 
-    const [rows] = await pool.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
-    res.json({ success: true, phieu: mapRequest(rows[0]) });
+    // Notify all Managers and Admins
+    const [managers] = await conn.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro IN ('ADMIN', 'TRUONG_KHOA')");
+    for (const m of managers) {
+      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
+      await conn.query(
+        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'info', ?)",
+        [notifId, "Yêu cầu cấp phát mới", `Nhân viên ${maNguoiYeuCau || req.user.userId} vừa tạo yêu cầu cấp phát mới mã ${id} với ${items.length} hạng mục.`, m.ma_nguoi_dung]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, maPhieu: id });
   } catch (err) {
+    await conn.rollback();
     console.error(err);
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  } finally {
+    conn.release();
   }
 }
 
@@ -124,56 +165,127 @@ export async function approveManager(req, res) {
   }
 }
 
-export async function processRequest(req, res) {
+export async function scanRequest(req, res) {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy phiếu." });
+    
+    const request = mapRequest(rows[0]);
+    const [items] = await pool.query(
+      `SELECT ct.*, t.ten_thiet_bi, t.don_vi_tinh, tk.so_luong_kho 
+       FROM chi_tiet_yeu_cau ct 
+       JOIN thiet_bi t ON ct.ma_thiet_bi = t.ma_thiet_bi 
+       LEFT JOIN ton_kho tk ON ct.ma_thiet_bi = tk.ma_thiet_bi
+       WHERE ct.ma_phieu_yeu_cau = ?`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      request,
+      items: items.map(i => ({
+        maThietBi: i.ma_thiet_bi,
+        tenThietBi: i.ten_thiet_bi,
+        soLuong: i.so_luong,
+        trangThai: i.trang_thai,
+        donViTinh: i.don_vi_tinh,
+        tonKho: i.so_luong_kho || 0,
+        lyDoTuChoi: i.ly_do_tu_choi || ""
+      }))
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function processRequestItems(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const maPhieuYeuCau = req.params.id;
-    const { soLuongCapPhat, maNhanVienKho, ghiChu } = req.body;
+    const { id } = req.params;
+    const { items, ghiChu } = req.body; // items: [{maThietBi, approved, lyDo}]
 
-    const [reqRows] = await conn.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [maPhieuYeuCau]);
+    const [reqRows] = await conn.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
     if (reqRows.length === 0) {
       await conn.rollback();
-      return res.json({ success: false, message: "Không tìm thấy phiếu yêu cầu." });
+      return res.status(404).json({ success: false, message: "Không tìm thấy phiếu." });
     }
     const request = reqRows[0];
 
-    // Check inventory
-    const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [request.ma_thiet_bi]);
-    if (inv.length === 0 || inv[0].so_luong_kho < soLuongCapPhat) {
-      await conn.rollback();
-      return res.json({ success: false, message: "Không đủ tồn kho. Hiện có: " + (inv[0]?.so_luong_kho || 0) });
+    let approvedCount = 0;
+    const approvedDetails = [];
+
+    for (const item of items) {
+      if (item.approved) {
+        // Check inventory
+        const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [item.maThietBi]);
+        const [reqItem] = await conn.query("SELECT so_luong FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
+        
+        if (reqItem.length === 0) continue;
+        const soLuong = reqItem[0].so_luong;
+
+        if (inv.length === 0 || inv[0].so_luong_kho < soLuong) {
+          await conn.rollback();
+          return res.json({ success: false, message: `Không đủ tồn kho cho thiết bị ${item.maThietBi}. Hiện có: ${inv[0]?.so_luong_kho || 0}` });
+        }
+
+        // Update item status
+        await conn.query(
+          "UPDATE chi_tiet_yeu_cau SET trang_thai = 'DA_DUYET' WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?",
+          [id, item.maThietBi]
+        );
+
+        // Update inventory
+        await conn.query(
+          "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
+          [soLuong, soLuong, item.maThietBi]
+        );
+
+        approvedCount++;
+        approvedDetails.push({ maThietBi: item.maThietBi, soLuong });
+      } else {
+        // Reject item
+        await conn.query(
+          "UPDATE chi_tiet_yeu_cau SET trang_thai = 'TU_CHOI', ly_do_tu_choi = ? WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?",
+          [item.lyDo || "", id, item.maThietBi]
+        );
+      }
     }
 
-    // Create allocation
-    const cpId = "CP-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
-    await conn.query(
-      "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu) VALUES (?, ?, ?, ?, ?)",
-      [cpId, maPhieuYeuCau, maNhanVienKho || req.user.userId, request.ma_khoa, ghiChu || ""]
-    );
-    await conn.query(
-      "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
-      [cpId, request.ma_thiet_bi, soLuongCapPhat]
-    );
+    if (approvedCount > 0) {
+      // Create allocation record
+      const cpId = "CP-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
+      await conn.query(
+        "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu, trang_thai_tra) VALUES (?, ?, ?, ?, ?, 'CHUA_TRA')",
+        [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
+      );
 
-    // Update inventory
-    await conn.query(
-      "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
-      [soLuongCapPhat, soLuongCapPhat, request.ma_thiet_bi]
-    );
+      for (const det of approvedDetails) {
+        await conn.query(
+          "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
+          [cpId, det.maThietBi, det.soLuong]
+        );
+      }
 
-    // Update request status
-    await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [maPhieuYeuCau]);
+      await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [id]);
+    } else {
+      await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'TU_CHOI' WHERE ma_phieu = ?", [id]);
+    }
 
-    // Notify requester about allocation
+    // Notify requester
     const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
     await conn.query(
-      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'success', ?)",
-      [notifId, "Thiết bị đã sẵn sàng", "Thiết bị đã được cấp phát theo yêu cầu của bạn", request.ma_nguoi_yeu_cau]
+      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
+      [notifId, approvedCount > 0 ? "Thiết bị đã sẵn sàng" : "Yêu cầu bị từ chối", 
+       approvedCount > 0 ? `Yêu cầu ${id} đã được cấp phát ${approvedCount} thiết bị.` : `Yêu cầu ${id} của bạn đã bị từ chối hoàn toàn.`,
+       approvedCount > 0 ? 'success' : 'error',
+       request.ma_nguoi_yeu_cau]
     );
 
     await conn.commit();
-    res.json({ success: true, message: "Đã xuất kho thành công." });
+    res.json({ success: true, message: approvedCount > 0 ? "Đã xuất kho thành công." : "Đã từ chối tất cả thiết bị." });
   } catch (err) {
     await conn.rollback();
     console.error(err);

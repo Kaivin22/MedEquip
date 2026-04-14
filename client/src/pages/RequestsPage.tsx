@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { apiCreateRequest } from '@/lib/apiSync';
+import { apiCreateRequest, apiScanRequest, apiProcessRequestItems } from '@/lib/apiSync';
 import { PhieuYeuCauCapPhat, ThietBi } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,13 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box, Camera, QrCode, RotateCcw } from 'lucide-react';
+import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box, Camera, QrCode, RotateCcw, PackageCheck, ClipboardList, AlertCircle } from 'lucide-react';
 import { fetchApi } from '@/services/api';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QRCodeCanvas as QRCodeComponent } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 const STATUS_MAP = { 
   CHO_DUYET: 'Chờ cấp phát', 
@@ -54,9 +56,16 @@ export default function RequestsPage() {
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
 
+  // NEW: Multi-item processing states
+  const [processingRequest, setProcessingRequest] = useState<any>(null);
+  const [processItems, setProcessItems] = useState<{maThietBi: string; approved: boolean; lyDo: string}[]>([]);
+  const [processGhiChu, setProcessGhiChu] = useState('');
+  const [loading, setLoading] = useState(false);
+
   // QR state
   const [qrOpen, setQrOpen] = useState(false);
   const [qrDataStr, setQrDataStr] = useState('');
+  
   const [scanOpen, setScanOpen] = useState(false);
   const [manualCode, setManualCode] = useState('');
 
@@ -120,82 +129,28 @@ export default function RequestsPage() {
     if (hasError) return;
 
     try {
-      const createdIds: string[] = [];
-      for (const item of cart) {
-        const result = await apiCreateRequest({
-          maNguoiYeuCau: user!.maNguoiDung,
+      const result = await apiCreateRequest({
+        maNguoiYeuCau: user!.maNguoiDung,
+        maKhoa: isKhoa ? user?.maKhoa : khoaYeuCau,
+        lyDo,
+        items: cart.map(item => ({
           maThietBi: item.tb.maThietBi,
-          maKhoa: isKhoa ? user?.maKhoa : khoaYeuCau,
-          soLuongYeuCau: item.soLuong,
-          lyDo
-        } as any);
-        if (result.success && result.phieu) {
-            createdIds.push(result.phieu.maPhieu);
-        }
-      }
-      
-      const resList = await fetchApi<any[]>('/requests');
-      if (Array.isArray(resList)) {
-        store.setRequests(resList);
-        setRequests(resList);
-      }
-      
-      setCartOpen(false);
-      setCart([]);
-      setLyDo('');
-
-      if (createdIds.length > 0) {
-        // Nếu tạo nhiều, hiện mã QR của phiếu cuối cùng hoặc một chuỗi tổng hợp
-        setQrDataStr(createdIds[createdIds.length - 1]);
-        setQrOpen(true);
-      }
-
-      toast({ title: 'Thành công', description: `Đã gửi ${createdIds.length} yêu cầu cấp phát.` });
-    } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
-    }
-  };
-
-  const submitAllocate = async () => {
-    if (!allocating) return;
-    const tb = equipment.find(e => e.maThietBi === allocating.maThietBi);
-    if (!tb) return;
-
-    if (tb.loaiThietBi === 'TAI_SU_DUNG' && !ngayDuKienTra) {
-      toast({ title: 'Lỗi', description: 'Thiết bị tái sử dụng cần có Ngày dự kiến trả.', variant: 'destructive' });
-      return;
-    }
-
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/allocations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
-        body: JSON.stringify({
-          maPhieuYeuCau: allocating.maPhieu,
-          maNhanVienKho: user!.maNguoiDung,
-          maThietBi: allocating.maThietBi,
-          maNguoiMuon: allocating.maNguoiYeuCau,
-          maKhoa: allocating.maKhoa,
-          soLuongCapPhat: allocating.soLuongYeuCau,
-          ghiChu: 'Duyệt cấp phát',
-          ngayDuKienTra: (tb.loaiThietBi === 'TAI_SU_DUNG' && ngayDuKienTra) ? ngayDuKienTra : undefined
-        })
+          soLuong: item.soLuong
+        }))
       });
-      const result = await response.json();
-
+      
       if (result.success) {
-        const resList = await fetchApi<any[]>('/requests');
-        if (Array.isArray(resList)) {
-          store.setRequests(resList);
-          setRequests(resList);
-        }
-        const resAlloc = await fetchApi<any[]>('/allocations');
-        if (Array.isArray(resAlloc)) store.setAllocations(resAlloc);
-        const resInv = await fetchApi<any[]>('/inventory');
-        if (Array.isArray(resInv)) store.setInventory(resInv);
+        await refreshRequests(); 
+        setCartOpen(false);
+        setCart([]);
+        setLyDo('');
 
-        setAllocateOpen(false);
-        toast({ title: 'Cấp phát thành công' });
+        if (result.maPhieu) {
+          setQrDataStr(result.maPhieu);
+          setQrOpen(true);
+        }
+
+        toast({ title: 'Thành công', description: `Đã gửi yêu cầu cấp phát.` });
       } else {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
@@ -203,6 +158,73 @@ export default function RequestsPage() {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     }
   };
+
+  const refreshRequests = async () => {
+    const resList = await fetchApi<any[]>('/requests');
+    if (Array.isArray(resList)) {
+      store.setRequests(resList);
+      setRequests(resList);
+    }
+  };
+
+  const startProcessing = async (maPhieu: string) => {
+    // Both NVKHO and TRUONG_KHOA can view, but only NVKHO can edit 'CHO_DUYET' requests
+    setLoading(true);
+    try {
+      const result = await apiScanRequest(maPhieu);
+      if (result.success) {
+        // Attach items to the request object so Dialog can access them
+        const requestWithItems = {
+          ...result.request,
+          items: result.items
+        };
+        setProcessingRequest(requestWithItems);
+        
+        setProcessItems(result.items.map((i: any) => ({
+          maThietBi: i.maThietBi,
+          approved: i.trangThai === 'DA_DUYET' || i.trangThai === 'DA_CAP_PHAT',
+          lyDo: i.lyDoTuChoi || ''
+        })));
+        setAllocateOpen(true);
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: 'Không thể tải chi tiết phiếu', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitProcessItems = async () => {
+    if (!processingRequest) return;
+    setLoading(true);
+    try {
+      const result = await apiProcessRequestItems(processingRequest.maPhieu, {
+        items: processItems,
+        ghiChu: processGhiChu
+      });
+
+      if (result.success) {
+        toast({ title: 'Thành công', description: result.message });
+        setAllocateOpen(false);
+        setProcessingRequest(null);
+        setProcessGhiChu('');
+        await refreshRequests();
+        const resAlloc = await fetchApi<any[]>('/allocations');
+        if (Array.isArray(resAlloc)) store.setAllocations(resAlloc);
+        const resInv = await fetchApi<any[]>('/inventory');
+        if (Array.isArray(resInv)) store.setInventory(resInv);
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi kết nối', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleReject = async () => {
     if (!rejectReason) return toast({ title: 'Lỗi', description: 'Nhập lý do từ chối', variant: 'destructive' });
@@ -329,49 +351,51 @@ export default function RequestsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Mã YC</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground w-1/6">Mã YC</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Khoa</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Thiết bị</th>
-                  <th className="text-center p-3 font-medium text-muted-foreground">SL</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Danh mục yêu cầu</th>
+                  <th className="text-center p-3 font-medium text-muted-foreground">Số lượng mục</th>
                   <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
                   <th className="text-center p-3 font-medium text-muted-foreground">Ngày YC</th>
-                  {isNvkho && <th className="text-right p-3 font-medium text-muted-foreground">Xử lý (NV Kho)</th>}
+                  {isNvkho && <th className="text-right p-3 font-medium text-muted-foreground">Hành động</th>}
                 </tr></thead>
                 <tbody>
                   {reqFiltered.map(r => {
-                    const tb = equipment.find(e => e.maThietBi === r.maThietBi);
                     const khoa = departments.find(k => k.maKhoa === r.maKhoa);
+                    const itemCount = r.items?.length || 1;
+                    const mainItem = r.items?.[0] || { tenThietBi: r.tenThietBi || r.maThietBi };
+
                     return (
-                      <tr key={r.maPhieu} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="p-3 font-mono text-xs">{r.maPhieu}</td>
+                      <tr key={r.maPhieu} className="border-b hover:bg-primary/5 transition-colors cursor-pointer group" onClick={() => startProcessing(r.maPhieu)}>
+                        <td className="p-3 font-mono text-xs font-bold group-hover:text-primary transition-colors">{r.maPhieu}</td>
                         <td className="p-3">{khoa?.tenKhoa || r.maKhoa}</td>
-                        <td className="p-3 font-medium text-primary">
-                          {tb?.tenThietBi || r.maThietBi}
-                          <span className="block text-[10px] text-muted-foreground mt-0.5">{tb?.loaiThietBi === 'TAI_SU_DUNG' ? 'Tái sử dụng' : 'Khấu hao'}</span>
+                        <td className="p-3">
+                          <div className="font-medium">
+                            {itemCount > 1 ? `${mainItem.tenThietBi} và ${itemCount - 1} thiết bị khác...` : mainItem.tenThietBi}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate max-w-xs">{r.lyDo}</div>
                         </td>
-                        <td className="p-3 text-center font-bold">{r.soLuongYeuCau}</td>
+                        <td className="p-3 text-center font-bold text-lg">{itemCount}</td>
                         <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold border ${STATUS_COLORS[(r.trangThai as keyof typeof STATUS_COLORS)] || 'bg-muted'}`}>
+                          <span className={cn(`px-3 py-1 rounded-full text-[10px] uppercase font-bold border`, 
+                            r.trangThai === 'CHO_DUYET' && 'bg-amber-100 text-amber-700 border-amber-200',
+                            r.trangThai === 'DA_CAP_PHAT' && 'bg-green-100 text-green-700 border-green-200',
+                            r.trangThai === 'TU_CHOI' && 'bg-red-100 text-red-700 border-red-200',
+                          )}>
                             {STATUS_MAP[r.trangThai as keyof typeof STATUS_MAP] || r.trangThai}
                           </span>
-                          {r.trangThai === 'TU_CHOI' && (
-                            <div className="text-[10px] text-destructive mt-1 truncate max-w-[150px] mx-auto italic">{r.lyDoTuChoi}</div>
-                          )}
                         </td>
                         <td className="p-3 text-center text-xs text-muted-foreground">{new Date(r.ngayTao).toLocaleString('vi-VN')}</td>
                         {isNvkho && (
                           <td className="p-3 text-right">
                             {r.trangThai === 'CHO_DUYET' ? (
-                              <div className="flex justify-end gap-1">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setQrDataStr(r.maPhieu); setQrOpen(true); }} title="Mã QR"><QrCode className="w-4 h-4 text-primary" /></Button>
-                                <Button size="sm" variant="default" className="h-7 text-xs bg-success hover:bg-success/90 text-white" onClick={() => { setAllocating(r); setNgayDuKienTra(''); setAllocateOpen(true); }}>Cấp phát</Button>
-                                <Button size="sm" variant="outline" className="h-7 text-xs text-destructive hover:bg-destructive/10 border-destructive/20" onClick={() => { setRejectingId(r.maPhieu); setRejectReason(''); setRejectOpen(true); }}>Từ chối</Button>
-                              </div>
+                              <Button size="sm" className="gradient-primary text-white text-xs h-8" onClick={(e) => { e.stopPropagation(); startProcessing(r.maPhieu); }}>
+                                Xử lý cấp phát
+                              </Button>
                             ) : (
-                              <div className="flex justify-end items-center gap-1">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setQrDataStr(r.maPhieu); setQrOpen(true); }} title="Mã QR"><QrCode className="w-4 h-4 text-muted-foreground" /></Button>
-                                <span className="text-muted-foreground mr-2">—</span>
-                              </div>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); setQrDataStr(r.maPhieu); setQrOpen(true); }}>
+                                <QrCode className="w-4 h-4 text-muted-foreground" />
+                              </Button>
                             )}
                           </td>
                         )}
@@ -456,48 +480,161 @@ export default function RequestsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* NVKHO: ALLOCATE MODAL */}
+      {/* NEW: Multi-item processing dialog */}
       <Dialog open={allocateOpen} onOpenChange={setAllocateOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Tiến hành Cấp phát</DialogTitle></DialogHeader>
-          {allocating && (
-            <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg space-y-2 text-sm border">
-                <div className="flex justify-between"><span className="text-muted-foreground">Khoa yêu cầu:</span> <strong>{departments.find(k => k.maKhoa === allocating.maKhoa)?.tenKhoa}</strong></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Thiết bị thiết yếu:</span> <strong>{equipment.find(e => e.maThietBi === allocating.maThietBi)?.tenThietBi}</strong></div>
-                <div className="flex justify-between items-center"><span className="text-muted-foreground">Số lượng cấp phát:</span> <span className="bg-success text-success-foreground px-2 py-0.5 rounded text-lg font-bold">{allocating.soLuongYeuCau}</span></div>
-                <div className="pt-2 border-t mt-2">
-                  <span className="text-muted-foreground text-xs block mb-1">Lý do mượn:</span>
-                  <div className="text-sm font-medium">{allocating.lyDo}</div>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+          {processingRequest && (
+            <>
+              <div className="p-6 overflow-y-auto">
+                <DialogHeader className="mb-6">
+                  <div className="flex justify-between items-center w-full">
+                    <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                      <PackageCheck className="w-6 h-6 text-primary" /> Xử lý phiếu {processingRequest.maPhieu}
+                    </DialogTitle>
+                    <Badge variant="outline">{departments.find(d => d.maKhoa === processingRequest.maKhoa)?.tenKhoa}</Badge>
+                  </div>
+                </DialogHeader>
+
+                <div className="space-y-6">
+                  <div className="bg-muted/30 p-4 rounded-xl border space-y-2">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Thông tin yêu cầu</p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                      <p><span className="text-muted-foreground">Người mượn:</span> <span className="font-semibold">{users.find(u => u.maNguoiDung === processingRequest.maNguoiYeuCau)?.hoTen}</span></p>
+                      <p><span className="text-muted-foreground">Khoa:</span> <span className="font-semibold">{departments.find(d => d.maKhoa === processingRequest.maKhoa)?.tenKhoa}</span></p>
+                      <p className="col-span-2"><span className="text-muted-foreground">Lý do:</span> <span className="italic">"{processingRequest.lyDo}"</span></p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-bold flex items-center gap-2">
+                      <ClipboardList className="w-4 h-4" /> Duyệt từng thiết bị
+                    </Label>
+                    <div className="border rounded-xl overflow-hidden shadow-sm">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 border-b">
+                          <tr>
+                            <th className="text-left p-3 font-medium text-muted-foreground">Thiết bị</th>
+                            <th className="text-center p-3 font-medium text-muted-foreground w-1/5">Số lượng</th>
+                            {isNvkho && <th className="text-center p-3 font-medium text-muted-foreground w-1/5">Tồn kho</th>}
+                            <th className="text-center p-3 font-medium text-muted-foreground w-1/5">Quyết định</th>
+                            <th className="text-left p-3 font-medium text-muted-foreground w-1/4">Ghi chú</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {processItems.map((item, idx) => {
+                            const details = processingRequest.items?.find((it: any) => it.maThietBi === item.maThietBi) || 
+                                           { tenThietBi: item.maThietBi, soLuong: 0, tonKho: 0 };
+                            const isEditable = isNvkho && processingRequest.trangThai === 'CHO_DUYET';
+                            const itemStatus = details.trangThai || 'CHO_DUYET';
+                            
+                            return (
+                              <tr key={idx} className={item.approved ? 'bg-green-50/20' : 'bg-red-50/20'}>
+                                <td className="p-3">
+                                  <div className="font-medium">{details.tenThietBi}</div>
+                                  <div className="text-[10px] text-muted-foreground font-mono">{item.maThietBi}</div>
+                                  {!isEditable && (
+                                     <Badge className={cn("mt-1 text-[8px] h-4", 
+                                        (itemStatus === 'DA_DUYET' || itemStatus === 'DA_CAP_PHAT') ? "bg-success text-white" : "bg-destructive text-white"
+                                     )}>{STATUS_MAP[itemStatus as keyof typeof STATUS_MAP] || itemStatus}</Badge>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center font-bold text-base">{details.soLuong}</td>
+                                {isNvkho && (
+                                  <td className="p-3 text-center">
+                                    <span className={cn(details.tonKho < (details.soLuong || 0) ? 'text-destructive font-bold' : 'text-success')}>
+                                      {details.tonKho}
+                                    </span>
+                                  </td>
+                                )}
+                                <td className="p-3">
+                                  {isEditable ? (
+                                    <div className="flex bg-muted/50 p-0.5 rounded-lg w-fit mx-auto shadow-inner">
+                                      <button
+                                        onClick={() => {
+                                          const newItems = [...processItems];
+                                          newItems[idx].approved = true;
+                                          setProcessItems(newItems);
+                                        }}
+                                        className={cn(
+                                          "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                                          item.approved ? "bg-white text-green-600 shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                      >
+                                        Duyệt
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const newItems = [...processItems];
+                                          newItems[idx].approved = false;
+                                          setProcessItems(newItems);
+                                        }}
+                                        className={cn(
+                                          "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                                          !item.approved ? "bg-white text-red-600 shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                        )}
+                                      >
+                                        Từ chối
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center">
+                                      {item.approved ? <CheckCheck className="w-5 h-5 text-success mx-auto" /> : <X className="w-5 h-5 text-destructive mx-auto" />}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {isEditable ? (
+                                    !item.approved && (
+                                      <Input 
+                                        placeholder="Lý do..." 
+                                        value={item.lyDo} 
+                                        onChange={e => {
+                                          const newItems = [...processItems];
+                                          newItems[idx].lyDo = e.target.value;
+                                          setProcessItems(newItems);
+                                        }}
+                                        className="h-7 text-[10px] border-red-200"
+                                      />
+                                    )
+                                  ) : (
+                                    !item.approved && <span className="text-[10px] text-destructive italic">{details.lyDoTuChoi || item.lyDo}</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold">Ghi chú chung cho khoa</Label>
+                    <Textarea 
+                      placeholder="VD: Mang theo thẻ nhân viên khi nhận thiết bị..." 
+                      value={processGhiChu} 
+                      onChange={e => setProcessGhiChu(e.target.value)}
+                      readOnly={!(isNvkho && processingRequest.trangThai === 'CHO_DUYET')}
+                      className="min-h-[60px] text-sm"
+                    />
+                  </div>
                 </div>
               </div>
-              
-              {(() => {
-                const tb = equipment.find(e => e.maThietBi === allocating.maThietBi);
-                if (tb?.loaiThietBi === 'TAI_SU_DUNG') {
-                  return (
-                    <div className="border border-warning bg-warning/5 p-4 rounded-lg">
-                      <Label className="text-amber-600 dark:text-amber-500 font-semibold flex items-center gap-2 mb-2">
-                        <CheckCheck className="w-4 h-4" /> Bắt buộc hẹn ngày trả (Thiết bị Tái sử dụng)
-                      </Label>
-                      <Input type="date" value={ngayDuKienTra} onChange={e => setNgayDuKienTra(e.target.value)} className="border-warning/50 focus-visible:ring-warning" />
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/20">
-                      <p className="font-semibold text-primary">Vật tư cấp phát hoàn toàn</p>
-                      <p className="text-xs text-primary/70">Không cần hẹn ngày trả vì đây là vật tư tiêu hao.</p>
-                    </div>
-                  );
-                }
-              })()}
-            </div>
+
+              <DialogFooter className="p-4 border-t bg-muted/20">
+                <Button variant="ghost" onClick={() => setAllocateOpen(false)} disabled={loading}>Đóng</Button>
+                {isNvkho && processingRequest.trangThai === 'CHO_DUYET' && (
+                  <Button 
+                    onClick={submitProcessItems} 
+                    disabled={loading || processItems.some(i => i.approved && (processingRequest.items?.find((it: any) => it.maThietBi === i.maThietBi)?.tonKho || 0) < (processingRequest.items?.find((it: any) => it.maThietBi === i.maThietBi)?.soLuong || 0))}
+                    className="gradient-primary text-white font-bold min-w-[150px]"
+                  >
+                    {loading ? 'Đang xử lý...' : 'Xác nhận xử lý'}
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAllocateOpen(false)}>Hủy bỏ</Button>
-            <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={submitAllocate}>Xác nhận Xuất kho cấp phát</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -542,19 +679,8 @@ export default function RequestsPage() {
                     onScan={(detectedCodes) => {
                        if (detectedCodes && detectedCodes.length > 0) {
                           const code = detectedCodes[0].rawValue;
-                          const found = requests.find(r => r.maPhieu === code);
-                          if (found) {
-                            if (found.trangThai === 'CHO_DUYET') {
-                              setAllocating(found);
-                              setNgayDuKienTra('');
-                              setAllocateOpen(true);
-                              setScanOpen(false);
-                            } else {
-                              toast({ title: 'Cảnh báo', description: `Phiếu ${code} đã ở trạng thái ${STATUS_MAP[found.trangThai as keyof typeof STATUS_MAP] || found.trangThai}`, variant: 'destructive' });
-                            }
-                          } else {
-                            toast({ title: 'Lỗi', description: 'Không tìm thấy mã phiếu yêu cầu này.', variant: 'destructive' });
-                          }
+                          setScanOpen(false);
+                          startProcessing(code);
                        }
                     }}
                     formats={['qr_code']}
@@ -571,23 +697,15 @@ export default function RequestsPage() {
                 onChange={e => setManualCode(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
-                    const found = requests.find(r => r.maPhieu === manualCode);
-                    if (found) {
-                      setAllocating(found); setAllocateOpen(true); setScanOpen(false);
-                    } else {
-                      toast({ title: 'Lỗi', description: 'Mã không tồn tại.' });
-                    }
+                    setScanOpen(false);
+                    startProcessing(manualCode);
                   }
                 }}
               />
-              <Button onClick={() => {
-                const found = requests.find(r => r.maPhieu === manualCode);
-                if (found) {
-                  setAllocating(found); setAllocateOpen(true); setScanOpen(false);
-                } else {
-                  toast({ title: 'Lỗi', description: 'Mã không tồn tại.' });
-                }
-              }}>Tìm</Button>
+               <Button onClick={() => {
+                   setScanOpen(false);
+                   startProcessing(manualCode);
+               }}>Tìm</Button>
             </div>
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setScanOpen(false)} className="w-full">Đóng</Button></DialogFooter>

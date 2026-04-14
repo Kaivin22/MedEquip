@@ -182,9 +182,16 @@ export async function apiDeleteDepartment(id: string) {
 }
 
 // ---- Requests ----
-export async function apiCreateRequest(data: Omit<PhieuYeuCauCapPhat, 'maPhieu' | 'trangThai' | 'ngayTao'>) {
+export async function apiCreateRequest(data: { maNguoiYeuCau?: string; maKhoa: string; lyDo: string; items: { maThietBi: string; soLuong: number }[] }) {
   if (isMockMode()) {
-    const phieu: PhieuYeuCauCapPhat = { maPhieu: generateId('YCCF'), ...data, trangThai: 'CHO_DUYET', ngayTao: new Date().toISOString() };
+    const phieu: PhieuYeuCauCapPhat = { 
+      maPhieu: generateId('YCCF'), 
+      ...data, 
+      maThietBi: data.items[0].maThietBi,
+      soLuongYeuCau: data.items[0].soLuong,
+      trangThai: 'CHO_DUYET', 
+      ngayTao: new Date().toISOString() 
+    };
     const requests = store.getRequests();
     requests.push(phieu);
     store.setRequests(requests);
@@ -192,6 +199,57 @@ export async function apiCreateRequest(data: Omit<PhieuYeuCauCapPhat, 'maPhieu' 
   }
   const result = await fetchApi<any>('/requests', { method: 'POST', body: JSON.stringify(data) });
   if (result.success) await refreshData('requests');
+  return result;
+}
+
+export async function apiScanRequest(maPhieu: string) {
+  if (isMockMode()) {
+    const req = store.getRequests().find(r => r.maPhieu === maPhieu);
+    if (!req) return { success: false, message: 'Không tìm thấy phiếu' };
+    const equipment = store.getEquipment();
+    const inventory = store.getInventory();
+    
+    // In mock mode, we assume the items are just the one in the request for simplicity, 
+    // unless we refactor mock storage too. For now let's just return the single item.
+    return {
+      success: true,
+      request: req,
+      items: [{
+        maThietBi: req.maThietBi,
+        tenThietBi: equipment.find(e => e.maThietBi === req.maThietBi)?.tenThietBi || req.maThietBi,
+        soLuong: req.soLuongYeuCau,
+        trangThai: req.trangThai === 'DA_CAP_PHAT' ? 'DA_DUYET' : 'CHO_DUYET',
+        donViTinh: equipment.find(e => e.maThietBi === req.maThietBi)?.donViTinh || 'Cái',
+        tonKho: inventory.find(i => i.maThietBi === req.maThietBi)?.soLuongKho || 0
+      }]
+    };
+  }
+  return fetchApi<any>(`/requests/${maPhieu}/scan`);
+}
+
+export async function apiProcessRequestItems(maPhieu: string, data: { items: { maThietBi: string; approved: boolean; lyDo?: string }[]; ghiChu?: string }) {
+  if (isMockMode()) {
+    // Mock implementation for processing items
+    const requests = store.getRequests();
+    const reqIndex = requests.findIndex(r => r.maPhieu === maPhieu);
+    if (reqIndex === -1) return { success: false, message: 'Không tìm thấy phiếu' };
+    
+    const approvedCount = data.items.filter(i => i.approved).length;
+    if (approvedCount > 0) {
+      requests[reqIndex].trangThai = 'DA_CAP_PHAT';
+      // In mock mode, we'd need to update inventory here too.
+    } else {
+      requests[reqIndex].trangThai = 'TU_CHOI';
+    }
+    store.setRequests([...requests]);
+    return { success: true, message: approvedCount > 0 ? "Đã xuất kho thành công." : "Đã từ chối tất cả thiết bị." };
+  }
+  const result = await fetchApi<any>(`/requests/${maPhieu}/process-items`, { method: 'POST', body: JSON.stringify(data) });
+  if (result.success) {
+    await refreshData('requests');
+    await refreshData('allocations');
+    await refreshData('inventory');
+  }
   return result;
 }
 
