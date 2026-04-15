@@ -11,7 +11,9 @@ function mapDept(row) {
 
 export async function getAllDepartments(req, res) {
   try {
-    const [rows] = await pool.query("SELECT * FROM khoa ORDER BY ngay_tao DESC");
+    const [rows] = await pool.query(
+      "SELECT * FROM khoa ORDER BY CAST(SUBSTRING(ma_khoa, 3) AS UNSIGNED) ASC"
+    );
     res.json(rows.map(mapDept));
   } catch (err) {
     res.status(500).json({ message: "Lỗi máy chủ." });
@@ -29,10 +31,33 @@ export async function createDepartment(req, res) {
     const id = "K-" + String(Date.now()).slice(-6);
     await pool.query(
       "INSERT INTO khoa (ma_khoa, ten_khoa, mo_ta, trang_thai) VALUES (?, ?, ?, TRUE)",
-      [id, tenKhoa, moTa || ""]
+      [id, tenKhoa, moTa]
     );
     const [rows] = await pool.query("SELECT * FROM khoa WHERE ma_khoa = ?", [id]);
     res.json({ success: true, department: mapDept(rows[0]) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
+export async function deleteDepartment(req, res) {
+  try {
+    const id = req.params.id;
+    const [existing] = await pool.query("SELECT ma_khoa FROM khoa WHERE ma_khoa = ?", [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy khoa." });
+    }
+
+    try {
+      await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
+      return res.json({ success: true, message: "Đã xóa khoa." });
+    } catch (err) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+        await pool.query("UPDATE khoa SET trang_thai = FALSE WHERE ma_khoa = ?", [id]);
+        return res.json({ success: true, message: "Khoa đang có dữ liệu liên quan nên đã bị vô hiệu hóa." });
+      }
+      throw err;
+    }
   } catch (err) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
