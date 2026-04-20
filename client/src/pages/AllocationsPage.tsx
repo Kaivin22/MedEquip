@@ -53,7 +53,7 @@ export default function AllocationsPage() {
   const departments = store.getDepartments();
   const users = store.getUsers();
 
-  const isNV_KHO = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
+  const isNV_KHO = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
   const isTRUONG_KHOA = user?.vaiTro === 'TRUONG_KHOA';
 
   useEffect(() => {

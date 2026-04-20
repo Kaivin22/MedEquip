@@ -1,4 +1,5 @@
 import { pool } from "../config/db.js";
+import { sendNotification } from "../utils/notificationHelper.js";
 
 function mapRequest(row) {
   return {
@@ -88,13 +89,9 @@ export async function createRequest(req, res) {
     }
 
     // Notify all Managers and Admins
-    const [managers] = await conn.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro IN ('ADMIN', 'TRUONG_KHOA')");
+    const [managers] = await conn.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro IN ('ADMIN', 'TRUONG_KHOA', 'QL_KHO')");
     for (const m of managers) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-      await conn.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'info', ?)",
-        [notifId, "Yêu cầu cấp phát mới", `Nhân viên ${maNguoiYeuCau || req.user.userId} vừa tạo yêu cầu cấp phát mới mã ${id} với ${items.length} hạng mục.`, m.ma_nguoi_dung]
-      );
+      await sendNotification(m.ma_nguoi_dung, "Yêu cầu cấp phát mới", `Nhân viên ${maNguoiYeuCau || req.user.userId} vừa tạo yêu cầu cấp phát mới mã ${id} với ${items.length} hạng mục.`, 'info');
     }
 
     await conn.commit();
@@ -127,12 +124,8 @@ export async function approveDept(req, res) {
     // Notify requester
     const [reqData] = await pool.query("SELECT ma_nguoi_yeu_cau, ma_thiet_bi FROM phieu_yeu_cau WHERE ma_phieu = ?", [req.params.id]);
     if (reqData.length > 0) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
       const msg = approved ? `Yêu cầu cấp phát ${req.params.id} của bạn đã được Trưởng khoa phê duyệt.` : `Yêu cầu cấp phát ${req.params.id} của bạn đã bị từ chối. Lý do: ${lyDo || 'Không có'}`;
-      await pool.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-        [notifId, approved ? "Yêu cầu được chấp nhận" : "Yêu cầu bị từ chối", msg, approved ? "success" : "error", reqData[0].ma_nguoi_yeu_cau]
-      );
+      await sendNotification(reqData[0].ma_nguoi_yeu_cau, approved ? "Yêu cầu được chấp nhận" : "Yêu cầu bị từ chối", msg, approved ? "success" : "error");
     }
 
     res.json({ success: true, newStatus: approved ? "DA_DUYET" : "TU_CHOI", message: approved ? "Đã duyệt." : "Đã từ chối." });
@@ -160,12 +153,8 @@ export async function approveManager(req, res) {
     // Notify requester
     const [reqData] = await pool.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau WHERE ma_phieu = ?", [req.params.id]);
     if (reqData.length > 0) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
       const msg = approved ? `Yêu cầu cấp phát ${req.params.id} của bạn đã được Quản trị viên phê duyệt.` : `Yêu cầu cấp phát ${req.params.id} của bạn đã bị từ chối. Lý do: ${lyDo || 'Không có'}`;
-      await pool.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-        [notifId, approved ? "Yêu cầu được chấp nhận" : "Yêu cầu bị từ chối", msg, approved ? "success" : "error", reqData[0].ma_nguoi_yeu_cau]
-      );
+      await sendNotification(reqData[0].ma_nguoi_yeu_cau, approved ? "Yêu cầu được chấp nhận" : "Yêu cầu bị từ chối", msg, approved ? "success" : "error");
     }
 
     res.json({ success: true, newStatus: approved ? "DA_DUYET" : "TU_CHOI", message: approved ? "Quản lý đã duyệt." : "Đã từ chối." });
@@ -298,13 +287,10 @@ export async function processRequestItems(req, res) {
     }
 
     // Notify requester
-    const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-    await conn.query(
-      "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-      [notifId, approvedCount > 0 ? "Thiết bị đã sẵn sàng" : "Yêu cầu bị từ chối",
+    await sendNotification(request.ma_nguoi_yeu_cau, 
+        approvedCount > 0 ? "Thiết bị đã sẵn sàng" : "Yêu cầu bị từ chối",
         approvedCount > 0 ? `Yêu cầu ${id} đã được cấp phát ${approvedCount} thiết bị.` : `Yêu cầu ${id} của bạn đã bị từ chối hoàn toàn.`,
-        approvedCount > 0 ? 'success' : 'error',
-        request.ma_nguoi_yeu_cau]
+        approvedCount > 0 ? 'success' : 'error'
     );
 
     await conn.commit();

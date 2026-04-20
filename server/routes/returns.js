@@ -8,13 +8,13 @@ const router = Router();
 router.post("/create", authMiddleware, roleMiddleware("TRUONG_KHOA"), createReturn);
 
 // NV_KHO xem danh sách phiếu trả
-router.get("/", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), getAllReturns);
+router.get("/", authMiddleware, roleMiddleware("ADMIN", "NV_KHO", "QL_KHO"), getAllReturns);
 
 // TK xem phiếu trả của mình
 router.get("/my", authMiddleware, roleMiddleware("TRUONG_KHOA"), getMyReturns);
 
 // NV_KHO chấp nhận/từ chối phiếu trả
-router.put("/:id/confirm", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), confirmReturn);
+router.put("/:id/confirm", authMiddleware, roleMiddleware("ADMIN", "NV_KHO", "QL_KHO"), confirmReturn);
 
 // Xóa (ẩn) phiếu trả
 router.delete("/:id", authMiddleware, deleteReturn);

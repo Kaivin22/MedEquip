@@ -24,16 +24,16 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
-  { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
-  { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO'] },
-  { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
-  { key: 'returns', label: 'Trả thiết bị', icon: <RotateCcw className="w-5 h-5" />, roles: ['TRUONG_KHOA', 'NV_KHO', 'ADMIN'] },
-  { key: 'reports', label: 'Báo cáo thống kê', icon: <BarChart3 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
+  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+  { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+  { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+  { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'QL_KHO'] },
+  { key: 'returns', label: 'Trả thiết bị', icon: <RotateCcw className="w-5 h-5" />, roles: ['TRUONG_KHOA', 'NV_KHO', 'ADMIN', 'QL_KHO'] },
+  { key: 'reports', label: 'Báo cáo thống kê', icon: <BarChart3 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
   { key: 'users', label: 'Quản lý Tài khoản', icon: <Users className="w-5 h-5" />, roles: ['ADMIN'] },
-  { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
-  { key: 'profile', label: 'Trang cá nhân', icon: <UserCircle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'] },
+  { key: 'notifications', label: 'Thông báo', icon: <Bell className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
+  { key: 'profile', label: 'Trang cá nhân', icon: <UserCircle className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
 ];
 
 interface AppLayoutProps {

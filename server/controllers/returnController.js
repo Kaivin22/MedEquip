@@ -1,4 +1,5 @@
 import { pool } from "../config/db.js";
+import { sendNotification } from "../utils/notificationHelper.js";
 
 function mapReturn(row, details = []) {
   return {
@@ -97,11 +98,7 @@ export async function createReturn(req, res) {
     // Thông báo cho nhân viên kho
     const [khoStaff] = await conn.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro = 'NV_KHO' AND trang_thai = TRUE");
     for (const kho of khoStaff) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-      await conn.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'info', ?)",
-        [notifId, `Yêu cầu trả thiết bị mới: ${maPhieuTra}`, `Trưởng khoa vừa tạo phiếu trả mới.`, kho.ma_nguoi_dung]
-      );
+      await sendNotification(kho.ma_nguoi_dung, `Yêu cầu trả thiết bị mới: ${maPhieuTra}`, `Trưởng khoa vừa tạo phiếu trả mới.`, 'info');
     }
 
     await conn.commit();
