@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS nguoi_dung (
     ho_ten VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     mat_khau VARCHAR(255) NOT NULL,
-    vai_tro ENUM('ADMIN','NV_KHO','TRUONG_KHOA') NOT NULL DEFAULT 'TRUONG_KHOA',
+    vai_tro ENUM('ADMIN','NV_KHO','TRUONG_KHOA','QL_KHO') NOT NULL DEFAULT 'TRUONG_KHOA',
     ma_khoa VARCHAR(20) NULL,
     trang_thai BOOLEAN DEFAULT TRUE,
     so_lan_dang_nhap_sai INT DEFAULT 0,
@@ -141,10 +141,14 @@ CREATE TABLE IF NOT EXISTS phieu_nhap_kho (
     ma_nha_cung_cap VARCHAR(20) NOT NULL,
     ngay_nhap DATETIME DEFAULT CURRENT_TIMESTAMP,
     ghi_chu TEXT,
-    trang_thai ENUM('CHO_DUYET', 'DA_DUYET', 'TU_CHOI') DEFAULT 'DA_DUYET',
+    trang_thai ENUM('CHO_DUYET', 'DA_DUYET', 'TU_CHOI') DEFAULT 'CHO_DUYET',
     nguoi_duyet VARCHAR(20) DEFAULT NULL,
     ly_do_tu_choi TEXT DEFAULT NULL,
     ngay_duyet DATETIME DEFAULT NULL,
+    tong_so_loai INT DEFAULT 0,
+    tong_so_luong INT DEFAULT 0,
+    tong_gia_tri DECIMAL(20,2) DEFAULT 0,
+    chung_tu_dinh_kem LONGTEXT DEFAULT NULL,
     FOREIGN KEY (ma_nguoi_nhap) REFERENCES nguoi_dung(ma_nguoi_dung),
     FOREIGN KEY (ma_nha_cung_cap) REFERENCES nha_cung_cap(ma_nha_cung_cap)
 );
@@ -173,6 +177,12 @@ CREATE TABLE IF NOT EXISTS phieu_xuat_kho (
     ly_do TEXT,
     ghi_chu TEXT,
     trang_thai ENUM('DA_LAP','DA_XUAT','DA_HUY') DEFAULT 'DA_LAP',
+    nguoi_duyet VARCHAR(20) DEFAULT NULL,
+    ngay_duyet DATETIME NULL,
+    tong_so_loai INT DEFAULT 0,
+    tong_so_luong INT DEFAULT 0,
+    tong_gia_tri DECIMAL(20,2) DEFAULT 0,
+    chung_tu_dinh_kem LONGTEXT DEFAULT NULL,
     FOREIGN KEY (ma_nguoi_xuat) REFERENCES nguoi_dung(ma_nguoi_dung)
 );
 
@@ -180,6 +190,9 @@ CREATE TABLE IF NOT EXISTS chi_tiet_xuat_kho (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ma_phieu_xuat VARCHAR(30) NOT NULL,
     ma_thiet_bi VARCHAR(20) NOT NULL,
+    don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
+    so_luong_giao_dich INT NOT NULL,
+    so_luong_co_so INT NOT NULL,
     so_luong INT NOT NULL,
     FOREIGN KEY (ma_phieu_xuat) REFERENCES phieu_xuat_kho(ma_phieu),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
@@ -207,10 +220,10 @@ CREATE TABLE IF NOT EXISTS phieu_bao_hu_hong (
 
 -- 11. Bảng Thông báo
 CREATE TABLE IF NOT EXISTS thong_bao (
-    id VARCHAR(20) PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     tieu_de VARCHAR(200) NOT NULL,
-    noi_dung TEXT,
-    loai ENUM('info','warning','success','error') DEFAULT 'info',
+    noi_dung TEXT NOT NULL,
+    loai ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
     nguoi_nhan VARCHAR(20) NOT NULL,
     da_doc BOOLEAN DEFAULT FALSE,
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -277,7 +290,8 @@ INSERT IGNORE INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, 
 ('ND-002', 'Trần Thị Kho', 'kho@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'NV_KHO', NULL),
 ('ND-003', 'Trưởng khoa Nội', 'khoanoi@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-001'),
 ('ND-004', 'Trưởng khoa Ngoại', 'khoangoai@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-002'),
-('ND-005', 'Trưởng khoa Sản', 'khoasan@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-003');
+('ND-005', 'Trưởng khoa Sản', 'khoasan@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-003'),
+('ND-006', 'Lê Văn Quản Lý', 'qlkho@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'QL_KHO', NULL);
 
 INSERT IGNORE INTO nha_cung_cap (ma_nha_cung_cap, ten_nha_cung_cap) VALUES
 ('NCC-001', 'Công ty Phương Nam'),
@@ -293,5 +307,5 @@ INSERT IGNORE INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, 
 ('TK-002', 'TB-002', 100, 0, 80),
 ('TK-003', 'TB-003', 10, 0, 5);
 
-INSERT IGNORE INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES
-('TB-N-001', 'Hệ thống đã nâng cấp', 'MedEquip đã được cập nhật lên v4.', 'info', 'ND-001', FALSE);
+INSERT IGNORE INTO thong_bao (tieu_de, noi_dung, loai, nguoi_nhan, da_doc) VALUES
+('Hệ thống đã nâng cấp', 'MedEquip đã được cập nhật lên v4.', 'info', 'ND-001', FALSE);

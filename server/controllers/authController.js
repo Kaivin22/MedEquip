@@ -38,7 +38,13 @@ export async function login(req, res) {
     // Reset failed attempts (just in case)
     await pool.query("UPDATE nguoi_dung SET so_lan_dang_nhap_sai = 0, khoa_den = NULL WHERE ma_nguoi_dung = ?", [user.ma_nguoi_dung]);
 
-    const token = generateToken({ userId: user.ma_nguoi_dung, vaiTro: user.vai_tro, email: user.email, maKhoa: user.ma_khoa });
+    const token = generateToken({ 
+      userId: user.ma_nguoi_dung, 
+      vaiTro: user.vai_tro, 
+      email: user.email, 
+      maKhoa: user.ma_khoa,
+      hoTen: user.ho_ten
+    });
 
     res.json({ success: true, user: mapUser(user), token });
   } catch (err) {

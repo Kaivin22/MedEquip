@@ -74,7 +74,7 @@ export default function RequestsPage() {
   const users = store.getUsers();
   const inventory = store.getInventory();
 
-  const isNvkho = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
+  const isNvkho = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
   const isKhoa = user?.vaiTro === 'TRUONG_KHOA';
 
   const eqFiltered = useMemo(() => {
@@ -241,7 +241,7 @@ export default function RequestsPage() {
   const handleReject = async () => {
     if (!rejectReason) return toast({ title: 'Lỗi', description: 'Nhập lý do từ chối', variant: 'destructive' });
     try {
-      const endpoint = user?.vaiTro === 'NV_KHO' ? `/requests/${rejectingId}/approve-mgr` : `/requests/${rejectingId}/approve-dept`;
+      const endpoint = (user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'QL_KHO') ? `/requests/${rejectingId}/approve-mgr` : `/requests/${rejectingId}/approve-dept`;
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}${endpoint}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` },

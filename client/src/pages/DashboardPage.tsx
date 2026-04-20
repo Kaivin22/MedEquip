@@ -44,14 +44,14 @@ export default function DashboardPage() {
   const totalInUse = inventory.reduce((s, i) => s + i.soLuongDangDung, 0);
 
   const filteredStats = [
-    { label: 'Thiết bị tổng', value: equipment.length, icon: Package, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'NV_KHO'] },
-    { label: 'Thiết bị đang mượn', value: đangMuonKhoa, icon: TrendingUp, color: 'text-info bg-info/10', roles: ['TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Thiết bị tổng', value: equipment.length, icon: Package, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+    { label: 'Thiết bị đang mượn', value: đangMuonKhoa, icon: TrendingUp, color: 'text-info bg-info/10', roles: ['TRUONG_KHOA', 'NV_KHO', 'QL_KHO'] },
     { label: 'Đã trả', value: daTraKhoa, icon: Package, color: 'text-success bg-success/10', roles: ['TRUONG_KHOA'] },
-    { label: 'Tồn kho tổng', value: totalStock, icon: Archive, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'NV_KHO'] },
-    { label: 'Đang dùng tổng', value: totalInUse, icon: TrendingUp, color: 'text-info bg-info/10', roles: ['ADMIN'] },
-    { label: 'Nhà cung cấp', value: suppliers.length, icon: Truck, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'NV_KHO'] },
-    { label: 'Khoa', value: departments.length, icon: Building2, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'NV_KHO'] },
-    { label: 'Phiếu chờ duyệt', value: pendingRequests, icon: AlertTriangle, color: 'text-warning bg-warning/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO'] },
+    { label: 'Tồn kho tổng', value: totalStock, icon: Archive, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+    { label: 'Đang dùng tổng', value: totalInUse, icon: TrendingUp, color: 'text-info bg-info/10', roles: ['ADMIN', 'QL_KHO'] },
+    { label: 'Nhà cung cấp', value: suppliers.length, icon: Truck, color: 'text-primary bg-primary/10', roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+    { label: 'Khoa', value: departments.length, icon: Building2, color: 'text-accent bg-accent/10', roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+    { label: 'Phiếu chờ duyệt', value: pendingRequests, icon: AlertTriangle, color: 'text-warning bg-warning/10', roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'QL_KHO'] },
     { label: 'Xin cấp phát', value: myRequests.length, icon: FileText, color: 'text-primary bg-primary/10', roles: ['TRUONG_KHOA'] },
     { label: 'Người dùng', value: users.length, icon: Users, color: 'text-primary bg-primary/10', roles: ['ADMIN'] },
   ].filter(s => s.roles.includes(user.vaiTro));

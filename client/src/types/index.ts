@@ -1,5 +1,5 @@
 // v4: bỏ NV_BV, chỉ còn 3 role
-export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA';
+export type UserRole = 'ADMIN' | 'NV_KHO' | 'TRUONG_KHOA' | 'QL_KHO';
 
 export interface NguoiDung {
   maNguoiDung: string;
@@ -102,6 +102,7 @@ export interface PhieuCapPhat {
 export interface PhieuNhapKho {
   maPhieu: string;
   maNhaCungCap: string;
+  tenNhaCungCap?: string;
   maThietBi: string;
   tenThietBi?: string;
   soLuongNhap: number;
@@ -228,12 +229,14 @@ export interface NhatKy {
 // ──────── Constants ────────
 export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',
+  QL_KHO: 'Quản lý Kho',
   NV_KHO: 'Nhân viên Kho',
   TRUONG_KHOA: 'Trưởng Khoa',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
   ADMIN: 'bg-destructive/10 text-destructive',
+  QL_KHO: 'bg-indigo-100 text-indigo-700',
   NV_KHO: 'bg-primary/10 text-primary',
   TRUONG_KHOA: 'bg-warning/10 text-warning',
 };

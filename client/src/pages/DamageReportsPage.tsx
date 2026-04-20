@@ -25,7 +25,7 @@ export default function DamageReportsPage() {
   const users = store.getUsers();
 
   const canReport = ['NV_BV', 'TRUONG_KHOA', 'NV_KHO', 'ADMIN'].includes(user?.vaiTro || '');
-  const canProcess = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
+  const canProcess = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
 
   const [form, setForm] = useState({ maThietBi: '', maKhoa: '', soLuongHu: 1, moTaHuHong: '' });
 

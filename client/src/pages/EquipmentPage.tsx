@@ -29,7 +29,7 @@ export default function EquipmentPage() {
   const suppliers = store.getSuppliers();
   const inventory = store.getInventory();
 
-  const canEdit = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'NV_KHO';
+  const canEdit = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'QL_KHO';
 
   const [form, setForm] = useState<{
     tenThietBi: string; loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG'; donViCoSo: string; donViNhap: string;

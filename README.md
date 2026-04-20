@@ -43,6 +43,7 @@ npm run dev
 Hệ thống v4 **đã lược bỏ tài khoản Nhân viên Bệnh viện (NV_BV)**:
 - **Admin**: admin@benhvien.vn
 - **Nhân viên Kho (NV_KHO)**: kho@benhvien.vn
+- **Quản lý Khoa (QL_KHOA)**: qlkhoa@benhvien.vn
 - **Trưởng Khoa (TRUONG_KHOA)**: khoanoi@benhvien.vn (K-001)
 khoangoai@benhvien.vn (K-002)
 khoasan@benhvien.vn (K-003)

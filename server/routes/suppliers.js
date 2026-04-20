@@ -5,8 +5,8 @@ import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier } from 
 const router = Router();
 
 router.get("/", authMiddleware, getAllSuppliers);
-router.post("/", authMiddleware, roleMiddleware("ADMIN"), createSupplier);
-router.put("/:id", authMiddleware, roleMiddleware("ADMIN"), updateSupplier);
-router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteSupplier);
+router.post("/", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), createSupplier);
+router.put("/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), updateSupplier);
+router.delete("/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), deleteSupplier);
 
 export default router;
