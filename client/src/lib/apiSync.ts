@@ -140,8 +140,23 @@ export async function apiDeleteSupplier(id: string) {
 // ---- Departments ----
 export async function apiCreateDepartment(data: Omit<Khoa, 'maKhoa' | 'trangThai'>) {
   if (isMockMode()) {
-    const dept: Khoa = { maKhoa: generateId('K'), ...data, trangThai: true };
     const depts = store.getDepartments();
+    const duplicate = depts.some(d => d.tenKhoa.trim().toLowerCase() === data.tenKhoa.trim().toLowerCase());
+    if (duplicate) return { success: false, message: 'Khoa đã tồn tại.' };
+
+    const nextIdNum = depts
+      .map(d => {
+        const match = d.maKhoa.match(/^K-(\d{3})$/);
+        return match ? Number(match[1]) : null;
+      })
+      .filter((n): n is number => n !== null)
+      .reduce((max, value) => Math.max(max, value), 0) + 1;
+
+    const dept: Khoa = {
+      maKhoa: `K-${String(nextIdNum).padStart(3, '0')}`,
+      ...data,
+      trangThai: true,
+    };
     depts.push(dept);
     store.setDepartments(depts);
     return { success: true, department: dept };
