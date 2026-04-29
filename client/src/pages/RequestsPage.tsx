@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box, Camera, QrCode, RotateCcw, PackageCheck, ClipboardList, AlertCircle } from 'lucide-react';
+import { Search, CheckCheck, ShoppingCart, Plus, Minus, X, Trash2, Box, Camera, QrCode, RotateCcw, PackageCheck, ClipboardList, AlertCircle, Upload, Keyboard } from 'lucide-react';
 import { fetchApi } from '@/services/api';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -22,13 +22,15 @@ import { Badge } from '@/components/ui/badge';
 const STATUS_MAP = { 
   CHO_DUYET: 'Chờ cấp phát', 
   TU_CHOI: 'Từ chối',
-  DA_CAP_PHAT: 'Đã cấp phát'
+  DA_CAP_PHAT: 'Đã cấp phát',
+  DA_HUY: 'Đã hủy'
 } as const;
 
 const STATUS_COLORS = { 
   CHO_DUYET: 'bg-warning/10 text-warning border-warning/20', 
   TU_CHOI: 'bg-destructive/10 text-destructive border-destructive/20',
-  DA_CAP_PHAT: 'bg-success/10 text-success border-success/20'
+  DA_CAP_PHAT: 'bg-success/10 text-success border-success/20',
+  DA_HUY: 'bg-gray-100 text-gray-700 border-gray-200'
 };
 
 export default function RequestsPage() {
@@ -42,7 +44,7 @@ export default function RequestsPage() {
 
   // Cart state
   const [cartOpen, setCartOpen] = useState(false);
-  const [cart, setCart] = useState<{tb: ThietBi, soLuong: number, donVi: string}[]>([]);
+  const [cart, setCart] = useState<{tb: ThietBi, soLuong: number, donVi: string, ngayTraDuKien: string}[]>([]);
   const [lyDo, setLyDo] = useState('');
   const [khoaYeuCau, setKhoaYeuCau] = useState(user?.maKhoa || '');
 
@@ -55,6 +57,13 @@ export default function RequestsPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+
+  // Department Canceling
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancellingId, setCancellingId] = useState('');
+
+  // Delete State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // NEW: Multi-item processing states
   const [processingRequest, setProcessingRequest] = useState<any>(null);
@@ -76,6 +85,7 @@ export default function RequestsPage() {
 
   const isNvkho = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
   const isKhoa = user?.vaiTro === 'TRUONG_KHOA';
+  const canDelete = user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
 
   const eqFiltered = useMemo(() => {
     return equipment.filter(e => 
@@ -101,7 +111,7 @@ export default function RequestsPage() {
       if (existing) {
         return prev.map(item => item.tb.maThietBi === tb.maThietBi ? { ...item, soLuong: item.soLuong + 1 } : item);
       }
-      return [...prev, { tb, soLuong: 1, donVi: tb.donViCoSo }];
+      return [...prev, { tb, soLuong: 1, donVi: tb.donViCoSo, ngayTraDuKien: '' }];
     });
     toast({ title: 'Đã thêm vào giỏ', description: `${tb.tenThietBi}` });
   };
@@ -115,6 +125,10 @@ export default function RequestsPage() {
     setCart(prev => prev.map(i => i.tb.maThietBi === id ? { ...i, donVi: unit } : i));
   };
 
+  const updateCartReturnDate = (id: string, date: string) => {
+    setCart(prev => prev.map(i => i.tb.maThietBi === id ? { ...i, ngayTraDuKien: date } : i));
+  };
+
   const submitCart = async () => {
     if (cart.length === 0) return toast({ title: 'Lỗi', description: 'Giỏ hàng rỗng.', variant: 'destructive' });
     if (!khoaYeuCau && isKhoa && !departments.find(k=>k.maKhoa === khoaYeuCau)) {
@@ -124,6 +138,21 @@ export default function RequestsPage() {
 
     let hasError = false;
     for (const item of cart) {
+      if (item.tb.loaiThietBi !== 'VAT_TU_TIEU_HAO') {
+        if (!item.ngayTraDuKien) {
+          toast({ title: 'Lỗi', description: `Vui lòng chọn ngày trả thiết bị do mượn (${item.tb.tenThietBi})`, variant: 'destructive' });
+          hasError = true; break;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const returnDate = new Date(item.ngayTraDuKien);
+        if (returnDate <= today) {
+          toast({ title: 'Lỗi', description: `Ngày trả thiết bị (${item.tb.tenThietBi}) phải sau ngày hôm nay.`, variant: 'destructive' });
+          hasError = true; break;
+        }
+      }
+      
       const inv = inventory.find(i => i.maThietBi === item.tb.maThietBi);
       const factor = item.donVi === item.tb.donViNhap ? (item.tb.heSoQuyDoi || 1) : 1;
       const totalBaseQty = item.soLuong * factor;
@@ -147,7 +176,8 @@ export default function RequestsPage() {
         items: cart.map(item => ({
           maThietBi: item.tb.maThietBi,
           soLuong: item.soLuong,
-          donVi: item.donVi
+          donVi: item.donVi,
+          ngayTraDuKien: item.ngayTraDuKien
         }))
       });
       
@@ -264,6 +294,45 @@ export default function RequestsPage() {
     }
   };
 
+  const handleCancel = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/requests/${cancellingId}/cancel`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        await refreshRequests();
+        setCancelOpen(false);
+        toast({ title: 'Đã hủy phiếu yêu cầu.' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Lỗi', description: 'Không thể thực hiện hủy.', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/requests/${deleteConfirmId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        setDeleteConfirmId(null);
+        await refreshRequests();
+        toast({ title: 'Thành công', description: 'Đã xóa phiếu yêu cầu.' });
+      } else {
+        toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Lỗi', description: 'Không thể thực hiện xóa.', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in relative min-h-[80vh]">
       <Tabs defaultValue={isKhoa ? "catalog" : "history"} className="w-full">
@@ -369,7 +438,7 @@ export default function RequestsPage() {
                   <th className="text-center p-3 font-medium text-muted-foreground">Số lượng mục</th>
                   <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
                   <th className="text-center p-3 font-medium text-muted-foreground">Ngày YC</th>
-                  {isNvkho && <th className="text-right p-3 font-medium text-muted-foreground">Hành động</th>}
+                  {(isNvkho || isKhoa) && <th className="text-right p-3 font-medium text-muted-foreground">Hành động</th>}
                 </tr></thead>
                 <tbody>
                   {reqFiltered.map(r => {
@@ -393,20 +462,36 @@ export default function RequestsPage() {
                             r.trangThai === 'CHO_DUYET' && 'bg-amber-100 text-amber-700 border-amber-200',
                             r.trangThai === 'DA_CAP_PHAT' && 'bg-green-100 text-green-700 border-green-200',
                             r.trangThai === 'TU_CHOI' && 'bg-red-100 text-red-700 border-red-200',
+                            r.trangThai === 'DA_HUY' && 'bg-muted text-muted-foreground border-border'
                           )}>
-                            {STATUS_MAP[r.trangThai as keyof typeof STATUS_MAP] || r.trangThai}
+                            {r.trangThai === 'DA_HUY' ? 'Đã hủy' : (STATUS_MAP[r.trangThai as keyof typeof STATUS_MAP] || r.trangThai)}
                           </span>
+                          {isNvkho && r.trangThai === 'DA_HUY' && (
+                            <div className="text-[10px] text-destructive mt-2 font-medium italic">Phiếu yêu cầu đã bị hủy bởi người yêu cầu</div>
+                          )}
                         </td>
                         <td className="p-3 text-center text-xs text-muted-foreground">{new Date(r.ngayTao).toLocaleString('vi-VN')}</td>
-                        {isNvkho && (
+                        {(isNvkho || isKhoa) && (
                           <td className="p-3 text-right">
-                            {r.trangThai === 'CHO_DUYET' ? (
-                              <Button size="sm" className="gradient-primary text-white text-xs h-8" onClick={(e) => { e.stopPropagation(); startProcessing(r.maPhieu); }}>
-                                Xử lý cấp phát
+                            {isNvkho && (
+                              r.trangThai === 'CHO_DUYET' ? (
+                                <Button size="sm" className="gradient-primary text-white text-xs h-8" onClick={(e) => { e.stopPropagation(); startProcessing(r.maPhieu); }}>
+                                  Xử lý cấp phát
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); setQrDataStr(r.maPhieu); setQrOpen(true); }}>
+                                  <QrCode className="w-4 h-4 text-muted-foreground" />
+                                </Button>
+                              )
+                            )}
+                            {isKhoa && r.trangThai === 'CHO_DUYET' && (
+                              <Button size="sm" variant="destructive" className="text-xs h-8 ml-2" onClick={(e) => { e.stopPropagation(); setCancellingId(r.maPhieu); setCancelOpen(true); }}>
+                                Hủy
                               </Button>
-                            ) : (
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); setQrDataStr(r.maPhieu); setQrOpen(true); }}>
-                                <QrCode className="w-4 h-4 text-muted-foreground" />
+                            )}
+                            {canDelete && (
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 ml-2" onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(r.maPhieu); }}>
+                                <Trash2 className="w-4 h-4" />
                               </Button>
                             )}
                           </td>
@@ -471,16 +556,24 @@ export default function RequestsPage() {
                         )}
                       </div>
                       
-                      <div className="flex items-center gap-2 border bg-muted/20 p-1 rounded-lg w-full sm:w-auto justify-end">
-                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded" onClick={() => updateCartQty(item.tb.maThietBi, item.soLuong - 1)}><Minus className="w-3 h-3" /></Button>
-                        <Input 
-                          type="number" 
-                          className="w-12 h-7 text-center font-bold bg-transparent border-0 focus-visible:ring-0 p-0 text-primary" 
-                          value={item.soLuong} 
-                          onChange={e => updateCartQty(item.tb.maThietBi, parseInt(e.target.value) || 0)} 
-                          min={0} max={maxKho}
-                        />
-                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded" onClick={() => updateCartQty(item.tb.maThietBi, item.soLuong + 1)} disabled={item.soLuong >= maxKho}><Plus className="w-3 h-3" /></Button>
+                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 w-full sm:w-auto justify-end">
+                        {item.tb.loaiThietBi !== 'VAT_TU_TIEU_HAO' && (
+                          <div className="flex flex-col items-start w-full sm:w-auto">
+                            <span className="text-[10px] text-muted-foreground ml-1">Ngày trả dự kiến *</span>
+                            <Input type="date" value={item.ngayTraDuKien || ''} onChange={e => updateCartReturnDate(item.tb.maThietBi, e.target.value)} className="h-8 max-w-[130px] text-xs bg-muted/20" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 border bg-muted/20 p-1 rounded-lg w-full sm:w-auto justify-end mt-4 sm:mt-0">
+                          <Button size="icon" variant="ghost" className="h-6 w-6 rounded" onClick={() => updateCartQty(item.tb.maThietBi, item.soLuong - 1)}><Minus className="w-3 h-3" /></Button>
+                          <Input 
+                            type="number" 
+                            className="w-10 h-6 text-center font-bold bg-transparent border-0 focus-visible:ring-0 p-0 text-primary" 
+                            value={item.soLuong} 
+                            onChange={e => updateCartQty(item.tb.maThietBi, parseInt(e.target.value) || 0)} 
+                            min={0} max={maxKho}
+                          />
+                          <Button size="icon" variant="ghost" className="h-6 w-6 rounded" onClick={() => updateCartQty(item.tb.maThietBi, item.soLuong + 1)} disabled={item.soLuong >= maxKho}><Plus className="w-3 h-3" /></Button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -570,6 +663,11 @@ export default function RequestsPage() {
                                 <td className="p-3">
                                   <div className="font-medium">{details.tenThietBi}</div>
                                   <div className="text-[10px] text-muted-foreground font-mono">{item.maThietBi}</div>
+                                  {details.ngayTraDuKien && (
+                                    <div className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md w-fit mt-1 border border-amber-200 font-medium whitespace-nowrap">
+                                      Dự kiến trả: {new Date(details.ngayTraDuKien).toLocaleDateString('vi-VN')}
+                                    </div>
+                                  )}
                                   {!isEditable && (
                                      <Badge className={cn("mt-1 text-[8px] h-4", 
                                         (itemStatus === 'DA_DUYET' || itemStatus === 'DA_CAP_PHAT') ? "bg-success text-white" : "bg-destructive text-white"
@@ -697,6 +795,21 @@ export default function RequestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* CANCEL MODAL */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><X className="w-5 h-5"/> Xác nhận hủy yêu cầu</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-muted-foreground">Bạn có chắc chắn muốn hủy phiếu yêu cầu <strong className="text-foreground">{cancellingId}</strong> không?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>Quay lại</Button>
+            <Button variant="destructive" onClick={handleCancel}>Xác nhận hủy</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="max-w-sm text-center flex flex-col items-center justify-center p-6 space-y-4">
           <DialogHeader><DialogTitle>Mã QR Yêu Cầu Cấp Phát</DialogTitle></DialogHeader>
@@ -735,10 +848,60 @@ export default function RequestsPage() {
               )}
             </div>
 
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><Separator /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Hoặc sử dụng cách khác</span></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" className="flex flex-col h-auto py-4 gap-2" onClick={() => document.getElementById('req-qr-file-input')?.click()}>
+                <Upload className="h-6 w-6 text-primary" />
+                <div className="text-xs">Tải ảnh QR lên</div>
+                <input
+                  id="req-qr-file-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      if (!('BarcodeDetector' in window)) {
+                        toast({ title: 'Trình duyệt không hỗ trợ', description: 'Vui lòng nhập mã thủ công.', variant: 'destructive' });
+                        return;
+                      }
+                      const img = new Image();
+                      img.src = URL.createObjectURL(file);
+                      await img.decode();
+                      // @ts-ignore
+                      const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                      const [barcode] = await barcodeDetector.detect(img);
+                      if (barcode) {
+                        setScanOpen(false);
+                        startProcessing(barcode.rawValue);
+                      } else {
+                        toast({ title: 'Lỗi', description: 'Không tìm thấy mã QR trong ảnh này.', variant: 'destructive' });
+                      }
+                    } catch (err: any) {
+                      toast({ title: 'Lỗi', description: 'Không thể xử lý ảnh: ' + err.message, variant: 'destructive' });
+                    }
+                  }}
+                />
+              </Button>
+
+              <div className="space-y-2">
+                <Button variant="outline" className="flex flex-col h-auto py-4 gap-2 w-full" onClick={() => (document.getElementById('req-manual-input') as HTMLInputElement)?.focus()}>
+                  <Keyboard className="h-6 w-6 text-muted-foreground" />
+                  <div className="text-xs">Nhập mã thủ công</div>
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2">
-              <Input 
-                placeholder="Nhập mã YCCF thủ công..." 
-                value={manualCode} 
+              <Input
+                id="req-manual-input"
+                placeholder="Ví dụ: YCCF-2026-12345"
+                value={manualCode}
                 onChange={e => setManualCode(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
@@ -747,13 +910,29 @@ export default function RequestsPage() {
                   }
                 }}
               />
-               <Button onClick={() => {
-                   setScanOpen(false);
-                   startProcessing(manualCode);
-               }}>Tìm</Button>
+              <Button onClick={() => { setScanOpen(false); startProcessing(manualCode); }}>Tìm</Button>
             </div>
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setScanOpen(false)} className="w-full">Đóng</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DELETE CONFIRM Modal */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Xác nhận xóa
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-foreground/80">
+            Bạn có chắc chắn muốn xóa phiếu yêu cầu <span className="font-bold text-foreground">{deleteConfirmId}</span>? Hành động này sẽ xóa dữ liệu vĩnh viễn và không thể hoàn tác.
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Hủy</Button>
+            <Button variant="destructive" onClick={handleDelete}>Xác nhận xóa</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
