@@ -5,8 +5,8 @@ import { getAllDepartments, createDepartment, updateDepartment, deleteDepartment
 const router = Router();
 
 router.get("/", authMiddleware, getAllDepartments);
-router.post("/", authMiddleware, roleMiddleware("ADMIN"), createDepartment);
-router.put("/:id", authMiddleware, roleMiddleware("ADMIN"), updateDepartment);
-router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteDepartment);
+router.post("/", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), createDepartment);
+router.put("/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), updateDepartment);
+router.delete("/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), deleteDepartment);
 
 export default router;

@@ -50,7 +50,7 @@ export default function ReturnsPage() {
   const [manualCode, setManualCode] = useState('');
 
   const canCreate = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
-  const canConfirm = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN';
+  const canConfirm = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
 
   const reload = async () => {
     try {

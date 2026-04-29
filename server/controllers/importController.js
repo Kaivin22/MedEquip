@@ -1,5 +1,6 @@
 import { pool } from "../config/db.js";
 import * as XLSX from "xlsx";
+import { sendNotification, sendNotificationToRoles } from "../utils/notificationHelper.js";
 
 // ──────────────────────────────────────────────
 // GET /imports — Lịch sử nhập kho
@@ -67,6 +68,7 @@ export async function getAllImports(req, res) {
           nguoiDuyet: row.nguoi_duyet || "",
           lyDoTuChoi: row.ly_do_tu_choi || "",
           ngayDuyet: row.ngay_duyet || null,
+          hinhAnhMinhChung: row.chung_tu_dinh_kem || null,
         });
       }
       if (details.length === 0) {
@@ -80,6 +82,7 @@ export async function getAllImports(req, res) {
           ghiChu: row.ghi_chu || "",
           maThietBi: "", tenThietBi: "", soLuongNhap: 0,
           trangThai: row.trang_thai || "DA_DUYET",
+          hinhAnhMinhChung: row.chung_tu_dinh_kem || null,
         });
       }
     }
@@ -192,7 +195,7 @@ export async function confirmImportFromExcel(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { rows, maNhaCungCap } = req.body || {};
+    const { rows, maNhaCungCap, hinhAnhMinhChung } = req.body || {};
     if (!rows || !Array.isArray(rows)) {
         await conn.rollback();
         return res.status(400).json({ success: false, message: "Dữ liệu không hợp lệ." });
@@ -205,22 +208,50 @@ export async function confirmImportFromExcel(req, res) {
     }
 
     const userId = req.user.userId;
-    const phieuId = "NK-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
-    const nccId = maNhaCungCap || validRows[0]?.maNcc;
+    const phieuId = "NK-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
+    const autoApprove = (req.user.vaiTro === 'ADMIN' || req.user.vaiTro === 'QL_KHO');
+    const trangThai = autoApprove ? 'DA_DUYET' : 'CHO_DUYET';
+    
+    // Nếu frontend không gửi maNhaCungCap, lấy từ dòng đầu tiên hợp lệ
+    const nccId = maNhaCungCap || (validRows.length > 0 ? validRows[0].maNcc : null);
+
+    // Tính toán tổng hợp
+    const tongSoLoai = validRows.length;
+    let tongSoLuong = 0;
+    let tongGiaTri = 0;
+    for (const row of validRows) {
+        tongSoLuong += (row.soLuong * (row.heSoQuyDoi || 1));
+        tongGiaTri += (row.soLuong * (row.donGia || 0));
+    }
 
     // Tạo phiếu nhập kho
     await conn.query(
-      "INSERT INTO phieu_nhap_kho (ma_phieu, ma_nguoi_nhap, ma_nha_cung_cap, ngay_nhap, ghi_chu) VALUES (?, ?, ?, NOW(), ?)",
-      [phieuId, userId, nccId, `Nhập kho từ Excel (${validRows.length} dòng)`]
+      "INSERT INTO phieu_nhap_kho (ma_phieu, ma_nguoi_nhap, ma_nha_cung_cap, ngay_nhap, ghi_chu, trang_thai, tong_so_loai, tong_so_luong, tong_gia_tri, chung_tu_dinh_kem) VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?)",
+      [phieuId, userId, nccId, `Nhập kho từ Excel (${validRows.length} dòng)`, trangThai, tongSoLoai, tongSoLuong, tongGiaTri, hinhAnhMinhChung || null]
     );
 
+    // Lấy tên người gửi (phòng trường hợp token cũ không có hoTen)
+    let senderName = req.user.hoTen || "Nhân viên";
+    if (!req.user.hoTen) {
+        const [uRows] = await conn.query("SELECT ho_ten FROM nguoi_dung WHERE ma_nguoi_dung = ?", [userId]);
+        if (uRows.length > 0) senderName = uRows[0].ho_ten;
+    }
+
+    // Thông báo
+    if (autoApprove) {
+        await sendNotification(userId, "Nhập kho thành công", `Phiếu nhập ${phieuId} đã được tạo và tự động duyệt.`, 'success');
+    } else {
+        await sendNotificationToRoles(['ADMIN', 'QL_KHO'], "Yêu cầu nhập kho mới", `Nhân viên ${senderName} đã tạo phiếu nhập ${phieuId} chờ phê duyệt.`, 'info');
+    }
+
+    // Xử lý từng dòng dữ liệu Excel
     for (const row of validRows) {
       const { maThietBi, tenThietBi, loai, soLuong, donViCoSo, donViNhap, heSoQuyDoi,
               donGia, soLo, hanSuDung, serialNumber, maNcc, nguongCanhBao, urlAnh } = row;
 
       const soLuongCoSo = soLuong * heSoQuyDoi;
 
-      // UPSERT thiet_bi
+      // 1. Luôn đảm bảo thiết bị tồn tại trong danh mục (UPSERT thiet_bi)
       const [existing] = await conn.query("SELECT ma_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?", [maThietBi]);
       if (existing.length === 0) {
         // INSERT thiết bị mới
@@ -228,36 +259,36 @@ export async function confirmImportFromExcel(req, res) {
           `INSERT INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_co_so, don_vi_nhap, he_so_quy_doi,
            ma_nha_cung_cap, hinh_anh, trang_thai)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-          [maThietBi, tenThietBi, loai, donViCoSo, donViNhap, heSoQuyDoi,
-           maNcc, urlAnh || ""]
+          [maThietBi, tenThietBi, loai, donViCoSo, donViNhap, heSoQuyDoi, maNcc, urlAnh || ""]
         );
-        // Insert tồn kho ban đầu
+        // Tạo bản ghi tồn kho trống nếu chưa có
         const tkId = "TK-" + maThietBi;
         await conn.query(
-          "INSERT INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES (?, ?, ?, 0, 0)",
-          [tkId, maThietBi, soLuongCoSo]
+          "INSERT IGNORE INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES (?, ?, 0, 0, 0)",
+          [tkId, maThietBi]
         );
-      } else {
-        // Cộng thêm số lượng vào tồn kho
+      } else if (urlAnh) {
+        // Cập nhật thông tin bổ sung nếu cần
+        await conn.query("UPDATE thiet_bi SET hinh_anh = ? WHERE ma_thiet_bi = ? AND (hinh_anh IS NULL OR hinh_anh = '')", [urlAnh, maThietBi]);
+      }
+
+      // 2. Nếu được tự động duyệt, cập nhật số lượng tồn kho ngay lập tức
+      if (autoApprove) {
         await conn.query(
           "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ? WHERE ma_thiet_bi = ?",
           [soLuongCoSo, maThietBi]
         );
-        // Cập nhật URL ảnh nếu có trong Excel
-        if (urlAnh) {
-          await conn.query("UPDATE thiet_bi SET hinh_anh = ? WHERE ma_thiet_bi = ? AND (hinh_anh IS NULL OR hinh_anh = '')", [urlAnh, maThietBi]);
-        }
       }
 
-      // Ghi chi tiết phiếu nhập
+      // 3. Xử lý định dạng ngày hạn sử dụng
       let hanSuDungDate = null;
       if (hanSuDung) {
-        // Parse DD/MM/YYYY → YYYY-MM-DD
         const parts = hanSuDung.split("/");
         if (parts.length === 3) hanSuDungDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
         else hanSuDungDate = hanSuDung;
       }
 
+      // 4. Ghi chi tiết phiếu nhập (Lúc này chắc chắn maThietBi đã tồn tại trong thiet_bi)
       await conn.query(
         `INSERT INTO chi_tiet_nhap_kho
          (ma_phieu_nhap, ma_thiet_bi, so_luong_giao_dich, so_luong_co_so, don_gia, don_vi_giao_dich, so_lo, han_su_dung)
@@ -269,17 +300,22 @@ export async function confirmImportFromExcel(req, res) {
     await conn.commit();
     res.json({
       success: true,
-      message: `Đã nhập kho thành công ${validRows.length} dòng. Mã phiếu: ${phieuId}`,
-      maPhieu: phieuId
+      message: autoApprove 
+        ? `Đã nhập kho thành công ${validRows.length} dòng. Mã phiếu: ${phieuId}`
+        : `Đã gửi yêu cầu nhập kho (${validRows.length} dòng). Chờ Admin/Quản lý kho phê duyệt. Mã phiếu: ${phieuId}`,
+      maPhieu: phieuId,
+      trangThai
     });
   } catch (err) {
-    await conn.rollback();
-    await conn.rollback();
+    if (conn) {
+      await conn.rollback();
+    }
     console.error("DEBUG: Error in confirmImportFromExcel:", err);
-    res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
-    res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: "Lỗi máy chủ: " + err.message });
+    }
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 }
 
@@ -356,10 +392,139 @@ export async function deleteImport(req, res) {
   try {
     await conn.beginTransaction();
     const { id } = req.params;
+
+    // 1. Kiểm tra trạng thái phiếu
+    const [phieu] = await conn.query("SELECT trang_thai FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
+    if (phieu.length > 0 && phieu[0].trang_thai === 'DA_DUYET') {
+      // 2. Nếu đã duyệt, trừ tồn kho
+      const [details] = await conn.query("SELECT ma_thiet_bi, so_luong_co_so FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
+      for (const d of details) {
+        await conn.query(
+          "UPDATE ton_kho SET so_luong_kho = GREATEST(0, so_luong_kho - ?) WHERE ma_thiet_bi = ?",
+          [d.so_luong_co_so, d.ma_thiet_bi]
+        );
+      }
+    }
+
     await conn.query("DELETE FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
     await conn.query("DELETE FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
     await conn.commit();
     res.json({ success: true, message: "Đã xóa lịch sử nhập kho." });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  } finally {
+    conn.release();
+  }
+}
+
+// ──────────────────────────────────────────────
+// POST /imports/delete-multiple — Xóa nhiều phiếu nhập kho (Admin/QL_KHO)
+// ──────────────────────────────────────────────
+export async function deleteMultipleImports(req, res) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const { ids } = req.body; 
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Danh sách ID không hợp lệ." });
+    }
+
+    for (const id of ids) {
+      const [phieu] = await conn.query("SELECT trang_thai FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
+      if (phieu.length > 0 && phieu[0].trang_thai === 'DA_DUYET') {
+        const [details] = await conn.query("SELECT ma_thiet_bi, so_luong_co_so FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
+        for (const d of details) {
+          await conn.query(
+            "UPDATE ton_kho SET so_luong_kho = GREATEST(0, so_luong_kho - ?) WHERE ma_thiet_bi = ?",
+            [d.so_luong_co_so, d.ma_thiet_bi]
+          );
+        }
+      }
+      await conn.query("DELETE FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
+      await conn.query("DELETE FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: `Đã xóa ${ids.length} phiếu nhập kho.` });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  } finally {
+    conn.release();
+  }
+}
+
+// ──────────────────────────────────────────────
+// PUT /imports/approval/:id — Duyệt nhập kho (Admin/QL_KHO)
+// ──────────────────────────────────────────────
+export async function approveImport(req, res) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const { id } = req.params;
+    const { status, lyDoTuChoi } = req.body; // status: 'DA_DUYET' | 'TU_CHOI'
+    const reviewerId = req.user.userId;
+
+    if (!['DA_DUYET', 'TU_CHOI'].includes(status)) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Trạng thái mới không hợp lệ." });
+    }
+
+    // Kiểm tra phiếu hiện tại
+    const [phieu] = await conn.query("SELECT * FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
+    if (phieu.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Không tìm thấy phiếu nhập." });
+    }
+
+    if (phieu[0].trang_thai !== 'CHO_DUYET') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Phiếu này đã được xử lý trước đó." });
+    }
+
+    // Cập nhật trạng thái phiếu
+    await conn.query(
+      "UPDATE phieu_nhap_kho SET trang_thai = ?, nguoi_duyet = ?, ngay_duyet = NOW(), ly_do_tu_choi = ? WHERE ma_phieu = ?",
+      [status, reviewerId, lyDoTuChoi || null, id]
+    );
+
+    if (status === 'DA_DUYET') {
+      // Lấy chi tiết phiếu để cập nhật tồn kho
+      const [details] = await conn.query("SELECT * FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
+      for (const d of details) {
+        // Cập nhật hoặc tạo mới tồn kho
+        const [existing] = await conn.query("SELECT ma_ton_kho FROM ton_kho WHERE ma_thiet_bi = ?", [d.ma_thiet_bi]);
+        if (existing.length === 0) {
+          const tkId = "TK-" + d.ma_thiet_bi;
+          await conn.query(
+            "INSERT INTO ton_kho (ma_ton_kho, ma_thiet_bi, so_luong_kho, so_luong_hu, so_luong_dang_dung) VALUES (?, ?, ?, 0, 0)",
+            [tkId, d.ma_thiet_bi, d.so_luong_co_so]
+          );
+        } else {
+          await conn.query(
+            "UPDATE ton_kho SET so_luong_kho = so_luong_kho + ? WHERE ma_thiet_bi = ?",
+            [d.so_luong_co_so, d.ma_thiet_bi]
+          );
+        }
+      }
+    }
+
+    await conn.commit();
+    
+    // Thông báo cho người tạo phiếu
+    const title = status === 'DA_DUYET' ? "Phiếu nhập đã được duyệt" : "Phiếu nhập bị từ chối";
+    const content = status === 'DA_DUYET' 
+        ? `Phiếu nhập ${id} của bạn đã được phê duyệt.` 
+        : `Phiếu nhập ${id} của bạn đã bị từ chối. Lý do: ${lyDoTuChoi || 'Không có'}`;
+    const type = status === 'DA_DUYET' ? 'success' : 'error';
+    
+    await sendNotification(phieu[0].ma_nguoi_nhap, title, content, type);
+
+    res.json({ success: true, message: status === 'DA_DUYET' ? "Đã duyệt và cập nhật kho." : "Đã từ chối phiếu nhập." });
   } catch (err) {
     await conn.rollback();
     console.error(err);

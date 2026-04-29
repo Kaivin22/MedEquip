@@ -16,6 +16,11 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
+  
+  if (currentUser?.vaiTro !== 'ADMIN') {
+    return <div className="p-8 text-center text-muted-foreground">Bạn không có quyền truy cập trang này.</div>;
+  }
+
   const [data, setData] = useState(store.getUsers());
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);

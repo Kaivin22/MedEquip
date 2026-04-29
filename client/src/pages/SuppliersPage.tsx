@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
-import { NhaCungCap, ThietBi, LOAI_THIET_BI_LABELS } from '@/types';
+import { NhaCungCap, LOAI_THIET_BI_LABELS } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -76,7 +75,7 @@ export default function SuppliersPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="font-bold text-sm truncate">{e.tenThietBi}</div>
-                                  <div className="text-xs text-muted-foreground">{LOAI_THIET_BI_LABELS[e.loaiThietBi || 'TAI_SU_DUNG']} • {e.donViTinh}</div>
+                                  <div className="text-xs text-muted-foreground">{LOAI_THIET_BI_LABELS[e.loaiThietBi || 'TAI_SU_DUNG']}</div>
                                   <div className="text-xs text-muted-foreground mt-1 font-mono">{e.maThietBi}</div>
                                 </div>
                               </div>

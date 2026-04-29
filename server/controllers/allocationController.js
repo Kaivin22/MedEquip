@@ -1,4 +1,5 @@
 import { pool } from "../config/db.js";
+import { sendNotification } from "../utils/notificationHelper.js";
 
 export async function getAllAllocations(req, res) {
   try {
@@ -85,13 +86,9 @@ export async function createAllocation(req, res) {
       await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [maPhieuYeuCau]);
       const [reqData] = await conn.query("SELECT ma_nguoi_yeu_cau FROM phieu_yeu_cau WHERE ma_phieu = ?", [maPhieuYeuCau]);
       if (reqData.length > 0) {
-        const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-        await conn.query(
-          "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'success', ?)",
-          [notifId, "Thiết bị đã được cấp phát ✓",
+        await sendNotification(reqData[0].ma_nguoi_yeu_cau, "Thiết bị đã được cấp phát ✓",
            `Yêu cầu của bạn đã được duyệt. Mã phiếu cấp phát: ${id}${ngayDuKienTra ? `. Hạn trả: ${ngayDuKienTra}` : ""}`,
-           reqData[0].ma_nguoi_yeu_cau]
-        );
+           'success');
       }
     }
 
@@ -127,13 +124,8 @@ export async function extendRequest(req, res) {
     // Thông báo cho NV_KHO
     const [khoStaff] = await pool.query("SELECT ma_nguoi_dung FROM nguoi_dung WHERE vai_tro = 'NV_KHO' AND trang_thai = TRUE");
     for (const kho of khoStaff) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
-      await pool.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, 'warning', ?)",
-        [notifId, `Yêu cầu gia hạn phiếu ${id}`,
-         `Trưởng khoa gửi yêu cầu gia hạn đến ${ngayGiaHan}. Lý do: ${lyDo}`,
-         kho.ma_nguoi_dung]
-      );
+      await sendNotification(kho.ma_nguoi_dung, `Yêu cầu gia hạn phiếu ${id}`, 
+        `Trưởng khoa gửi yêu cầu gia hạn đến ${ngayGiaHan}. Lý do: ${lyDo}`, 'warning');
     }
 
     res.json({ success: true, message: "Đã gửi yêu cầu gia hạn. Chờ NV Kho xác nhận." });
@@ -171,17 +163,12 @@ export async function extendApprove(req, res) {
       [id]
     );
     if (reqData.length > 0) {
-      const notifId = "TB-" + String(Date.now()).slice(-8) + "-" + Math.random().toString(36).slice(-4);
       const msg = approved
         ? `Yêu cầu gia hạn phiếu ${id} đã được chấp nhận. Hạn trả mới: ${ngayGiaHan}`
         : `Yêu cầu gia hạn phiếu ${id} bị từ chối. ${lyDo ? "Lý do: " + lyDo : ""}`;
-      await pool.query(
-        "INSERT INTO thong_bao (id, tieu_de, noi_dung, loai, nguoi_nhan) VALUES (?, ?, ?, ?, ?)",
-        [notifId,
+      await sendNotification(reqData[0].ma_nguoi_yeu_cau,
          approved ? "Gia hạn được chấp nhận ✓" : "Gia hạn bị từ chối ✗",
-         msg, approved ? "success" : "error",
-         reqData[0].ma_nguoi_yeu_cau]
-      );
+         msg, approved ? "success" : "error");
     }
 
     res.json({ success: true, message: approved ? "Đã chấp nhận gia hạn." : "Đã từ chối gia hạn." });

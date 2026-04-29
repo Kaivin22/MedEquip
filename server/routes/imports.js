@@ -2,8 +2,9 @@ import { Router } from "express";
 import { authMiddleware, roleMiddleware } from "../middleware/auth.js";
 import multer from "multer";
 import {
-  getAllImports, deleteImport,
-  parseExcelPreview, confirmImportFromExcel, downloadTemplate
+  getAllImports, deleteImport, deleteMultipleImports,
+  parseExcelPreview, confirmImportFromExcel, downloadTemplate,
+  approveImport
 } from "../controllers/importController.js";
 
 const router = Router();
@@ -14,14 +15,20 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // Lịch sử nhập kho
 router.get("/", authMiddleware, getAllImports);
 
-// Xóa lịch sử (Admin)
-router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteImport);
+// Xóa lịch sử (Admin/QL_KHO)
+router.delete("/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), deleteImport);
+
+// Xóa nhiều phiếu (Admin/QL_KHO)
+router.post("/delete-multiple", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), deleteMultipleImports);
 
 // Upload Excel → preview (chưa nhập vào DB)
-router.post("/from-excel", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), upload.single("file"), parseExcelPreview);
+router.post("/from-excel", authMiddleware, roleMiddleware("ADMIN", "NV_KHO", "QL_KHO"), upload.single("file"), parseExcelPreview);
 
-// Xác nhận nhập kho từ preview đã duyệt
-router.post("/confirm", authMiddleware, roleMiddleware("ADMIN", "NV_KHO"), confirmImportFromExcel);
+// Xác nhận nhập kho từ preview đã duyệt (Hoặc lập phiếu chờ duyệt cho NV_KHO)
+router.post("/confirm", authMiddleware, roleMiddleware("ADMIN", "NV_KHO", "QL_KHO"), confirmImportFromExcel);
+
+// Duyệt nhập kho (Admin/QL_KHO)
+router.put("/approval/:id", authMiddleware, roleMiddleware("ADMIN", "QL_KHO"), approveImport);
 
 // Tải file Excel mẫu
 router.get("/template", authMiddleware, downloadTemplate);
