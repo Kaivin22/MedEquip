@@ -20,7 +20,7 @@ export async function getAllImports(req, res) {
     if (req.query.fromDate) { sql += " AND p.ngay_nhap >= ?"; params.push(req.query.fromDate); }
     if (req.query.toDate) { sql += " AND p.ngay_nhap <= ?"; params.push(req.query.toDate); }
     if (req.query.maNhaCungCap) { sql += " AND p.ma_nha_cung_cap = ?"; params.push(req.query.maNhaCungCap); }
-    
+
     if (req.query.search) {
       const keyword = `%${req.query.search}%`;
       sql += ` AND (
@@ -128,21 +128,21 @@ export async function parseExcelPreview(req, res) {
 
     const preview = rows.map((row, idx) => {
       const errors = [];
-      const maThietBi   = String(row.ma_thiet_bi || "").trim();
-      const tenThietBi  = String(row.ten_thiet_bi || "").trim();
-      const loai        = String(row.loai || "").trim();
-      const soLuong     = parseInt(row.so_luong) || 0;
-      const donViCoSo   = String(row.don_vi_co_so || "Cái").trim();
-      const donViNhap   = String(row.don_vi_nhap || row.don_vi_tinh || "Hộp").trim();
-      const heSoQuyDoi  = parseInt(row.he_so_quy_doi) || 1;
-      const donGia      = parseFloat(row.don_gia) || 0;
-      const soLo        = String(row.so_lo || "").trim();
-      const hanSuDung   = String(row.han_su_dung || "").trim();
+      const maThietBi = String(row.ma_thiet_bi || "").trim();
+      const tenThietBi = String(row.ten_thiet_bi || "").trim();
+      const loai = String(row.loai || "").trim();
+      const soLuong = parseInt(row.so_luong) || 0;
+      const donViCoSo = String(row.don_vi_co_so || "Cái").trim();
+      const donViNhap = String(row.don_vi_nhap || row.don_vi_tinh || "Hộp").trim();
+      const heSoQuyDoi = parseInt(row.he_so_quy_doi) || 1;
+      const donGia = parseFloat(row.don_gia) || 0;
+      const soLo = String(row.so_lo || "").trim();
+      const hanSuDung = String(row.han_su_dung || "").trim();
       const serialNumber = String(row.serial_number || "").trim();
-      const maNcc       = String(row.ma_ncc || "").trim();
+      const maNcc = String(row.ma_ncc || "").trim();
       const nguongCanhBao = parseInt(row.nguong_canh_bao) || 10;
-      const urlAnh      = String(row.url_anh || "").trim();
-      const ghiChu      = String(row.ghi_chu || "").trim();
+      const urlAnh = String(row.url_anh || "").trim();
+      const ghiChu = String(row.ghi_chu || "").trim();
 
       if (!maThietBi) errors.push("Thiếu mã thiết bị");
       if (!tenThietBi) errors.push("Thiếu tên thiết bị");
@@ -197,8 +197,8 @@ export async function confirmImportFromExcel(req, res) {
     await conn.beginTransaction();
     const { rows, maNhaCungCap, hinhAnhMinhChung } = req.body || {};
     if (!rows || !Array.isArray(rows)) {
-        await conn.rollback();
-        return res.status(400).json({ success: false, message: "Dữ liệu không hợp lệ." });
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Dữ liệu không hợp lệ." });
     }
     // rows: mảng từ preview, chỉ lấy các row không có lỗi
     const validRows = rows.filter(r => !r.hasError);
@@ -211,7 +211,7 @@ export async function confirmImportFromExcel(req, res) {
     const phieuId = "NK-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
     const autoApprove = (req.user.vaiTro === 'ADMIN' || req.user.vaiTro === 'QL_KHO');
     const trangThai = autoApprove ? 'DA_DUYET' : 'CHO_DUYET';
-    
+
     // Nếu frontend không gửi maNhaCungCap, lấy từ dòng đầu tiên hợp lệ
     const nccId = maNhaCungCap || (validRows.length > 0 ? validRows[0].maNcc : null);
 
@@ -220,8 +220,8 @@ export async function confirmImportFromExcel(req, res) {
     let tongSoLuong = 0;
     let tongGiaTri = 0;
     for (const row of validRows) {
-        tongSoLuong += (row.soLuong * (row.heSoQuyDoi || 1));
-        tongGiaTri += (row.soLuong * (row.donGia || 0));
+      tongSoLuong += (row.soLuong * (row.heSoQuyDoi || 1));
+      tongGiaTri += (row.soLuong * (row.donGia || 0));
     }
 
     // Tạo phiếu nhập kho
@@ -233,21 +233,21 @@ export async function confirmImportFromExcel(req, res) {
     // Lấy tên người gửi (phòng trường hợp token cũ không có hoTen)
     let senderName = req.user.hoTen || "Nhân viên";
     if (!req.user.hoTen) {
-        const [uRows] = await conn.query("SELECT ho_ten FROM nguoi_dung WHERE ma_nguoi_dung = ?", [userId]);
-        if (uRows.length > 0) senderName = uRows[0].ho_ten;
+      const [uRows] = await conn.query("SELECT ho_ten FROM nguoi_dung WHERE ma_nguoi_dung = ?", [userId]);
+      if (uRows.length > 0) senderName = uRows[0].ho_ten;
     }
 
     // Thông báo
     if (autoApprove) {
-        await sendNotification(userId, "Nhập kho thành công", `Phiếu nhập ${phieuId} đã được tạo và tự động duyệt.`, 'success');
+      await sendNotification(userId, "Nhập kho thành công", `Phiếu nhập ${phieuId} đã được tạo và tự động duyệt.`, 'success');
     } else {
-        await sendNotificationToRoles(['ADMIN', 'QL_KHO'], "Yêu cầu nhập kho mới", `Nhân viên ${senderName} đã tạo phiếu nhập ${phieuId} chờ phê duyệt.`, 'info');
+      await sendNotificationToRoles(['ADMIN', 'QL_KHO'], "Yêu cầu nhập kho mới", `Nhân viên ${senderName} đã tạo phiếu nhập ${phieuId} chờ phê duyệt.`, 'info');
     }
 
     // Xử lý từng dòng dữ liệu Excel
     for (const row of validRows) {
       const { maThietBi, tenThietBi, loai, soLuong, donViCoSo, donViNhap, heSoQuyDoi,
-              donGia, soLo, hanSuDung, serialNumber, maNcc, nguongCanhBao, urlAnh } = row;
+        donGia, soLo, hanSuDung, serialNumber, maNcc, nguongCanhBao, urlAnh } = row;
 
       const soLuongCoSo = soLuong * heSoQuyDoi;
 
@@ -300,7 +300,7 @@ export async function confirmImportFromExcel(req, res) {
     await conn.commit();
     res.json({
       success: true,
-      message: autoApprove 
+      message: autoApprove
         ? `Đã nhập kho thành công ${validRows.length} dòng. Mã phiếu: ${phieuId}`
         : `Đã gửi yêu cầu nhập kho (${validRows.length} dòng). Chờ Admin/Quản lý kho phê duyệt. Mã phiếu: ${phieuId}`,
       maPhieu: phieuId,
@@ -426,7 +426,7 @@ export async function deleteMultipleImports(req, res) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { ids } = req.body; 
+    const { ids } = req.body;
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       await conn.rollback();
       return res.status(400).json({ success: false, message: "Danh sách ID không hợp lệ." });
@@ -514,14 +514,14 @@ export async function approveImport(req, res) {
     }
 
     await conn.commit();
-    
+
     // Thông báo cho người tạo phiếu
     const title = status === 'DA_DUYET' ? "Phiếu nhập đã được duyệt" : "Phiếu nhập bị từ chối";
-    const content = status === 'DA_DUYET' 
-        ? `Phiếu nhập ${id} của bạn đã được phê duyệt.` 
-        : `Phiếu nhập ${id} của bạn đã bị từ chối. Lý do: ${lyDoTuChoi || 'Không có'}`;
+    const content = status === 'DA_DUYET'
+      ? `Phiếu nhập ${id} của bạn đã được phê duyệt.`
+      : `Phiếu nhập ${id} của bạn đã bị từ chối. Lý do: ${lyDoTuChoi || 'Không có'}`;
     const type = status === 'DA_DUYET' ? 'success' : 'error';
-    
+
     await sendNotification(phieu[0].ma_nguoi_nhap, title, content, type);
 
     res.json({ success: true, message: status === 'DA_DUYET' ? "Đã duyệt và cập nhật kho." : "Đã từ chối phiếu nhập." });

@@ -42,7 +42,8 @@ export async function getAllRequests(req, res) {
           donViTinh: i.don_vi_tinh,
           soLuongCoSo: i.so_luong_co_so,
           donViCoSo: i.don_vi_co_so_tb,
-          lyDoTuChoi: i.ly_do_tu_choi || ""
+          lyDoTuChoi: i.ly_do_tu_choi || "",
+          ngayTraDuKien: i.ngay_tra_du_kien
         }))
       };
     }));
@@ -69,8 +70,8 @@ export async function createRequest(req, res) {
 
     // Insert main request (backwards compatibility with ma_thiet_bi and so_luong_yeu_cau)
     await conn.query(
-      "INSERT INTO phieu_yeu_cau (ma_phieu, ma_nguoi_yeu_cau, ma_thiet_bi, ma_khoa, so_luong_yeu_cau, ly_do, trang_thai) VALUES (?, ?, ?, ?, ?, ?, 'CHO_DUYET')",
-      [id, maNguoiYeuCau || req.user.userId, firstItem.maThietBi, maKhoa, firstItem.soLuong, lyDo || ""]
+      "INSERT INTO phieu_yeu_cau (ma_phieu, ma_nguoi_yeu_cau, ma_thiet_bi, ma_khoa, so_luong_yeu_cau, ly_do, trang_thai, ma_phieu_cap_phat_cu) VALUES (?, ?, ?, ?, ?, ?, 'CHO_DUYET', ?)",
+      [id, maNguoiYeuCau || req.user.userId, firstItem.maThietBi, maKhoa, firstItem.soLuong, lyDo || "", req.body.maPhieuCapPhatCu || null]
     );
 
     // Insert all items
@@ -83,8 +84,8 @@ export async function createRequest(req, res) {
       const soLuongCoSo = item.soLuong * factor;
 
       await conn.query(
-        "INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, trang_thai) VALUES (?, ?, ?, ?, ?, 'CHO_DUYET')",
-        [id, item.maThietBi, item.soLuong, donVi, soLuongCoSo]
+        "INSERT INTO chi_tiet_yeu_cau (ma_phieu_yeu_cau, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, trang_thai, ngay_tra_du_kien) VALUES (?, ?, ?, ?, ?, 'CHO_DUYET', ?)",
+        [id, item.maThietBi, item.soLuong, donVi, soLuongCoSo, item.ngayTraDuKien || null]
       );
     }
 
@@ -191,7 +192,8 @@ export async function scanRequest(req, res) {
         soLuongCoSo: i.so_luong_co_so,
         tonKho: i.so_luong_kho || 0,
         donViCoSo: i.don_vi_co_so_tb,
-        lyDoTuChoi: i.ly_do_tu_choi || ""
+        lyDoTuChoi: i.ly_do_tu_choi || "",
+        ngayTraDuKien: i.ngay_tra_du_kien
       }))
     });
   } catch (err) {
@@ -221,7 +223,7 @@ export async function processRequestItems(req, res) {
       if (item.approved) {
         // Check inventory
         const [inv] = await conn.query("SELECT so_luong_kho FROM ton_kho WHERE ma_thiet_bi = ?", [item.maThietBi]);
-        const [reqItems] = await conn.query("SELECT so_luong, so_luong_co_so, don_vi_tinh FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
+        const [reqItems] = await conn.query("SELECT so_luong, so_luong_co_so, don_vi_tinh, ngay_tra_du_kien FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ? AND ma_thiet_bi = ?", [id, item.maThietBi]);
 
         if (reqItems.length === 0) continue;
         const reqItem = reqItems[0];
@@ -256,7 +258,7 @@ export async function processRequestItems(req, res) {
         }
 
         approvedCount++;
-        approvedDetails.push({ maThietBi: item.maThietBi, soLuong, soLuongCoSo, donViTinh: reqItem.don_vi_tinh });
+        approvedDetails.push({ maThietBi: item.maThietBi, soLuong, soLuongCoSo, donViTinh: reqItem.don_vi_tinh, ngayTraDuKien: reqItem.ngay_tra_du_kien });
       } else {
         // Reject item
         await conn.query(
@@ -267,18 +269,28 @@ export async function processRequestItems(req, res) {
     }
 
     if (approvedCount > 0) {
-      // Create allocation record
-      const cpId = "CP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
-      await conn.query(
-        "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu, trang_thai_tra) VALUES (?, ?, ?, ?, ?, 'CHUA_TRA')",
-        [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
-      );
-
-      for (const det of approvedDetails) {
+      if (request.ma_phieu_cap_phat_cu) {
+        // GIA HẠN: Cập nhật lại phiếu cũ
+        for (const det of approvedDetails) {
+          await conn.query(
+            "UPDATE chi_tiet_cap_phat SET ngay_tra_du_kien = ?, trang_thai_tra = 'DA_GIA_HAN', ly_do_gia_han = ? WHERE ma_phieu_cap_phat = ? AND ma_thiet_bi = ?",
+            [det.ngayTraDuKien, `Đã gia hạn theo phiếu ${id}`, request.ma_phieu_cap_phat_cu, det.maThietBi]
+          );
+        }
+      } else {
+        // CẤP PHÁT MỚI
+        const cpId = "CP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
         await conn.query(
-          "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so) VALUES (?, ?, ?, ?, ?)",
-          [cpId, det.maThietBi, det.soLuong, det.donViTinh, det.soLuongCoSo]
+          "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu) VALUES (?, ?, ?, ?, ?)",
+          [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
         );
+
+        for (const det of approvedDetails) {
+          await conn.query(
+            "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, ngay_tra_du_kien, trang_thai_tra) VALUES (?, ?, ?, ?, ?, ?, 'CHUA_TRA')",
+            [cpId, det.maThietBi, det.soLuong, det.donViTinh, det.soLuongCoSo, det.ngayTraDuKien || null]
+          );
+        }
       }
 
       await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [id]);
@@ -311,6 +323,39 @@ export async function confirmReceived(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+
+export async function cancelRequest(req, res) {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await pool.query("SELECT * FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy phiếu." });
+
+    if (rows[0].trang_thai !== 'CHO_DUYET') {
+      return res.status(400).json({ success: false, message: "Chỉ có thể hủy phiếu đang chờ duyệt." });
+    }
+
+    if (rows[0].ma_nguoi_yeu_cau !== req.user.userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền hủy phiếu này." });
+    }
+
+    await pool.query(
+      "UPDATE phieu_yeu_cau SET trang_thai = 'DA_HUY', ly_do_tu_choi = 'Phiếu yêu cầu đã bị hủy bởi người yêu cầu' WHERE ma_phieu = ?",
+      [id]
+    );
+
+    await pool.query(
+      "UPDATE chi_tiet_yeu_cau SET trang_thai = 'DA_HUY', ly_do_tu_choi = 'Phiếu yêu cầu đã bị hủy bởi người yêu cầu' WHERE ma_phieu_yeu_cau = ?",
+      [id]
+    );
+
+    res.json({ success: true, message: "Đã hủy phiếu yêu cầu." });
+  } catch (err) {
+    console.error("Cancel Request Error:", err);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
+  }
+}
+
 export async function deleteRequest(req, res) {
   try {
     const { id } = req.params;
@@ -321,6 +366,7 @@ export async function deleteRequest(req, res) {
       return res.status(400).json({ success: false, message: "Không thể xóa phiếu yêu cầu đã được cấp phát." });
     }
 
+    await pool.query("DELETE FROM chi_tiet_yeu_cau WHERE ma_phieu_yeu_cau = ?", [id]);
     await pool.query("DELETE FROM phieu_yeu_cau WHERE ma_phieu = ?", [id]);
     res.json({ success: true, message: "Đã xóa phiếu yêu cầu." });
   } catch (err) {

@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS phieu_yeu_cau (
     ngay_duyet DATETIME NULL,
     nguoi_duyet VARCHAR(20) NULL,
     ly_do_tu_choi TEXT NULL,
+    ma_phieu_cap_phat_cu VARCHAR(30) NULL COMMENT 'Dùng khi yêu cầu GIA HẠN',
     FOREIGN KEY (ma_nguoi_yeu_cau) REFERENCES nguoi_dung(ma_nguoi_dung),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi),
     FOREIGN KEY (ma_khoa) REFERENCES khoa(ma_khoa)
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS chi_tiet_yeu_cau (
     so_luong_co_so INT NOT NULL,
     trang_thai ENUM('CHO_DUYET','DA_DUYET','TU_CHOI') DEFAULT 'CHO_DUYET',
     ly_do_tu_choi TEXT NULL,
+    ngay_tra_du_kien DATE NULL,
     FOREIGN KEY (ma_phieu_yeu_cau) REFERENCES phieu_yeu_cau(ma_phieu),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
@@ -114,9 +116,6 @@ CREATE TABLE IF NOT EXISTS phieu_cap_phat (
     ma_nguoi_cap VARCHAR(20) NOT NULL,
     ma_khoa_nhan VARCHAR(20) NOT NULL,
     ngay_cap DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ngay_du_kien_tra DATE DEFAULT NULL COMMENT 'Chỉ áp dụng cho TAI_SU_DUNG',
-    ly_do_gia_han TEXT DEFAULT NULL,
-    trang_thai_tra ENUM('CHUA_TRA', 'YEU_CAU_TRA', 'DA_TRA', 'DA_GIA_HAN') DEFAULT 'CHUA_TRA',
     ghi_chu TEXT,
     FOREIGN KEY (ma_phieu_yeu_cau) REFERENCES phieu_yeu_cau(ma_phieu),
     FOREIGN KEY (ma_nguoi_cap) REFERENCES nguoi_dung(ma_nguoi_dung),
@@ -130,6 +129,9 @@ CREATE TABLE IF NOT EXISTS chi_tiet_cap_phat (
     so_luong INT NOT NULL,
     don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
     so_luong_co_so INT NOT NULL,
+    ngay_tra_du_kien DATE DEFAULT NULL,
+    trang_thai_tra ENUM('CHUA_TRA', 'YEU_CAU_TRA', 'DA_TRA', 'DA_GIA_HAN') DEFAULT 'CHUA_TRA',
+    ly_do_gia_han TEXT DEFAULT NULL,
     FOREIGN KEY (ma_phieu_cap_phat) REFERENCES phieu_cap_phat(ma_phieu),
     FOREIGN KEY (ma_thiet_bi) REFERENCES thiet_bi(ma_thiet_bi)
 );
@@ -237,7 +239,7 @@ CREATE TABLE IF NOT EXISTS phieu_tra_thiet_bi (
     ma_phieu_cap_phat VARCHAR(30) NOT NULL,
     ma_truong_khoa VARCHAR(20) NOT NULL,
     ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP,
-    trang_thai ENUM('CHO_XAC_NHAN', 'DA_TRA', 'TU_CHOI') DEFAULT 'CHO_XAC_NHAN',
+    trang_thai ENUM('CHO_XAC_NHAN', 'DA_TRA', 'TU_CHOI', 'HUY') DEFAULT 'CHO_XAC_NHAN',
     qr_data TEXT COMMENT 'JSON encode danh sách thiết bị trả',
     ghi_chu TEXT,
     FOREIGN KEY (ma_phieu_cap_phat) REFERENCES phieu_cap_phat(ma_phieu),
@@ -252,7 +254,7 @@ CREATE TABLE IF NOT EXISTS chi_tiet_phieu_tra (
     don_vi_tinh VARCHAR(50) DEFAULT 'Cái',
     so_luong_co_so INT NOT NULL DEFAULT 1,
     tinh_trang_khi_tra ENUM('NGUYEN_SEAL', 'DA_BOC_SEAL', 'HONG') DEFAULT 'DA_BOC_SEAL',
-    anh_chung_minh TEXT COMMENT 'URL ảnh chứng minh',
+    anh_chung_minh LONGTEXT COMMENT 'URL hoặc Base64 ảnh chứng minh',
     FOREIGN KEY (ma_phieu_tra) REFERENCES phieu_tra_thiet_bi(id)
 );
 
