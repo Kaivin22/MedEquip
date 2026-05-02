@@ -87,7 +87,9 @@ export interface PhieuCapPhat {
   maThietBi: string;
   tenThietBi?: string;
   loaiThietBi?: string;
+  donViTinh?: string; // Thêm trường đơn vị tính khi cấp phát
   donViCoSo?: string;
+  soLuongCoSo?: number; // Thêm số lượng theo đơn vị cơ sở
   maNguoiMuon: string;
   maKhoa: string;
   soLuongCapPhat: number;
@@ -174,10 +176,15 @@ export interface PhieuBaoHuHong {
 
 // v4: Phiếu trả thiết bị (mới)
 export interface ChiTietPhieuTra {
+  maPhieuCapPhat: string; // Thêm mã phiếu cấp phát gốc
   maThietBi: string;
   tenThietBi?: string;
   soLuong: number;
+  donViTinh?: string;   // Thêm đơn vị tính
+  donViCoSo?: string;   // Đơn vị cơ sở
+  soLuongCoSo?: number; // Số lượng theo đơn vị cơ sở
   tinhTrangKhiTra: 'NGUYEN_SEAL' | 'DA_BOC_SEAL' | 'HONG';
+  anhMinhChung?: string; // Ảnh minh chứng
 }
 
 export interface PhieuTraThietBi {
@@ -187,7 +194,7 @@ export interface PhieuTraThietBi {
   maTruongKhoa: string;
   tenTruongKhoa?: string;
   ngayTao: string;
-  trangThai: 'CHO_XAC_NHAN' | 'DA_TRA' | 'TU_CHOI';
+  trangThai: 'CHO_XAC_NHAN' | 'DA_TRA' | 'TU_CHOI' | 'HUY';
   ghiChu?: string;
   qrData?: string;
   chiTiet: ChiTietPhieuTra[];
@@ -253,7 +260,7 @@ export const LOAI_THIET_BI_COLORS: Record<string, string> = {
 
 export const TINH_TRANG_TRA_LABELS: Record<string, string> = {
   NGUYEN_SEAL: 'Nguyên seal',
-  DA_BOC_SEAL: 'Đã bóc seal',
+  DA_BOC_SEAL: 'Đã bóc seal (dùng tốt)',
   HONG: 'Hỏng',
 };
 
@@ -262,4 +269,11 @@ export const TRANG_THAI_TRA_LABELS: Record<string, string> = {
   YEU_CAU_TRA: 'Yêu cầu trả',
   DA_TRA: 'Đã trả',
   DA_GIA_HAN: 'Đã gia hạn',
+};
+
+export const TRANG_THAI_PHIEU_TRA_LABELS: Record<string, string> = {
+  CHO_XAC_NHAN: 'Chờ xác nhận',
+  DA_TRA: 'Đã nhập kho',
+  TU_CHOI: 'Bị từ chối',
+  HUY: 'Đã hủy',
 };

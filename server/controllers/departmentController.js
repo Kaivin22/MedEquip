@@ -40,7 +40,6 @@ export async function createDepartment(req, res) {
   }
 }
 
-
 export async function deleteDepartment(req, res) {
   try {
     const id = req.params.id;
@@ -49,22 +48,6 @@ export async function deleteDepartment(req, res) {
       return res.status(404).json({ success: false, message: "Không tìm thấy khoa." });
     }
 
-
-    // Check if any allocations exist for this department (active usage)
-    const [allocations] = await pool.query("SELECT * FROM phieu_cap_phat WHERE ma_khoa_nhan = ?", [id]);
-    if (allocations.length > 0) {
-      return res.status(400).json({ success: false, message: "Không thể xóa khoa khi có thiết bị đang sử dụng." });
-    }
-
-    try {
-      await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
-      return res.json({ success: true, message: "Đã xóa khoa thành công." });
-    } catch (err) {
-      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-        return res.status(400).json({
-          success: false,
-          message: "Không thể xóa khoa vì đã có dữ liệu hoạt động lịch sử. Quý khách có thể chọn 'Ngừng hoạt động'."
-        });
     try {
       await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
       return res.json({ success: true, message: "Đã xóa khoa." });
@@ -72,7 +55,6 @@ export async function deleteDepartment(req, res) {
       if (err.code === 'ER_ROW_IS_REFERENCED_2') {
         await pool.query("UPDATE khoa SET trang_thai = FALSE WHERE ma_khoa = ?", [id]);
         return res.json({ success: true, message: "Khoa đang có dữ liệu liên quan nên đã bị vô hiệu hóa." });
-
       }
       throw err;
     }
@@ -80,7 +62,6 @@ export async function deleteDepartment(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
-
 
 export async function updateDepartment(req, res) {
   try {
@@ -106,3 +87,4 @@ export async function updateDepartment(req, res) {
     res.status(500).json({ success: false, message: "Lỗi máy chủ." });
   }
 }
+

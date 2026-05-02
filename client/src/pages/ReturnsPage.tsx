@@ -17,12 +17,23 @@ import { QRCodeCanvas as QRCodeComponent } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
   const [data, setData] = useState(store.getReturns() || []);
   const [allocations, setAllocations] = useState(store.getAllocations() || []);
   const [search, setSearch] = useState('');
+  
+  // Extension state
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendingAlloc, setExtendingAlloc] = useState<PhieuCapPhat | null>(null);
+  const [extDate, setExtDate] = useState('');
+  const [extReason, setExtReason] = useState('');
+
+  // Due List state
+  const [dueDialogOpen, setDueDialogOpen] = useState(false);
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<{
@@ -52,6 +63,27 @@ export default function ReturnsPage() {
   const canCreate = user?.vaiTro === 'TRUONG_KHOA' || user?.vaiTro === 'ADMIN';
   const canConfirm = user?.vaiTro === 'NV_KHO' || user?.vaiTro === 'ADMIN' || user?.vaiTro === 'QL_KHO';
 
+  const dueAllocations = (allocations || []).filter(a => {
+    if (!a) return false;
+    const dueDate = a.ngayDuKienTra ? new Date(a.ngayDuKienTra) : null;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    
+    // Chỉ hiện những cái chưa trả hoặc đã gia hạn (đang mượn)
+    // Loại bỏ YEU_CAU_TRA vì người dùng đã bấm trả/khai báo trả hoặc đang chờ gia hạn
+    const isBorrowed = (a.trangThaiTra === 'CHUA_TRA' || a.trangThaiTra === 'DA_GIA_HAN');
+    const isMine = (user?.vaiTro !== 'TRUONG_KHOA' || a.maNguoiMuon === user.maNguoiDung);
+
+    // Thêm kiểm tra: Nếu đã có phiếu trả đang chờ xác nhận (CHO_XAC_NHAN) thì cũng không hiện ở đây
+    const isInPendingReturn = (data || []).some(ret => 
+      ret && ret.trangThai === 'CHO_XAC_NHAN' && 
+      Array.isArray(ret.chiTiet) && ret.chiTiet.some((ct: any) => ct && ct.maPhieuCapPhat === a.maPhieu && ct.maThietBi === a.maThietBi)
+    );
+
+    return isBorrowed && isMine && !isInPendingReturn && dueDate && dueDate <= threeDaysLater;
+  });
+
   const reload = async () => {
     try {
       const endpoint = user?.vaiTro === 'TRUONG_KHOA' ? '/returns/my' : '/returns';
@@ -76,6 +108,10 @@ export default function ReturnsPage() {
     }
   };
 
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancellingPhieu, setCancellingPhieu] = useState<any>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   useEffect(() => { reload(); }, []);
 
   const handleCreateReturn = async () => {
@@ -91,7 +127,8 @@ export default function ReturnsPage() {
     }
 
     const isValidMinhChung = form.chiTiet.every(ct => {
-      const isTuTieuHao = allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi === 'VAT_TU_TIEU_HAO';
+      const alloc = (allocations || []).find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi);
+      const isTuTieuHao = alloc?.loaiThietBi === 'VAT_TU_TIEU_HAO';
       if (isTuTieuHao && ct.tinhTrangKhiTra === 'NGUYEN_SEAL' && !ct.anhMinhChung) {
         return false;
       }
@@ -118,7 +155,8 @@ export default function ReturnsPage() {
              maPhieuCapPhat: ct.maPhieuCapPhat,
              maThietBi: ct.maThietBi,
              soLuong: ct.soLuong,
-             tinhTrangKhiTra: ct.tinhTrangKhiTra
+             tinhTrangKhiTra: ct.tinhTrangKhiTra,
+             anhMinhChung: ct.anhMinhChung
           }))
         })
       });
@@ -132,7 +170,7 @@ export default function ReturnsPage() {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err?.message || 'Lỗi không xác định', variant: 'destructive' });
     }
   };
 
@@ -151,16 +189,19 @@ export default function ReturnsPage() {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err?.message || 'Lỗi không xác định', variant: 'destructive' });
     }
   };
 
-  const handleConsume = async (id: string, e: React.MouseEvent) => {
+  const handleConsume = async (maPhieu: string, maThietBi: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!confirm('Xác nhận đã sử dụng/khấu trừ vật tư này? Vật tư sẽ được trừ khỏi danh sách mà không cần tạo phiếu trả.')) return;
     try {
-      const result = await fetchApi(`/allocations/${id}/consume`, { method: 'PUT' });
+      const result = await fetchApi<{ success: boolean; message: string }>(`/allocations/${maPhieu}/consume`, { 
+        method: 'PUT',
+        body: JSON.stringify({ maThietBi })
+      });
       if (result.success) {
         toast({ title: 'Thành công', description: result.message });
         reload();
@@ -175,10 +216,12 @@ export default function ReturnsPage() {
   const handleScanQR = (text: string) => {
     if (!text) return;
     const cleanText = text.trim().toUpperCase();
-    const phieuData = data.find(d => 
-      (d.qrData && d.qrData.trim().toUpperCase() === cleanText) || 
-      (d.maPhieuTra && d.maPhieuTra.trim().toUpperCase() === cleanText)
-    );
+    const phieuData = (data || []).find(d => {
+      if (!d) return false;
+      const q = d.qrData?.trim()?.toUpperCase();
+      const m = d.maPhieuTra?.trim()?.toUpperCase();
+      return (q === cleanText) || (m === cleanText);
+    });
 
     if (phieuData) {
       if (phieuData.trangThai !== 'CHO_XAC_NHAN') {
@@ -225,7 +268,7 @@ export default function ReturnsPage() {
         toast({ title: 'Lỗi', description: 'Không tìm thấy mã QR trong ảnh này.', variant: 'destructive' });
       }
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: 'Không thể xử lý ảnh: ' + err.message, variant: 'destructive' });
+      toast({ title: 'Lỗi', description: 'Không thể xử lý ảnh: ' + (err?.message || 'Lỗi không xác định'), variant: 'destructive' });
     }
   };
 
@@ -259,15 +302,53 @@ export default function ReturnsPage() {
         toast({ title: 'Lỗi', description: result.message, variant: 'destructive' });
       }
     } catch (err: any) {
-      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+      toast({ title: 'Lỗi', description: err.message || "Lỗi khi hủy phiếu.", variant: 'destructive' });
+    }
+  };
+
+  const handleExtendRequest = async () => {
+    if (!extendingAlloc || !extDate || !extReason) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin.', variant: 'destructive' });
+      return;
+    }
+    try {
+      // Gửi yêu cầu gia hạn thông qua luồng Yêu cầu cấp phát
+      const result = await fetchApi<{ success: boolean; message: string }>('/requests', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          maNguoiYeuCau: user?.maNguoiDung,
+          maKhoa: user?.maKhoa,
+          lyDo: `[GIA HẠN THIẾT BỊ] Phiếu mượn: ${extendingAlloc.maPhieu}. Lý do: ${extReason}`,
+          maPhieuCapPhatCu: extendingAlloc.maPhieu, // Gắn ID phiếu cũ để NV Kho duyệt gia hạn
+          items: [{
+            maThietBi: extendingAlloc.maThietBi,
+            soLuong: extendingAlloc.soLuongCapPhat,
+            donVi: extendingAlloc.donViTinh,
+            ngayTraDuKien: extDate
+          }]
+        })
+      });
+
+      if (result.success) {
+        toast({ title: 'Thành công', description: 'Yêu cầu gia hạn đã được gửi tới NV Kho dưới dạng phiếu Yêu cầu cấp phát.' });
+        setExtendOpen(false);
+        setExtendingAlloc(null);
+        setExtDate('');
+        setExtReason('');
+        await reload();
+      } else {
+        toast({ title: 'Lỗi', description: (result as any).message || 'Không thể gửi yêu cầu gia hạn.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err?.message || 'Lỗi khi gửi yêu cầu gia hạn.', variant: 'destructive' });
     }
   };
 
   const toggleAllocationSelection = (alloc: PhieuCapPhat) => {
     setForm(prev => {
-      const exists = prev.chiTiet.find(ct => ct.maPhieuCapPhat === alloc.maPhieu);
+      const exists = prev.chiTiet.find(ct => ct.maPhieuCapPhat === alloc.maPhieu && ct.maThietBi === alloc.maThietBi);
       if (exists) {
-        return { ...prev, chiTiet: prev.chiTiet.filter(ct => ct.maPhieuCapPhat !== alloc.maPhieu) };
+        return { ...prev, chiTiet: prev.chiTiet.filter(ct => !(ct.maPhieuCapPhat === alloc.maPhieu && ct.maThietBi === alloc.maThietBi)) };
       } else {
         return {
           ...prev,
@@ -276,7 +357,7 @@ export default function ReturnsPage() {
             maThietBi: alloc.maThietBi,
             tenThietBi: alloc.tenThietBi || alloc.maThietBi,
             soLuong: alloc.soLuongCapPhat,
-            tinhTrangKhiTra: 'DA_BOC_SEAL',
+            tinhTrangKhiTra: alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' ? 'NGUYEN_SEAL' : 'DA_BOC_SEAL',
             anhMinhChung: undefined
           }]
         };
@@ -284,15 +365,40 @@ export default function ReturnsPage() {
     });
   };
 
-  const filtered = data.filter(d => 
-    d.maPhieuTra.toLowerCase().includes(search.toLowerCase()) || 
-    (d.maPhieuCapPhat && d.maPhieuCapPhat.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = (data || []).filter(d => {
+    if (!d) return false;
+    const s = search.toLowerCase();
+    return (
+      (d.maPhieuTra?.toLowerCase().includes(s)) ||
+      (d.tenTruongKhoa?.toLowerCase().includes(s)) ||
+      (d.maPhieuCapPhat?.toLowerCase().includes(s))
+    );
+  });
 
-  const pendingAllocations = allocations.filter(a => 
-    a.trangThaiTra === 'CHUA_TRA' && 
-    (user?.vaiTro !== 'TRUONG_KHOA' || a.maNguoiMuon === user.maNguoiDung)
-  );
+  const pendingAllocations = (allocations || []).filter(a => {
+    if (!a) return false;
+    const isBorrowed = (a.trangThaiTra === 'CHUA_TRA' || a.trangThaiTra === 'DA_GIA_HAN');
+    const isMine = (user?.vaiTro !== 'TRUONG_KHOA' || a.maNguoiMuon === user.maNguoiDung);
+    
+    // ĐÃ TRẢ: Không hiển thị nếu đã có phiếu trả đang chờ xác nhận cho thiết bị này
+    const isInPendingReturn = (data || []).some(ret => 
+      ret && ret.trangThai === 'CHO_XAC_NHAN' && 
+      Array.isArray(ret.chiTiet) && ret.chiTiet.some((ct: any) => ct && ct.maPhieuCapPhat === a.maPhieu && ct.maThietBi === a.maThietBi)
+    );
+    
+    return isBorrowed && isMine && !isInPendingReturn;
+  });
+
+  const activeReturns = filtered.filter(d => d.trangThai === 'CHO_XAC_NHAN');
+  const historyReturns = filtered.filter(d => d.trangThai !== 'CHO_XAC_NHAN');
+
+  // Grouping by Ma Phieu for better UI
+  const groupedAllocations = pendingAllocations.reduce((acc, curr) => {
+    if (!curr || !curr.maPhieu) return acc;
+    if (!acc[curr.maPhieu]) acc[curr.maPhieu] = [];
+    acc[curr.maPhieu].push(curr);
+    return acc;
+  }, {} as Record<string, any[]>);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -309,6 +415,20 @@ export default function ReturnsPage() {
               <Camera className="w-4 h-4 mr-2" /> Quét QR Nhập kho
             </Button>
           )}
+          {user?.vaiTro === 'TRUONG_KHOA' && (
+            <Button 
+              variant="outline" 
+              onClick={() => setDueDialogOpen(true)}
+              className="relative border-destructive/30 text-destructive hover:bg-destructive/5"
+            >
+              <Info className="w-4 h-4 mr-2" /> Thiết bị đến hạn
+              {dueAllocations.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-destructive text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
+                  {dueAllocations.length}
+                </span>
+              )}
+            </Button>
+          )}
           {canCreate && (
             <Button onClick={() => {
               setForm({ ghiChu: '', chiTiet: [] });
@@ -320,109 +440,206 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      <div className="relative max-w-md w-full">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input placeholder="Tìm mã phiếu trả..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
-      </div>
-
-      <div className="border rounded-xl bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium text-muted-foreground">Mã Phiếu Trả</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Người Trả</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Ngày Trả</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Số lượng mục</th>
-                <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
-                <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(d => (
-                <tr key={d.maPhieuTra} className="border-b hover:bg-muted/30">
-                  <td className="p-3 font-mono text-xs font-semibold">{d.maPhieuTra}</td>
-                  <td className="p-3">{d.tenTruongKhoa}</td>
-                  <td className="p-3 text-xs">{new Date(d.ngayTao).toLocaleString('vi-VN')}</td>
-                  <td className="p-3">
-                     <span className="font-semibold">{d.chiTiet.length}</span> thiết bị
-                  </td>
-                  <td className="p-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase 
-                      ${d.trangThai === 'CHO_XAC_NHAN' ? 'bg-warning/10 text-warning' : 
-                        d.trangThai === 'DA_TRA' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                      {d.trangThai === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : d.trangThai === 'DA_TRA' ? 'Đã nhập kho' : 'Bị từ chối'}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setViewingPhieu(d); setDetailOpen(true); }} title="Xem chi tiết">
-                        <Eye className="w-4 h-4 text-info" />
-                      </Button>
-                      {d.qrData && (
-                        <Button variant="ghost" size="icon" onClick={() => { setQrDataStr(d.qrData!); setQrOpen(true); }} title="Mã QR">
-                          <QrCode className="w-4 h-4 text-primary" />
-                        </Button>
-                      )}
-                      {canConfirm && d.trangThai === 'CHO_XAC_NHAN' && (
-                         <Button variant="ghost" size="icon" className="bg-primary/10 text-primary hover:bg-primary/20" onClick={() => { setConfirmingPhieu(d); setConfirmOpen(true); }} title="Duyệt">
-                           <Check className="w-4 h-4" />
-                         </Button>
-                      )}
-                      {user?.vaiTro === 'TRUONG_KHOA' && d.trangThai === 'CHO_XAC_NHAN' && (
-                        <Button variant="ghost" size="icon" onClick={() => handleCancelReturn(d.maPhieuTra)} title="Hủy phiếu trả này">
-                          <RotateCcw className="w-4 h-4 text-orange-500" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteReturn(d.maPhieuTra)} title="Xóa">
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Tabs defaultValue="active" className="w-full">
+        <div className="flex justify-between items-center mb-4">
+          <TabsList className="grid grid-cols-2 w-[400px]">
+            <TabsTrigger value="active" className="relative">
+              Phiếu đang xử lý
+              {activeReturns.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
+                  {activeReturns.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="history">Lịch sử trả thiết bị</TabsTrigger>
+          </TabsList>
+          
+          <div className="relative max-w-xs w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Tìm mã phiếu..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-9" />
+          </div>
         </div>
-        {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">Không có dữ liệu phiếu trả.</div>}
-      </div>
+
+        <TabsContent value="active" className="mt-0 space-y-4">
+          <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Mã Phiếu Trả</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Người Trả</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Ngày Trả</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Số lượng mục</th>
+                    <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeReturns.map(d => {
+                    if (!d) return null;
+                    return (
+                      <tr key={d.maPhieuTra} className="border-b hover:bg-muted/30 cursor-pointer group" onClick={() => { setViewingPhieu(d); setDetailOpen(true); }}>
+                        <td className="p-3 font-mono text-xs font-bold group-hover:text-primary transition-colors">{d.maPhieuTra}</td>
+                        <td className="p-3 font-medium">{d.tenTruongKhoa}</td>
+                        <td className="p-3 text-xs text-muted-foreground">{d.ngayTao ? new Date(d.ngayTao).toLocaleString('vi-VN') : '---'}</td>
+                        <td className="p-3 font-medium">{(d.chiTiet?.length || 0)} thiết bị</td>
+                        <td className="p-3 text-center">
+                          <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-warning/10 text-warning border border-warning/20">
+                            Chờ xác nhận
+                          </span>
+                        </td>
+                        <td className="p-3 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setQrDataStr(d.maPhieuTra); setQrOpen(true); }} title="Mã QR">
+                              <QrCode className="w-4 h-4 text-primary" />
+                            </Button>
+                            {canConfirm && (
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:bg-success/10" onClick={() => { setConfirmingPhieu(d); setConfirmOpen(true); }} title="Duyệt">
+                                 <Check className="w-4 h-4" />
+                               </Button>
+                            )}
+                            {user?.vaiTro === 'TRUONG_KHOA' && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-orange-500 hover:bg-orange-50" onClick={() => { setCancellingPhieu(d); setCancelConfirmOpen(true); }} title="Hủy/Gia hạn">
+                                <RotateCcw className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteReturn(d.maPhieuTra)} title="Xóa">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {activeReturns.length === 0 && <tr><td colSpan={6} className="text-center py-12 text-muted-foreground bg-muted/5">Không có phiếu đang chờ xử lý.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-0 space-y-4">
+          <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Mã Trả</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Ngày Trả</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Ngày mượn</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Danh mục</th>
+                    <th className="text-center p-3 font-medium text-muted-foreground">Trạng thái</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyReturns.map(d => {
+                    if (!d) return null;
+                    return (
+                      <tr key={d.maPhieuTra} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => { setViewingPhieu(d); setDetailOpen(true); }}>
+                        <td className="p-3 font-mono text-xs font-bold">{d.maPhieuTra}</td>
+                        <td className="p-3 text-xs text-muted-foreground">{d.ngayTao ? new Date(d.ngayTao).toLocaleString('vi-VN') : '---'}</td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {(() => {
+                             const firstItem = d.chiTiet?.[0];
+                             if (!firstItem) return '---';
+                             const alloc = (allocations || []).find(a => a && a.maPhieu === firstItem.maPhieuCapPhat && a.maThietBi === firstItem.maThietBi);
+                             return alloc?.ngayCapPhat ? new Date(alloc.ngayCapPhat).toLocaleDateString('vi-VN') : '---';
+                          })()}
+                        </td>
+                        <td className="p-3">
+                          <div className="font-medium truncate max-w-[150px]">
+                            {d.chiTiet?.[0]?.tenThietBi} {(d.chiTiet?.length || 0) > 1 ? `và ${d.chiTiet.length - 1} TB khác...` : ''}
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase border", 
+                            d.trangThai === 'DA_TRA' ? 'bg-success/10 text-success border-success/20' : 
+                            d.trangThai === 'HUY' ? 'bg-muted text-muted-foreground border-border' : 
+                            'bg-destructive/10 text-destructive border-destructive/20'
+                          )}>
+                            {d.trangThai === 'DA_TRA' ? 'Đã nhập kho' : d.trangThai === 'HUY' ? 'Đã hủy' : 'Bị từ chối'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right" onClick={e => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteReturn(d.maPhieuTra)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {historyReturns.length === 0 && <tr><td colSpan={6} className="text-center py-12 text-muted-foreground bg-muted/5">Lịch sử trống.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Lập phiếu Trả Thiết bị</DialogTitle></DialogHeader>
           <div className="space-y-6">
             <div>
-              <Label className="mb-2 block">Chọn các thiết bị muốn trả (Thiết bị đang mượn) *</Label>
-              <div className="border rounded-lg divide-y max-h-60 overflow-y-auto bg-muted/20">
-                {pendingAllocations.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm">Không có thiết bị nào đang mượn hoặc tất cả đã được yêu cầu trả.</div>
+              <Label className="mb-2 block">Chọn thiết bị mượn (Gồm cả thiết bị được gia hạn) *</Label>
+              <div className="border rounded-lg divide-y max-h-80 overflow-y-auto bg-muted/20">
+                {Object.keys(groupedAllocations).length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">Không có thiết bị nào đang mượn.</div>
                 ) : (
-                  pendingAllocations.map(alloc => (
-                    <div key={alloc.maPhieu} className="flex items-center p-3 gap-3 hover:bg-muted/50 transition-colors">
-                      <Checkbox 
-                        id={`check-${alloc.maPhieu}`}
-                        checked={form.chiTiet.some(ct => ct.maPhieuCapPhat === alloc.maPhieu)}
-                        onCheckedChange={() => toggleAllocationSelection(alloc)}
-                      />
-                      <label htmlFor={`check-${alloc.maPhieu}`} className="flex-1 cursor-pointer">
-                        <div className="text-sm font-medium">{alloc.tenThietBi}</div>
-                        <div className="text-[10px] text-muted-foreground flex gap-3">
-                          <span>Mã CP: {alloc.maPhieu}</span>
-                          <span className="font-bold text-primary">Số lượng mượn: {alloc.soLuongCapPhat} {alloc.donViTinh}</span>
-                          {alloc.donViTinh !== alloc.donViCoSo && <span>(= {alloc.soLuongCoSo} {alloc.donViCoSo})</span>}
-                          <span>Hạn trả: {new Date(alloc.ngayDuKienTra).toLocaleDateString('vi-VN')}</span>
-                        </div>
-                      </label>
-                      {alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-8 text-xs text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:text-orange-700 pointer-events-auto"
-                          onClick={(e) => handleConsume(alloc.maPhieu, e)}
-                        >
-                          Báo cáo đã dùng
-                        </Button>
-                      )}
+                  Object.entries(groupedAllocations).map(([maPhieu, items]) => (
+                    <div key={maPhieu} className="p-1">
+                      <div className="px-3 py-1.5 bg-muted font-bold text-[11px] text-muted-foreground uppercase flex justify-between items-center">
+                         <span>Mã CP: {maPhieu}</span>
+                         <span className={cn("text-[10px] font-medium italic", 
+                            items?.[0]?.loaiThietBi === 'VAT_TU_TIEU_HAO' ? "text-orange-600" : 
+                            (items?.[0]?.ngayDuKienTra && new Date(items[0].ngayDuKienTra) < new Date() ? "text-destructive" : "text-muted-foreground")
+                          )}>
+                            {items?.[0]?.loaiThietBi === 'VAT_TU_TIEU_HAO' 
+                              ? 'Vật tư tiêu hao (Không trả, trừ khi lĩnh nhầm)' 
+                              : (items[0].ngayDuKienTra ? `Hạn trả: ${new Date(items[0].ngayDuKienTra).toLocaleDateString('vi-VN')}` : 'Hạn trả: Không có hạn')}
+                          </span>
+                      </div>
+                      {items.map(alloc => {
+                        if (!alloc) return null;
+                        const key = `${alloc.maPhieu}-${alloc.maThietBi}`;
+                        return (
+                          <div key={key} className="flex items-center p-3 gap-3 hover:bg-white/50 transition-colors">
+                            <Checkbox 
+                              id={`check-${key}`}
+                              checked={form.chiTiet.some(ct => ct && ct.maPhieuCapPhat === alloc.maPhieu && ct.maThietBi === alloc.maThietBi)}
+                              onCheckedChange={() => toggleAllocationSelection(alloc)}
+                            />
+                            <label htmlFor={`check-${key}`} className="flex-1 cursor-pointer">
+                              <div className="text-sm font-medium">{alloc.tenThietBi}</div>
+                              <div className="flex justify-between items-center w-full">
+                                <div className="text-[10px] text-muted-foreground flex gap-3">
+                                  <span className="font-bold text-primary">Mượn: {alloc.soLuongCapPhat} {alloc.donViTinh}</span>
+                                  {alloc.soLuongCoSo !== alloc.soLuongCapPhat && (
+                                    <span className="italic">(= {alloc.soLuongCoSo} {alloc.donViCoSo})</span>
+                                  )}
+                                </div>
+                                <div className={cn("text-[10px] font-bold", 
+                                  alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' ? "text-orange-500" : 
+                                  (alloc.ngayDuKienTra && new Date(alloc.ngayDuKienTra) < new Date() ? "text-destructive" : "text-muted-foreground")
+                                )}>
+                                  {alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' ? 'Vật tư tiêu hao' : (alloc.ngayDuKienTra ? new Date(alloc.ngayDuKienTra).toLocaleDateString('vi-VN') : '')}
+                                </div>
+                              </div>
+                            </label>
+                            {alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-[10px] text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 hover:text-orange-700 pointer-events-auto"
+                                onClick={(e) => handleConsume(alloc.maPhieu, alloc.maThietBi, e)}
+                              >
+                                Báo dùng
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ))
                 )}
@@ -438,7 +655,7 @@ export default function ReturnsPage() {
                       <div className="flex-1 min-w-[150px]">
                         <div className="text-sm font-semibold text-primary">{ct.tenThietBi}</div>
                         <div className="text-[10px] text-muted-foreground">
-                          Mã CP: {ct.maPhieuCapPhat} • Đơn vị trả: {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.donViTinh}
+                          Mã CP: {ct.maPhieuCapPhat} • Đơn vị trả: {allocations.find(a => a && a.maPhieu === ct.maPhieuCapPhat)?.donViTinh || '---'}
                         </div>
                       </div>
                       
@@ -447,7 +664,7 @@ export default function ReturnsPage() {
                         <Input 
                           type="number" 
                           min={1} 
-                          max={allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.soLuongCapPhat || 1}
+                          max={allocations.find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi)?.soLuongCapPhat || 9999}
                           value={ct.soLuong}
                           onChange={e => {
                             const val = parseInt(e.target.value) || 0;
@@ -473,23 +690,26 @@ export default function ReturnsPage() {
                         >
                           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="NGUYEN_SEAL">Nguyên seal</SelectItem>
-                            {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi !== 'VAT_TU_TIEU_HAO' && (
-                              <SelectItem value="DA_BOC_SEAL">Đã bóc seal (Dùng tốt)</SelectItem>
-                            )}
-                            <SelectItem value="HONG">Hỏng / Cần sửa chữa</SelectItem>
-                          </SelectContent>
+                             <SelectItem value="NGUYEN_SEAL">Nguyên seal (Còn nguyên bao bì)</SelectItem>
+                             {(() => {
+                               const alloc = (allocations || []).find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi);
+                               return alloc?.loaiThietBi === 'TAI_SU_DUNG' && (
+                                 <SelectItem value="DA_BOC_SEAL">Đã bóc seal (Dùng tốt)</SelectItem>
+                               );
+                             })()}
+                             <SelectItem value="HONG">Hỏng / Cần sửa chữa</SelectItem>
+                           </SelectContent>
                         </Select>
                       </div>
 
-                      {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat)?.loaiThietBi === 'VAT_TU_TIEU_HAO' && ct.tinhTrangKhiTra === 'NGUYEN_SEAL' && (
+                      {allocations.find(a => a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi)?.loaiThietBi === 'VAT_TU_TIEU_HAO' && ct.tinhTrangKhiTra === 'NGUYEN_SEAL' && (
                         <div className="w-full sm:w-auto mt-2 sm:mt-0 flex flex-col gap-1">
                           <Label className="text-[10px] text-orange-600 font-semibold flex items-center gap-1">
                             <Camera className="w-3 h-3" /> Ảnh minh chứng *
                           </Label>
                           {ct.anhMinhChung ? (
                             <div className="flex items-center justify-between gap-1 bg-success/10 text-success text-xs p-1 rounded border border-success/20 w-full sm:w-32">
-                              <span className="flex items-center gap-1 truncate" title={ct.anhMinhChung}><Check className="w-3 h-3 shrink-0" /> <span className="truncate">{ct.anhMinhChung}</span></span>
+                              <span className="flex items-center gap-1 truncate" title={ct.anhMinhChung.length > 20 ? 'Ảnh đính kèm' : ct.anhMinhChung}><Check className="w-3 h-3 shrink-0" /> <span className="truncate">Đã tải ảnh lên</span></span>
                               <Button 
                                 variant="ghost" size="icon" className="h-4 w-4 rounded-full hover:bg-success/20 hover:text-success shrink-0" 
                                 onClick={(e) => { e.preventDefault(); setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, anhMinhChung: undefined } : it) })); }}
@@ -506,7 +726,13 @@ export default function ReturnsPage() {
                                 input.type = 'file'; input.accept = 'image/*';
                                 input.onchange = (ev) => {
                                   const file = (ev.target as HTMLInputElement).files?.[0];
-                                  if (file) { setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, anhMinhChung: file.name } : it) })); }
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setForm(prev => ({ ...prev, chiTiet: prev.chiTiet.map((it, i) => i === idx ? { ...it, anhMinhChung: reader.result as string } : it) }));
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
                                 };
                                 input.click();
                               }}
@@ -552,8 +778,9 @@ export default function ReturnsPage() {
                 <div><span className="text-muted-foreground">Trạng thái:</span> 
                   <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase 
                     ${viewingPhieu.trangThai === 'CHO_XAC_NHAN' ? 'bg-warning/10 text-warning' : 
-                      viewingPhieu.trangThai === 'DA_TRA' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                    {viewingPhieu.trangThai === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : viewingPhieu.trangThai === 'DA_TRA' ? 'Đã nhập kho' : 'Bị từ chối'}
+                      viewingPhieu.trangThai === 'DA_TRA' ? 'bg-success/10 text-success' : 
+                      viewingPhieu.trangThai === 'HUY' ? 'bg-muted text-muted-foreground' : 'bg-destructive/10 text-destructive'}`}>
+                    {viewingPhieu.trangThai === 'CHO_XAC_NHAN' ? 'Chờ xác nhận' : viewingPhieu.trangThai === 'DA_TRA' ? 'Đã nhập kho' : viewingPhieu.trangThai === 'HUY' ? 'Đã hủy' : 'Bị từ chối'}
                   </span>
                 </div>
               </div>
@@ -566,26 +793,40 @@ export default function ReturnsPage() {
                       <tr className="border-b">
                         <th className="text-left p-2">Thiết bị</th>
                         <th className="text-center p-2">Số lượng</th>
-                        <th className="text-left p-2">Tình trạng khi trả</th>
-                        <th className="text-left p-2">Phiếu cấp phát</th>
+                        <th className="text-left p-2">Ngày mượn</th>
+                        <th className="text-left p-2">Tình trạng</th>
+                        <th className="text-left p-2">Mã CP</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {viewingPhieu.chiTiet.map((ct, i) => (
+                      {(viewingPhieu?.chiTiet || []).map((ct, i) => (
                         <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                           <td className="p-2 font-medium">{ct.tenThietBi}</td>
                           <td className="p-2 text-center">
-                             <div className="font-bold text-primary">{(ct as any).soLuong} {(ct as any).donViTinh}</div>
-                             {(ct as any).donViTinh !== (ct as any).donViCoSo && (
-                                <div className="text-[9px] text-muted-foreground italic">= {(ct as any).soLuongCoSo} {(ct as any).donViCoSo}</div>
+                             <div className="font-bold text-primary">{ct.soLuong} {ct.donViTinh}</div>
+                             {ct.donViTinh !== ct.donViCoSo && (
+                                <div className="text-[9px] text-muted-foreground italic">= {ct.soLuongCoSo} {ct.donViCoSo}</div>
                              )}
                           </td>
-                          <td className="p-2">
-                            <span className={ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive font-semibold' : ''}>
-                              {TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}
-                            </span>
+                          <td className="p-2 text-xs text-muted-foreground">
+                             {(() => {
+                               const alloc = (allocations || []).find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi);
+                               return alloc?.ngayCapPhat ? new Date(alloc.ngayCapPhat).toLocaleDateString('vi-VN') : '---';
+                             })()}
                           </td>
-                          <td className="p-2 font-mono text-muted-foreground">{ct.maPhieuCapPhat}</td>
+                          <td className="p-2">
+                            <div className="flex flex-col gap-1">
+                              <span className={cn("text-[11px]", ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive font-bold' : '')}>
+                                {TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}
+                              </span>
+                              {ct.anhMinhChung && (
+                                <button type="button" onClick={() => setPreviewImage(ct.anhMinhChung)} className="flex items-center gap-1 text-primary text-[9px] hover:underline font-medium cursor-pointer bg-transparent border-none p-0 text-left">
+                                  <Camera className="w-3 h-3" /> Xem ảnh
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-2 font-mono text-[10px] text-muted-foreground">{ct.maPhieuCapPhat}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -593,10 +834,31 @@ export default function ReturnsPage() {
                 </div>
               </div>
 
-              {viewingPhieu.ghiChu && (
-                <div className="p-3 border rounded-lg bg-yellow-50/50">
-                  <span className="text-[10px] text-muted-foreground block mb-1">Ghi chú:</span>
-                  <p className="text-sm">{viewingPhieu.ghiChu}</p>
+              {(viewingPhieu.ghiChu || (viewingPhieu.chiTiet && viewingPhieu.chiTiet.some(ct => ct.anhMinhChung))) && (
+                <div className="p-3 border rounded-lg bg-yellow-50/50 space-y-2">
+                  {viewingPhieu.ghiChu && (
+                    <>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Ghi chú:</span>
+                      <p className="text-sm whitespace-pre-wrap">{viewingPhieu.ghiChu}</p>
+                    </>
+                  )}
+                  {viewingPhieu.chiTiet && viewingPhieu.chiTiet.some(ct => ct.anhMinhChung) && (
+                    <div className="pt-2 border-t border-yellow-200">
+                      <span className="text-[10px] text-muted-foreground block mb-2">Ảnh minh chứng đính kèm:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingPhieu.chiTiet.filter(ct => ct.anhMinhChung).map((ct, idx) => (
+                          <div key={idx} className="relative group rounded border bg-white p-1 shadow-sm">
+                            <button type="button" onClick={() => setPreviewImage(ct.anhMinhChung)} className="block w-20 h-20 overflow-hidden rounded bg-transparent border-none p-0 cursor-pointer">
+                              <img src={ct.anhMinhChung} alt={`Minh chứng ${ct.tenThietBi}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" />
+                            </button>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] p-1 truncate text-center" title={ct.tenThietBi}>
+                              {ct.tenThietBi}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -613,10 +875,10 @@ export default function ReturnsPage() {
           <div className="bg-white p-4 rounded-xl shadow-inner border inline-block mt-4">
             <QRCodeComponent 
               value={qrDataStr} 
-              size={200}
-              fgColor="#000000"
-              level="H"
             />
+          </div>
+          <div className="font-mono text-sm font-bold bg-muted px-3 py-1 rounded border shadow-sm">
+            Mã phiếu: {qrDataStr}
           </div>
           <p className="text-xs text-muted-foreground mt-2">NV Kho có thể quét mã này bằng điện thoại/máy quét để duyệt nhanh.</p>
           <Button variant="outline" onClick={() => setQrOpen(false)} className="w-full mt-4">Đóng</Button>
@@ -630,16 +892,16 @@ export default function ReturnsPage() {
           <div className="space-y-4 py-2">
             <div className="overflow-hidden rounded-xl border bg-black aspect-video relative">
               {scanOpen && (
-                 <Scanner
+                  <Scanner
                     onScan={(detectedCodes) => {
                        if (detectedCodes && detectedCodes.length > 0) {
                           handleScanQR(detectedCodes[0].rawValue);
                        }
                     }}
                     formats={['qr_code']}
-                    components={{ audio: false, finder: true }}
+                    components={{ finder: true }}
                     styles={{ container: { width: '100%', height: '100%' } }}
-                 />
+                  />
               )}
             </div>
 
@@ -693,13 +955,20 @@ export default function ReturnsPage() {
                   <div key={i} className="pt-2 border-t mt-2">
                     <div className="flex justify-between"><span className="text-muted-foreground text-sm">Thiết bị:</span> <span className="font-medium text-right max-w-[200px]">{ct.tenThietBi}</span></div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground text-sm">Số lượng:</span> 
-                      <span className="font-bold text-primary">{(ct as any).soLuong} {(ct as any).donViTinh}</span>
+                       <span className="text-muted-foreground text-xs italic">Ngày mượn:</span>
+                       <span className="text-xs">{(() => {
+                         const alloc = (allocations || []).find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi);
+                         return alloc?.ngayCapPhat ? new Date(alloc.ngayCapPhat).toLocaleDateString('vi-VN') : '---';
+                       })()}</span>
                     </div>
-                    {(ct as any).donViTinh !== (ct as any).donViCoSo && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground text-sm">Số lượng:</span> 
+                      <span className="font-bold text-primary">{ct.soLuong} {ct.donViTinh}</span>
+                    </div>
+                    {ct.donViTinh !== ct.donViCoSo && (
                       <div className="flex justify-between text-[10px] italic text-muted-foreground">
                         <span>Quy đổi:</span>
-                        <span>= {(ct as any).soLuongCoSo} {(ct as any).donViCoSo}</span>
+                        <span>= {ct.soLuongCoSo} {ct.donViCoSo}</span>
                       </div>
                     )}
                     <div className="flex justify-between"><span className="text-muted-foreground text-sm">Tình trạng:</span> <span className={`font-semibold ${ct.tinhTrangKhiTra === 'HONG' ? 'text-destructive' : 'text-success'}`}>{TINH_TRANG_TRA_LABELS[ct.tinhTrangKhiTra]}</span></div>
@@ -717,6 +986,185 @@ export default function ReturnsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL DANH SÁCH ĐẾN HẠN */}
+      <Dialog open={dueDialogOpen} onOpenChange={setDueDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-6 border-b"><DialogTitle className="flex items-center gap-2"><Info className="w-5 h-5 text-destructive" /> Thiết bị đến hạn / quá hạn trả</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto p-6">
+            {dueAllocations.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">Không có thiết bị nào đến hạn trong 3 ngày tới.</div>
+            ) : (
+              <div className="border rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Thiết bị</th>
+                      <th className="text-left p-3 font-medium">Ngày mượn</th>
+                      <th className="text-left p-3 font-medium">Mã CP</th>
+                      <th className="text-center p-3 font-medium">Hạn trả</th>
+                      <th className="text-center p-3 font-medium">Trạng thái</th>
+                      <th className="text-right p-3 font-medium">Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {dueAllocations.map(alloc => {
+                      const isOverdue = new Date(alloc.ngayDuKienTra!) < new Date();
+                      return (
+                        <tr key={alloc.maPhieu + alloc.maThietBi} className={isOverdue ? 'bg-destructive/5' : ''}>
+                          <td className="p-3">
+                            <div className="font-bold">{alloc.tenThietBi}</div>
+                            <div className="text-[10px] text-muted-foreground">{alloc.soLuongCapPhat} {alloc.donViTinh}</div>
+                          </td>
+                          <td className="p-3 text-xs text-muted-foreground">{alloc.ngayCapPhat ? new Date(alloc.ngayCapPhat).toLocaleDateString('vi-VN') : '---'}</td>
+                          <td className="p-3 font-mono text-xs">{alloc.maPhieu}</td>
+                          <td className="p-3 text-center">
+                            <span className={cn("px-2 py-1 rounded text-[10px] font-bold", isOverdue ? "bg-destructive text-white" : "bg-warning/20 text-warning-foreground")}>
+                              {new Date(alloc.ngayDuKienTra!).toLocaleDateString('vi-VN')}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="text-[10px] font-medium">{TRANG_THAI_TRA_LABELS[alloc.trangThaiTra]}</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex justify-end gap-2">
+                               <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setExtendingAlloc(alloc); setExtDate(alloc.ngayDuKienTra!); setExtendOpen(true); }}>Gia hạn</Button>
+                               <Button size="sm" className="gradient-primary h-8 text-xs text-white" onClick={() => { 
+                                  setDueDialogOpen(false); 
+                                  setForm({ ghiChu: '', chiTiet: [{
+                                    maPhieuCapPhat: alloc.maPhieu,
+                                    maThietBi: alloc.maThietBi,
+                                    tenThietBi: alloc.tenThietBi || alloc.maThietBi,
+                                    soLuong: alloc.soLuongCapPhat,
+                                    tinhTrangKhiTra: alloc.loaiThietBi === 'VAT_TU_TIEU_HAO' ? 'NGUYEN_SEAL' : 'DA_BOC_SEAL',
+                                  }] });
+                                  setDialogOpen(true);
+                               }}>Trả ngay</Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t bg-muted/20">
+            <Button variant="ghost" onClick={() => setDueDialogOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL GIA HẠN */}
+      <Dialog open={extendOpen} onOpenChange={setExtendOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Gửi yêu cầu Gia hạn mượn</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="mb-1 block">Ngày gia hạn mới *</Label>
+              <Input type="date" value={extDate} onChange={e => setExtDate(e.target.value)} />
+            </div>
+            <div>
+              <Label className="mb-1 block">Lý do gia hạn *</Label>
+              <Textarea 
+                placeholder="VD: Dự án kéo dài thêm 1 tuần..." 
+                value={extReason} 
+                onChange={e => setExtReason(e.target.value)}
+                className="h-24 resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setExtendOpen(false)}>Hủy</Button>
+            <Button className="gradient-primary text-white" onClick={handleExtendRequest}>Gửi yêu cầu</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><RotateCcw className="w-5 h-5 text-orange-500" /> Xử lý Phiếu Trả {cancellingPhieu?.maPhieuTra}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Bạn muốn thực hiện thao tác nào cho phiếu trả này?</p>
+            
+            <div className="border rounded-lg p-3 bg-muted/30">
+               <div className="text-[10px] uppercase text-muted-foreground mb-2">Danh sách thiết bị trong phiếu:</div>
+               {cancellingPhieu?.chiTiet?.map((ct: any, i: number) => (
+                 <div key={i} className="text-xs space-y-1 pt-2 border-t first:border-0 first:pt-0">
+                    <div className="flex justify-between font-medium">
+                       <span>{ct.tenThietBi}</span>
+                       <span className="font-bold text-primary">{ct.soLuong} {ct.donViTinh}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground italic">
+                       <span>Ngày mượn: {(() => {
+                         const alloc = (allocations || []).find(a => a && a.maPhieu === ct.maPhieuCapPhat && a.maThietBi === ct.maThietBi);
+                         return alloc?.ngayCapPhat ? new Date(alloc.ngayCapPhat).toLocaleDateString('vi-VN') : '---';
+                       })()}</span>
+                       <span>Mã CP: {ct.maPhieuCapPhat}</span>
+                    </div>
+                 </div>
+               ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-3 px-4 flex flex-col items-start gap-1 border-orange-200 hover:bg-orange-50"
+                onClick={() => {
+                  const firstCt = cancellingPhieu?.chiTiet?.[0];
+                  const alloc = allocations.find(a => a.maPhieu === firstCt?.maPhieuCapPhat);
+                  if (alloc) {
+                    setExtendingAlloc(alloc);
+                    setExtDate(alloc.ngayDuKienTra ? new Date(alloc.ngayDuKienTra).toISOString().split('T')[0] : '');
+                    setCancelConfirmOpen(false);
+                    setExtendOpen(true);
+                  }
+                }}
+              >
+                <div className="font-bold flex items-center gap-2"><Plus className="w-4 h-4" /> Gia hạn thêm ngày trả</div>
+                <div className="text-[10px] text-muted-foreground">Tiếp tục mượn và dời ngày trả cho thiết bị này</div>
+              </Button>
+
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-3 px-4 flex flex-col items-start gap-1 border-destructive/20 hover:bg-destructive/5 text-destructive"
+                onClick={() => {
+                  handleCancelReturn(cancellingPhieu?.maPhieuTra);
+                  setCancelConfirmOpen(false);
+                }}
+              >
+                <div className="font-bold flex items-center gap-2"><X className="w-4 h-4" /> Hủy yêu cầu trả (vẫn mượn)</div>
+                <div className="text-[10px] text-muted-foreground opacity-70">Xóa phiếu trả này và giữ trạng thái mượn</div>
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCancelConfirmOpen(false)} className="w-full">Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPreviewImage(null)}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-full"
+            onClick={() => setPreviewImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </Button>
+          <img 
+            src={previewImage} 
+            alt="Phóng to minh chứng" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl bg-black/50" 
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
