@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const parsed = JSON.parse(saved);
       // Bảo vệ: Nếu vai trò cũ (như NV_BV) không còn tồn tại, ép đăng xuất
-      const validRoles = ['ADMIN', 'NV_KHO', 'TRUONG_KHOA'];
+      const validRoles = ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'];
       if (!parsed.vaiTro || !validRoles.includes(parsed.vaiTro)) {
         localStorage.removeItem('kho_currentUser');
         localStorage.removeItem('auth_token');

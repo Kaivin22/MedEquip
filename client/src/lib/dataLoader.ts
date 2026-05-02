@@ -4,13 +4,13 @@
  */
 import { store } from './store';
 import { isMockMode, fetchApi } from '@/services/api';
-import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong, PhieuYeuCauNhap } from '@/types';
+import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong } from '@/types';
 
 export async function loadAllData(userId?: string): Promise<void> {
   if (isMockMode()) return; // Mock mode uses localStorage defaults
 
   try {
-    const [equipment, inventory, suppliers, departments, requests, imports, exports, allocations, damageReports, importRequests, returns] = await Promise.all([
+    const [equipment, inventory, suppliers, departments, requests, imports, exports, allocations, damageReports, returns] = await Promise.all([
       fetchApi<ThietBi[]>('/equipment').catch(() => []),
       fetchApi<TonKho[]>('/inventory').catch(() => []),
       fetchApi<NhaCungCap[]>('/suppliers').catch(() => []),
@@ -20,7 +20,6 @@ export async function loadAllData(userId?: string): Promise<void> {
       fetchApi<PhieuXuatKho[]>('/exports').catch(() => []),
       fetchApi<PhieuCapPhat[]>('/allocations').catch(() => []),
       fetchApi<PhieuBaoHuHong[]>('/damage-reports').catch(() => []),
-      fetchApi<PhieuYeuCauNhap[]>('/import-requests').catch(() => []),
       fetchApi<PhieuTraThietBi[]>('/returns').catch(() => []),
     ]);
 
@@ -34,7 +33,7 @@ export async function loadAllData(userId?: string): Promise<void> {
 
     store.initFromApi({
       users, equipment, inventory, suppliers, departments,
-      notifications, requests, imports, exports, allocations, damageReports, importRequests, returns
+      notifications, requests, imports, exports, allocations, damageReports, returns
     });
 
     console.log('✅ Data loaded from API');
@@ -60,7 +59,6 @@ export async function refreshData(type: string, userId?: string): Promise<void> 
       case 'exports': store.setExports(await fetchApi('/exports')); break;
       case 'allocations': store.setAllocations(await fetchApi('/allocations')); break;
       case 'damageReports': store.setDamageReports(await fetchApi('/damage-reports')); break;
-      case 'importRequests': store.setImportRequests(await fetchApi('/import-requests')); break;
       case 'returns': store.setReturns(await fetchApi('/returns')); break;
       case 'notifications':
         if (userId) store.setNotifications(await fetchApi(`/notifications?userId=${userId}`));

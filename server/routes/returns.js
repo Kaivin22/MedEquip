@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware, roleMiddleware } from "../middleware/auth.js";
-import { createReturn, getAllReturns, getMyReturns, confirmReturn, deleteReturn, cancelReturn } from "../controllers/returnController.js";
+import { createReturn, getAllReturns, getMyReturns, confirmReturn, deleteReturn, cancelReturn, extendReturn, approveExtension } from "../controllers/returnController.js";
 
 const router = Router();
 
@@ -21,5 +21,9 @@ router.delete("/:id", authMiddleware, deleteReturn);
 
 // Hủy yêu cầu trả (chỉ dành cho TK)
 router.post("/:id/cancel", authMiddleware, roleMiddleware("TRUONG_KHOA"), cancelReturn);
+
+// Gia hạn
+router.post("/extend", authMiddleware, roleMiddleware("TRUONG_KHOA"), extendReturn);
+router.post("/approve-extension", authMiddleware, roleMiddleware("ADMIN", "NV_KHO", "QL_KHO"), approveExtension);
 
 export default router;

@@ -1,4 +1,4 @@
-import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong, PhieuTraThietBi, PhieuYeuCauNhap } from '@/types';
+import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong, PhieuTraThietBi } from '@/types';
 
 const defaultUsers: NguoiDung[] = [
   { maNguoiDung: 'ND-001', hoTen: 'Nguyễn Văn Admin', email: 'admin@benhvien.vn', matKhau: '123456', vaiTro: 'ADMIN', trangThai: true, ngayTao: '2026-01-01', ngayCapNhat: '2026-01-01' },
@@ -92,9 +92,6 @@ export const store = {
   getReturns: () => getStore<PhieuTraThietBi>('kho_returns', []),
   setReturns: (d: PhieuTraThietBi[]) => setStore('kho_returns', d),
 
-  getImportRequests: () => getStore<PhieuYeuCauNhap>('kho_import_requests', []),
-  setImportRequests: (d: PhieuYeuCauNhap[]) => setStore('kho_import_requests', d),
-
   // Initialize store from API data
   initFromApi: (data: {
     users?: NguoiDung[];
@@ -109,7 +106,6 @@ export const store = {
     allocations?: PhieuCapPhat[];
     damageReports?: PhieuBaoHuHong[];
     returns?: PhieuTraThietBi[];
-    importRequests?: PhieuYeuCauNhap[];
   }) => {
     if (data.users) setStore('kho_users', data.users);
     if (data.equipment) setStore('kho_equipment', data.equipment);
@@ -122,7 +118,6 @@ export const store = {
     if (data.imports) setStore('kho_imports', data.imports);
     if (data.allocations) setStore('kho_allocations', data.allocations);
     if (data.damageReports) setStore('kho_damage_reports', data.damageReports);
-    if (data.importRequests) setStore('kho_import_requests', data.importRequests);
     if (data.returns) setStore('kho_returns', data.returns);
   },
 

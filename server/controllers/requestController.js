@@ -70,8 +70,8 @@ export async function createRequest(req, res) {
 
     // Insert main request (backwards compatibility with ma_thiet_bi and so_luong_yeu_cau)
     await conn.query(
-      "INSERT INTO phieu_yeu_cau (ma_phieu, ma_nguoi_yeu_cau, ma_thiet_bi, ma_khoa, so_luong_yeu_cau, ly_do, trang_thai) VALUES (?, ?, ?, ?, ?, ?, 'CHO_DUYET')",
-      [id, maNguoiYeuCau || req.user.userId, firstItem.maThietBi, maKhoa, firstItem.soLuong, lyDo || ""]
+      "INSERT INTO phieu_yeu_cau (ma_phieu, ma_nguoi_yeu_cau, ma_thiet_bi, ma_khoa, so_luong_yeu_cau, ly_do, trang_thai, ma_phieu_cap_phat_cu) VALUES (?, ?, ?, ?, ?, ?, 'CHO_DUYET', ?)",
+      [id, maNguoiYeuCau || req.user.userId, firstItem.maThietBi, maKhoa, firstItem.soLuong, lyDo || "", req.body.maPhieuCapPhatCu || null]
     );
 
     // Insert all items
@@ -269,18 +269,28 @@ export async function processRequestItems(req, res) {
     }
 
     if (approvedCount > 0) {
-      // Create allocation record
-      const cpId = "CP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
-      await conn.query(
-        "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu, trang_thai_tra) VALUES (?, ?, ?, ?, ?, 'CHUA_TRA')",
-        [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
-      );
-
-      for (const det of approvedDetails) {
+      if (request.ma_phieu_cap_phat_cu) {
+        // GIA HẠN: Cập nhật lại phiếu cũ
+        for (const det of approvedDetails) {
+          await conn.query(
+            "UPDATE chi_tiet_cap_phat SET ngay_tra_du_kien = ?, trang_thai_tra = 'DA_GIA_HAN', ly_do_gia_han = ? WHERE ma_phieu_cap_phat = ? AND ma_thiet_bi = ?",
+            [det.ngayTraDuKien, `Đã gia hạn theo phiếu ${id}`, request.ma_phieu_cap_phat_cu, det.maThietBi]
+          );
+        }
+      } else {
+        // CẤP PHÁT MỚI
+        const cpId = "CP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + String(Date.now()).slice(-4);
         await conn.query(
-          "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, ngay_tra_du_kien) VALUES (?, ?, ?, ?, ?, ?)",
-          [cpId, det.maThietBi, det.soLuong, det.donViTinh, det.soLuongCoSo, det.ngayTraDuKien || null]
+          "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu) VALUES (?, ?, ?, ?, ?)",
+          [cpId, id, req.user.userId, request.ma_khoa, ghiChu || ""]
         );
+
+        for (const det of approvedDetails) {
+          await conn.query(
+            "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, don_vi_tinh, so_luong_co_so, ngay_tra_du_kien, trang_thai_tra) VALUES (?, ?, ?, ?, ?, ?, 'CHUA_TRA')",
+            [cpId, det.maThietBi, det.soLuong, det.donViTinh, det.soLuongCoSo, det.ngayTraDuKien || null]
+          );
+        }
       }
 
       await conn.query("UPDATE phieu_yeu_cau SET trang_thai = 'DA_CAP_PHAT' WHERE ma_phieu = ?", [id]);
