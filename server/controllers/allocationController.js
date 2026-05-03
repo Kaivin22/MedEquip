@@ -25,14 +25,15 @@ export async function getAllAllocations(req, res) {
           maThietBi: d.ma_thiet_bi,
           tenThietBi: d.ten_thiet_bi || d.ma_thiet_bi,
           loaiThietBi: d.loai_thiet_bi || "TAI_SU_DUNG",
-          donViTinh: d.don_vi_co_so || "Cái",
+          donViTinh: d.don_vi_tinh || d.don_vi_co_so || "Cái",
+          soLuongCoSo: d.so_luong_co_so || d.so_luong,
           maNguoiMuon: request ? request.ma_nguoi_yeu_cau : "",
           maKhoa: row.ma_khoa_nhan,
           soLuongCapPhat: d.so_luong,
           ngayCapPhat: row.ngay_cap,
-          ngayDuKienTra: row.ngay_du_kien_tra || null,
-          trangThaiTra: row.trang_thai_tra || "CHUA_TRA",
-          lyDoGiaHan: row.ly_do_gia_han || "",
+          ngayDuKienTra: d.ngay_tra_du_kien || null,
+          trangThaiTra: d.trang_thai_tra || "CHUA_TRA",
+          lyDoGiaHan: d.ly_do_gia_han || "",
           ghiChu: row.ghi_chu || ""
         });
       }
@@ -46,8 +47,8 @@ export async function getAllAllocations(req, res) {
           maKhoa: row.ma_khoa_nhan,
           soLuongCapPhat: 0,
           ngayCapPhat: row.ngay_cap,
-          ngayDuKienTra: row.ngay_du_kien_tra || null,
-          trangThaiTra: row.trang_thai_tra || "CHUA_TRA",
+          ngayDuKienTra: null,
+          trangThaiTra: "CHUA_TRA",
           ghiChu: row.ghi_chu || ""
         });
       }
@@ -67,19 +68,46 @@ export async function createAllocation(req, res) {
     const id = "CP-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Date.now()).slice(-4);
 
     await conn.query(
-      "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu, ngay_du_kien_tra, trang_thai_tra) VALUES (?, ?, ?, ?, ?, ?, 'CHUA_TRA')",
-      [id, maPhieuYeuCau, maNhanVienKho || req.user.userId, maKhoa, ghiChu || "", ngayDuKienTra || null]
+      "INSERT INTO phieu_cap_phat (ma_phieu, ma_phieu_yeu_cau, ma_nguoi_cap, ma_khoa_nhan, ghi_chu) VALUES (?, ?, ?, ?, ?)",
+      [id, maPhieuYeuCau, maNhanVienKho || req.user.userId, maKhoa, ghiChu || ""]
     );
 
     if (maThietBi && soLuongCapPhat) {
-      await conn.query(
-        "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong) VALUES (?, ?, ?)",
-        [id, maThietBi, soLuongCapPhat]
+      // Lấy thông tin thiết bị để quy đổi
+      const [tbInfo] = await conn.query(
+        "SELECT don_vi_co_so, don_vi_nhap, he_so_quy_doi, loai_thiet_bi FROM thiet_bi WHERE ma_thiet_bi = ?",
+        [maThietBi]
       );
+      
+      let soLuongCoSo = soLuongCapPhat;
+      let isTieuHao = false;
+
+      if (tbInfo.length > 0) {
+        const { don_vi_nhap, don_vi_co_so, he_so_quy_doi, loai_thiet_bi } = tbInfo[0];
+        isTieuHao = (loai_thiet_bi === 'VAT_TU_TIEU_HAO');
+        // Nếu input không có donVi, giả định là đơn vị cơ sở
+        const selectedUnit = req.body.donVi || don_vi_co_so;
+        if (selectedUnit === don_vi_nhap && don_vi_nhap !== don_vi_co_so) {
+          soLuongCoSo = soLuongCapPhat * (he_so_quy_doi || 1);
+        }
+      }
+
       await conn.query(
-        "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
-        [soLuongCapPhat, soLuongCapPhat, maThietBi]
+        "INSERT INTO chi_tiet_cap_phat (ma_phieu_cap_phat, ma_thiet_bi, so_luong, so_luong_co_so, don_vi_tinh, ngay_tra_du_kien, trang_thai_tra) VALUES (?, ?, ?, ?, ?, ?, 'CHUA_TRA')",
+        [id, maThietBi, soLuongCapPhat, soLuongCoSo, req.body.donVi || 'Cái', ngayDuKienTra || null]
       );
+
+      if (isTieuHao) {
+        await conn.query(
+          "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ? WHERE ma_thiet_bi = ?",
+          [soLuongCoSo, maThietBi]
+        );
+      } else {
+        await conn.query(
+          "UPDATE ton_kho SET so_luong_kho = so_luong_kho - ?, so_luong_dang_dung = so_luong_dang_dung + ? WHERE ma_thiet_bi = ?",
+          [soLuongCoSo, soLuongCoSo, maThietBi]
+        );
+      }
     }
 
     if (maPhieuYeuCau) {
@@ -117,8 +145,8 @@ export async function extendRequest(req, res) {
     if (rows.length === 0) return res.status(404).json({ success: false, message: "Không tìm thấy phiếu." });
 
     await pool.query(
-      "UPDATE phieu_cap_phat SET trang_thai_tra = 'YEU_CAU_TRA', ly_do_gia_han = ? WHERE ma_phieu = ?",
-      [`[YÊU CẦU GIA HẠN đến ${ngayGiaHan}] ${lyDo}`, id]
+      "UPDATE chi_tiet_cap_phat SET trang_thai_tra = 'YEU_CAU_TRA', ly_do_gia_han = ? WHERE ma_phieu_cap_phat = ?",
+      [`[ĐANG YÊU CẦU GIA HẠN đến ${ngayGiaHan}] ${lyDo}`, id]
     );
 
     // Thông báo cho NV_KHO
@@ -146,13 +174,13 @@ export async function extendApprove(req, res) {
 
     if (approved) {
       await pool.query(
-        "UPDATE phieu_cap_phat SET trang_thai_tra = 'DA_GIA_HAN', ngay_du_kien_tra = ? WHERE ma_phieu = ?",
+        "UPDATE chi_tiet_cap_phat SET trang_thai_tra = 'DA_GIA_HAN', ngay_tra_du_kien = ? WHERE ma_phieu_cap_phat = ?",
         [ngayGiaHan, id]
       );
     } else {
       // Khôi phục trạng thái CHUA_TRA
       await pool.query(
-        "UPDATE phieu_cap_phat SET trang_thai_tra = 'CHUA_TRA' WHERE ma_phieu = ?",
+        "UPDATE chi_tiet_cap_phat SET trang_thai_tra = 'CHUA_TRA' WHERE ma_phieu_cap_phat = ?",
         [id]
       );
     }
@@ -184,34 +212,31 @@ export async function consumeAllocation(req, res) {
   try {
     await conn.beginTransaction();
     const { id } = req.params;
+    const { maThietBi } = req.body;
 
-    const [cpRows] = await conn.query("SELECT * FROM phieu_cap_phat WHERE ma_phieu = ? FOR UPDATE", [id]);
+    if (!maThietBi) {
+       await conn.rollback();
+       return res.status(400).json({ success: false, message: "Thiếu mã thiết bị." });
+    }
+
+    const [cpRows] = await conn.query("SELECT trang_thai_tra, so_luong FROM chi_tiet_cap_phat WHERE ma_phieu_cap_phat = ? AND ma_thiet_bi = ? FOR UPDATE", [id, maThietBi]);
     if (cpRows.length === 0 || cpRows[0].trang_thai_tra !== 'CHUA_TRA') {
       await conn.rollback();
-      return res.status(400).json({ success: false, message: "Phiếu không hợp lệ hoặc đã xử lý." });
+      return res.status(400).json({ success: false, message: "Thiết bị không hợp lệ hoặc đã xử lý." });
     }
 
-    // Since we didn't add it to so_luong_dang_dung during allocation for new items, and we might have for old items:
-    // To be perfectly safe across old/new data without causing negative dang_dung, we can just deduct conditionally or use GREATEST.
-    const [details] = await conn.query(
-      "SELECT ct.*, tb.loai_thiet_bi FROM chi_tiet_cap_phat ct JOIN thiet_bi tb ON ct.ma_thiet_bi = tb.ma_thiet_bi WHERE ma_phieu_cap_phat = ?", 
-      [id]
+    // Tồn kho (so_luong_kho) đã được trừ ngay lúc Thủ kho duyệt cấp phát cho Khoa.
+    // Ở đây chỉ cần trừ so_luong_dang_dung (nếu có nhầm lẫn cộng vào trước đây do dữ liệu cũ).
+    await conn.query(
+      "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
+      [cpRows[0].so_luong, maThietBi]
     );
 
-    for (const d of details) {
-      if (d.loai_thiet_bi === 'VAT_TU_TIEU_HAO') {
-        // Just in case it was an old allocation that added to dang_dung, deduct it. If new, GREATEST(0,0-N) will keep it 0.
-        await conn.query(
-          "UPDATE ton_kho SET so_luong_dang_dung = GREATEST(0, so_luong_dang_dung - ?) WHERE ma_thiet_bi = ?",
-          [d.so_luong, d.ma_thiet_bi]
-        );
-      }
-    }
-
-    await conn.query("UPDATE phieu_cap_phat SET trang_thai_tra = 'DA_TRA' WHERE ma_phieu = ?", [id]);
+    // Đánh dấu đã dùng/đã trả
+    await conn.query("UPDATE chi_tiet_cap_phat SET trang_thai_tra = 'DA_TRA' WHERE ma_phieu_cap_phat = ? AND ma_thiet_bi = ?", [id, maThietBi]);
 
     await conn.commit();
-    res.json({ success: true, message: "Đã sử dụng/Khấu trừ thành công. Đã xóa khỏi lịch sử mượn." });
+    res.json({ success: true, message: "Đã báo sử dụng thành công. Vật tư đã được loại khỏi danh sách." });
   } catch (err) {
     await conn.rollback();
     console.error(err);

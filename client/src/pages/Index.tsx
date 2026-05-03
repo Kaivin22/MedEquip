@@ -4,7 +4,6 @@ import LoginPage from '@/components/LoginPage';
 import AppLayout, { PageKey } from '@/components/AppLayout';
 import DashboardPage from '@/pages/DashboardPage';
 import InventoryPage from '@/pages/InventoryPage';
-import EquipmentPage from '@/pages/EquipmentPage';
 import ImportsPage from '@/pages/ImportsPage';
 import ExportsPage from '@/pages/ExportsPage';
 import SuppliersPage from '@/pages/SuppliersPage';
@@ -19,6 +18,8 @@ import ReportsPage from '@/pages/ReportsPage';
 const pages: Record<PageKey, React.ComponentType> = {
   dashboard: DashboardPage,
   inventory: InventoryPage,
+  imports: ImportsPage,
+  exports: ExportsPage,
   suppliers: SuppliersPage,
   departments: DepartmentsPage,
   requests: RequestsPage,

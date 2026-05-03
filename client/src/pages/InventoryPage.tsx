@@ -32,8 +32,14 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
 
   const isTrưởngKhoa = user?.vaiTro === 'TRUONG_KHOA';
 
-  const [form, setForm] = useState({
-    tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '', trangThai: true
+  const [form, setForm] = useState<{
+    tenThietBi: string; loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG'; donViCoSo: string; donViNhap: string;
+    heSoQuyDoi: number; serialNumber: string; nguongCanhBao: number;
+    moTa: string; maNhaCungCap: string; hinhAnh: string;
+  }>({
+    tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViCoSo: 'Cái', donViNhap: 'Hộp',
+    heSoQuyDoi: 1, serialNumber: '', nguongCanhBao: 10,
+    moTa: '', maNhaCungCap: '', hinhAnh: ''
   });
 
   const data = useMemo(() => {
@@ -99,15 +105,20 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
 
   const openAdd = () => {
     setSelectedItem(null);
-    setForm({ tenThietBi: '', loaiThietBi: '', donViTinh: '', moTa: '', maNhaCungCap: '', hinhAnh: '', trangThai: true });
+    setForm({
+      tenThietBi: '', loaiThietBi: 'TAI_SU_DUNG', donViCoSo: 'Cái', donViNhap: 'Hộp',
+      heSoQuyDoi: 1, serialNumber: '', nguongCanhBao: 10,
+      moTa: '', maNhaCungCap: '', hinhAnh: ''
+    });
     setEditOpen(true);
   };
 
   const openEdit = (tb: ThietBi) => {
     setSelectedItem(tb);
     setForm({
-      tenThietBi: tb.tenThietBi, loaiThietBi: tb.loaiThietBi, donViTinh: tb.donViTinh || '',
-      moTa: tb.moTa || '', maNhaCungCap: tb.maNhaCungCap || '', hinhAnh: tb.hinhAnh || '', trangThai: tb.trangThai
+      tenThietBi: tb.tenThietBi, loaiThietBi: tb.loaiThietBi, donViCoSo: tb.donViCoSo || '', donViNhap: tb.donViNhap || '',
+      heSoQuyDoi: tb.heSoQuyDoi || 1, serialNumber: tb.serialNumber || '', nguongCanhBao: tb.nguongCanhBao || 10,
+      moTa: tb.moTa || '', maNhaCungCap: tb.maNhaCungCap || '', hinhAnh: tb.hinhAnh || ''
     });
     setEditOpen(true);
     setDetailOpen(false);
@@ -357,37 +368,34 @@ function StockView({ onRefresh }: { onRefresh: () => void }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Loại thiết bị *</Label>
-                <Select value={form.loaiThietBi} onValueChange={v => setForm(f => ({ ...f, loaiThietBi: v }))}>
+                <Select value={form.loaiThietBi} onValueChange={v => setForm(f => ({ ...f, loaiThietBi: v as any }))}>
                   <SelectTrigger><SelectValue placeholder="Chọn loại" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Máy móc">Máy móc</SelectItem>
-                    <SelectItem value="Dụng cụ">Dụng cụ</SelectItem>
-                    <SelectItem value="Vật tư">Vật tư</SelectItem>
+                    <SelectItem value="TAI_SU_DUNG">Tái sử dụng</SelectItem>
+                    <SelectItem value="VAT_TU_TIEU_HAO">Vật tư tiêu hao</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Đơn vị tính</Label><Input value={form.donViTinh} onChange={e => setForm(f => ({ ...f, donViTinh: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>ĐVT cơ sở *</Label><Input value={form.donViCoSo} onChange={e => setForm(f => ({ ...f, donViCoSo: e.target.value }))} /></div>
+                <div><Label>ĐVT nhập *</Label><Input value={form.donViNhap} onChange={e => setForm(f => ({ ...f, donViNhap: e.target.value }))} /></div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Nhà cung cấp</Label>
-                <Select value={form.maNhaCungCap} onValueChange={v => setForm(f => ({ ...f, maNhaCungCap: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Chọn NCC" /></SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map(s => <SelectItem key={s.maNhaCungCap} value={s.maNhaCungCap}>{s.tenNhaCungCap}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Trạng thái</Label>
-                <Select value={form.trangThai ? 'TRUE' : 'FALSE'} onValueChange={v => setForm(f => ({ ...f, trangThai: v === 'TRUE' }))}>
-                  <SelectTrigger><SelectValue placeholder="Chọn trạng thái" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TRUE">Đang sử dụng</SelectItem>
-                    <SelectItem value="FALSE">Ngừng sử dụng</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div><Label>Hệ số quy đổi (1 Nhập = N Cơ sở)</Label><Input type="number" value={form.heSoQuyDoi} onChange={e => setForm(f => ({ ...f, heSoQuyDoi: parseInt(e.target.value) || 1 }))} /></div>
+              <div><Label>Ngưỡng cảnh báo tồn</Label><Input type="number" value={form.nguongCanhBao} onChange={e => setForm(f => ({ ...f, nguongCanhBao: parseInt(e.target.value) || 0 }))} /></div>
+            </div>
+            {form.loaiThietBi === 'TAI_SU_DUNG' && (
+              <div><Label>Serial Number</Label><Input value={form.serialNumber} onChange={e => setForm(f => ({ ...f, serialNumber: e.target.value }))} /></div>
+            )}
+            <div>
+              <Label>Nhà cung cấp</Label>
+              <Select value={form.maNhaCungCap} onValueChange={v => setForm(f => ({ ...f, maNhaCungCap: v }))}>
+                <SelectTrigger><SelectValue placeholder="Chọn NCC" /></SelectTrigger>
+                <SelectContent>
+                  {suppliers.map(s => <SelectItem key={s.maNhaCungCap} value={s.maNhaCungCap}>{s.tenNhaCungCap}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div><Label>Mô tả chức năng</Label><Textarea value={form.moTa} onChange={e => setForm(f => ({ ...f, moTa: e.target.value }))} /></div>
             <div>

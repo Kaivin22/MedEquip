@@ -39,6 +39,7 @@ export default function ImportsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedPhieu, setSelectedPhieu] = useState<string[]>([]);
   const [deleteMultipleConfirmOpen, setDeleteMultipleConfirmOpen] = useState(false);
+  const [confirmImportOpen, setConfirmImportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const suppliers = store.getSuppliers();
@@ -127,7 +128,16 @@ export default function ImportsPage() {
     reader.readAsDataURL(file);
   };
 
+  const handlePreConfirmImport = () => {
+    if (!hinhAnhMinhChung) {
+      toast({ title: 'Lỗi', description: 'Bắt buộc phải tải lên hình ảnh minh chứng.', variant: 'destructive' });
+      return;
+    }
+    setConfirmImportOpen(true);
+  };
+
   const handleConfirmImport = async () => {
+    setConfirmImportOpen(false);
     setUploading(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/imports/confirm`, {
@@ -541,8 +551,10 @@ export default function ImportsPage() {
                     <Upload className="w-6 h-6 text-orange-600" />
                   </div>
                   <div className="text-center">
-                    <p className="font-semibold">Nhập hình ảnh minh chứng</p>
-                    <p className="text-xs text-muted-foreground mt-1">Chụp ảnh hoá đơn hoặc biên bản bàn giao</p>
+                    <p className="font-semibold flex items-center justify-center gap-1">
+                      Nhập hình ảnh minh chứng <span className="text-destructive">*</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Chụp ảnh hoá đơn hoặc biên bản bàn giao (Bắt buộc)</p>
                   </div>
                   {hinhAnhMinhChung && (
                     <div className="mt-2 w-20 h-10 border rounded overflow-hidden shadow-sm">
@@ -624,7 +636,7 @@ export default function ImportsPage() {
           <DialogFooter className="shrink-0 mt-4 h-14 border-t pt-3">
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={uploading}>Hủy</Button>
             <Button 
-              onClick={handleConfirmImport} 
+              onClick={handlePreConfirmImport} 
               className="gradient-primary text-primary-foreground" 
               disabled={uploading || previewData.length === 0 || (summary && summary.valid === 0)}
             >
@@ -704,6 +716,25 @@ export default function ImportsPage() {
       <Dialog open={!!viewImageOpen} onOpenChange={(open) => !open && setViewImageOpen(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] p-1 flex">
            {viewImageOpen && <img src={viewImageOpen} alt="Minh chứng" className="max-w-full max-h-[85vh] object-contain mx-auto rounded" />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Xác nhận Nhập Kho */}
+      <Dialog open={confirmImportOpen} onOpenChange={setConfirmImportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Check className="w-5 h-5" />
+              Xác nhận nhập kho
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-foreground/80">
+            Bạn có chắc chắn muốn xác nhận phiếu nhập này với <span className="font-bold text-foreground">{summary?.valid || 0}</span> dòng hợp lệ không?
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setConfirmImportOpen(false)}>Hủy</Button>
+            <Button className="gradient-primary text-primary-foreground" onClick={handleConfirmImport}>Xác nhận</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
