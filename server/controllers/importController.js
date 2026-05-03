@@ -132,9 +132,17 @@ export async function parseExcelPreview(req, res) {
       const tenThietBi = String(row.ten_thiet_bi || "").trim();
       const loai = String(row.loai || "").trim();
       const soLuong = parseInt(row.so_luong) || 0;
-      const donViCoSo = String(row.don_vi_co_so || "Cái").trim();
-      const donViNhap = String(row.don_vi_nhap || row.don_vi_tinh || "Hộp").trim();
-      const heSoQuyDoi = parseInt(row.he_so_quy_doi) || 1;
+      const donViNhap = String(row.don_vi_nhap || row.don_vi_tinh || "Cái").trim();
+      const donViCoSo = String(row.don_vi_co_so || donViNhap).trim();
+      let heSoQuyDoi = parseInt(row.he_so_quy_doi) || 1;
+      
+      const donViNhapLower = donViNhap.toLowerCase();
+      const donViCoSoLower = donViCoSo.toLowerCase();
+      // Chỉ ép cứng hệ số quy đổi = 1 khi đơn vị nhập trùng khớp với đơn vị cơ sở (VD: Chai -> Chai, Bình -> Bình, Bộ -> Bộ)
+      if (donViNhapLower === donViCoSoLower && (donViNhapLower === 'bình' || donViNhapLower === 'chai' || donViNhapLower === 'bộ')) {
+        heSoQuyDoi = 1;
+      }
+
       const donGia = parseFloat(row.don_gia) || 0;
       const soLo = String(row.so_lo || "").trim();
       const hanSuDung = String(row.han_su_dung || "").trim();
@@ -395,16 +403,6 @@ export async function deleteImport(req, res) {
 
     // 1. Kiểm tra trạng thái phiếu
     const [phieu] = await conn.query("SELECT trang_thai FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
-    if (phieu.length > 0 && phieu[0].trang_thai === 'DA_DUYET') {
-      // 2. Nếu đã duyệt, trừ tồn kho
-      const [details] = await conn.query("SELECT ma_thiet_bi, so_luong_co_so FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
-      for (const d of details) {
-        await conn.query(
-          "UPDATE ton_kho SET so_luong_kho = GREATEST(0, so_luong_kho - ?) WHERE ma_thiet_bi = ?",
-          [d.so_luong_co_so, d.ma_thiet_bi]
-        );
-      }
-    }
 
     await conn.query("DELETE FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
     await conn.query("DELETE FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
@@ -434,15 +432,6 @@ export async function deleteMultipleImports(req, res) {
 
     for (const id of ids) {
       const [phieu] = await conn.query("SELECT trang_thai FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
-      if (phieu.length > 0 && phieu[0].trang_thai === 'DA_DUYET') {
-        const [details] = await conn.query("SELECT ma_thiet_bi, so_luong_co_so FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
-        for (const d of details) {
-          await conn.query(
-            "UPDATE ton_kho SET so_luong_kho = GREATEST(0, so_luong_kho - ?) WHERE ma_thiet_bi = ?",
-            [d.so_luong_co_so, d.ma_thiet_bi]
-          );
-        }
-      }
       await conn.query("DELETE FROM chi_tiet_nhap_kho WHERE ma_phieu_nhap = ?", [id]);
       await conn.query("DELETE FROM phieu_nhap_kho WHERE ma_phieu = ?", [id]);
     }
