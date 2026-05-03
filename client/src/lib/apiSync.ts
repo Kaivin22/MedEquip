@@ -234,7 +234,7 @@ export async function apiScanRequest(maPhieu: string) {
         tenThietBi: equipment.find(e => e.maThietBi === req.maThietBi)?.tenThietBi || req.maThietBi,
         soLuong: req.soLuongYeuCau,
         trangThai: req.trangThai === 'DA_CAP_PHAT' ? 'DA_DUYET' : 'CHO_DUYET',
-        donViTinh: equipment.find(e => e.maThietBi === req.maThietBi)?.donViTinh || 'Cái',
+        donViTinh: equipment.find(e => e.maThietBi === req.maThietBi)?.donViCoSo || 'Cái',
         tonKho: inventory.find(i => i.maThietBi === req.maThietBi)?.soLuongKho || 0
       }]
     };

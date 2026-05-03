@@ -278,7 +278,7 @@ export default function DashboardPage() {
                     {LOAI_THIET_BI_LABELS[viewingEquipment.loaiThietBi || 'TAI_SU_DUNG']}
                   </span>
                 </div>
-                <div><span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Đơn vị tính</span> <span>{viewingEquipment.donViTinh}</span></div>
+                <div><span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Đơn vị tính</span> <span>{viewingEquipment.donViCoSo}</span></div>
                 
                 {viewingEquipment.loaiThietBi === 'TAI_SU_DUNG' && viewingEquipment.serialNumber && (
                   <div className="col-span-2"><span className="text-muted-foreground block text-[10px] uppercase font-bold tracking-wider">Serial Number</span> <span className="font-mono bg-muted px-2 py-0.5 rounded">{viewingEquipment.serialNumber}</span></div>

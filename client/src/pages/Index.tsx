@@ -19,6 +19,9 @@ import ReportsPage from '@/pages/ReportsPage';
 const pages: Record<PageKey, React.ComponentType> = {
   dashboard: DashboardPage,
   inventory: InventoryPage,
+  equipment: EquipmentPage,
+  imports: ImportsPage,
+  exports: ExportsPage,
   suppliers: SuppliersPage,
   departments: DepartmentsPage,
   requests: RequestsPage,

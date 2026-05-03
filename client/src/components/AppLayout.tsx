@@ -8,13 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import {
   Hospital, LayoutDashboard, Package, Truck, Building2, FolderOpen,
   FileText, FileInput, FileOutput, ClipboardCheck, Bell, Users,
-  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3, RotateCcw
+  LogOut, ChevronLeft, Menu, AlertTriangle, UserCircle, BarChart3, RotateCcw, Wrench
 } from 'lucide-react';
 
 export type PageKey =
-  | 'dashboard' | 'inventory' | 'suppliers' | 'departments'
-  | 'requests' | 'returns' | 'users' | 'notifications'
-  | 'profile' | 'reports';
+  | 'dashboard' | 'inventory' | 'equipment' | 'imports' | 'exports' | 'suppliers' | 'departments'
+  | 'requests' | 'returns' | 'users' | 'notifications' | 'profile' | 'reports';
 
 interface NavItem {
   key: PageKey;
@@ -25,7 +24,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
-  { key: 'inventory', label: 'Quản lý kho', icon: <FolderOpen className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
+  { key: 'inventory', label: 'Quản lý Kho', icon: <Package className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO', 'TRUONG_KHOA'] },
+  { key: 'equipment', label: 'Danh mục thiết bị', icon: <Wrench className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'QL_KHO'] },

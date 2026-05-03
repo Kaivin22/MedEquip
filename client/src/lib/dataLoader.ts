@@ -4,7 +4,7 @@
  */
 import { store } from './store';
 import { isMockMode, fetchApi } from '@/services/api';
-import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong } from '@/types';
+import { NguoiDung, ThietBi, TonKho, NhaCungCap, Khoa, ThongBao, PhieuYeuCauCapPhat, PhieuXuatKho, PhieuNhapKho, PhieuCapPhat, PhieuBaoHuHong, PhieuTraThietBi } from '@/types';
 
 export async function loadAllData(userId?: string): Promise<void> {
   if (isMockMode()) return; // Mock mode uses localStorage defaults
