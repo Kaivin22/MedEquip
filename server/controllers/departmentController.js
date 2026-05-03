@@ -40,29 +40,6 @@ export async function createDepartment(req, res) {
   }
 }
 
-export async function deleteDepartment(req, res) {
-  try {
-    const id = req.params.id;
-    const [existing] = await pool.query("SELECT ma_khoa FROM khoa WHERE ma_khoa = ?", [id]);
-    if (existing.length === 0) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy khoa." });
-    }
-
-    try {
-      await pool.query("DELETE FROM khoa WHERE ma_khoa = ?", [id]);
-      return res.json({ success: true, message: "Đã xóa khoa." });
-    } catch (err) {
-      if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-        await pool.query("UPDATE khoa SET trang_thai = FALSE WHERE ma_khoa = ?", [id]);
-        return res.json({ success: true, message: "Khoa đang có dữ liệu liên quan nên đã bị vô hiệu hóa." });
-      }
-      throw err;
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Lỗi máy chủ." });
-  }
-}
-
 export async function updateDepartment(req, res) {
   try {
     const { tenKhoa, moTa, trangThai } = req.body;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';//file gd chính 
 import { useAuth } from '@/contexts/AuthContext';
 import { store } from '@/lib/store';
 import { apiCreateDepartment, apiUpdateDepartment, apiDeleteDepartment } from '@/lib/apiSync';
@@ -24,9 +24,9 @@ export default function DepartmentsPage() {
   const allocations = store.getAllocations();
 
   const [form, setForm] = useState({ tenKhoa: '', moTa: '', trangThai: true });
-  
-  const filtered = useMemo(() => data.filter(k => 
-    k.tenKhoa.toLowerCase().includes(search.toLowerCase()) || 
+
+  const filtered = useMemo(() => data.filter(k =>
+    k.tenKhoa.toLowerCase().includes(search.toLowerCase()) ||
     k.maKhoa.toLowerCase().includes(search.toLowerCase())
   ), [data, search]);
 
@@ -35,7 +35,7 @@ export default function DepartmentsPage() {
 
   const handleSave = async () => {
     if (!form.tenKhoa.trim()) { toast({ title: 'Lỗi', description: 'Vui lòng nhập tên khoa', variant: 'destructive' }); return; }
-    
+
     const isDuplicate = data.some(k => k.tenKhoa.toLowerCase() === form.tenKhoa.trim().toLowerCase() && k.maKhoa !== editing?.maKhoa);
     if (isDuplicate) {
       toast({ title: 'Lỗi', description: 'Tên khoa đã tồn tại', variant: 'destructive' });
@@ -53,7 +53,7 @@ export default function DepartmentsPage() {
         toast({ title: 'Thêm thành công' });
       }
       const depts = store.getDepartments();
-      setData([...depts]); 
+      setData([...depts]);
       setDialogOpen(false);
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message || 'Lỗi xử lý', variant: 'destructive' });
@@ -68,7 +68,7 @@ export default function DepartmentsPage() {
     }
 
     if (!window.confirm(`Bạn có chắc chắn muốn xóa khoa ${k.tenKhoa} hay không?`)) return;
-    
+
     try {
       const result = await apiDeleteDepartment(k.maKhoa);
       if (result.success) {
@@ -89,7 +89,7 @@ export default function DepartmentsPage() {
       toast({ title: 'Lỗi', description: 'Khoa này hiện không có thiết bị nào đang mượn.', variant: 'destructive' });
       return;
     }
-    
+
     const excelData = deptAllocations.map(a => ({
       "Mã Phiếu": a.maPhieu,
       "Tên Thiết bị": a.tenThietBi || a.maThietBi,
@@ -105,8 +105,8 @@ export default function DepartmentsPage() {
     ws["!cols"] = Object.keys(excelData[0]).map(() => ({ wch: 20 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, `DanhSachMuon_${k.maKhoa}`);
-    
-    XLSX.writeFile(wb, `DS_ThietBi_DangMuon_${k.tenKhoa}_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    XLSX.writeFile(wb, `DS_ThietBi_DangMuon_${k.tenKhoa}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
@@ -132,7 +132,7 @@ export default function DepartmentsPage() {
           <tbody>
             {filtered.map(k => (
               <React.Fragment key={k.maKhoa}>
-                <tr 
+                <tr
                   className={`border-b hover:bg-muted/20 transition-colors cursor-pointer ${expandedId === k.maKhoa ? 'bg-muted/10' : ''}`}
                   onClick={() => setExpandedId(expandedId === k.maKhoa ? null : k.maKhoa)}
                 >
@@ -162,14 +162,14 @@ export default function DepartmentsPage() {
                       <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                         <div className="flex justify-between items-center border-b border-border/50 pb-2">
                           <div className="flex items-center gap-2">
-                            <Package className="w-4 h-4 text-primary" /> 
+                            <Package className="w-4 h-4 text-primary" />
                             <h3 className="font-bold text-sm">Danh sách Thiết bị Khoa đang quản lý (chưa trả)</h3>
                           </div>
                           <Button variant="outline" size="sm" onClick={() => handleExportDepartmentExcel(k)} className="h-8">
                             <FileDown className="w-4 h-4 mr-2 text-primary" /> Xuất Excel
                           </Button>
                         </div>
-                        
+
                         <div className="bg-card border rounded-lg overflow-hidden">
                           <table className="w-full text-xs">
                             <thead className="bg-muted/50">
@@ -229,11 +229,11 @@ export default function DepartmentsPage() {
             <div><Label>Mô tả</Label><Textarea value={form.moTa} onChange={e => setForm(f => ({ ...f, moTa: e.target.value }))} /></div>
             {editing && (
               <div className="flex items-center gap-2">
-                <input 
-                  type="checkbox" 
-                  id="trangThai" 
-                  checked={form.trangThai} 
-                  onChange={e => setForm(f => ({ ...f, trangThai: e.target.checked }))} 
+                <input
+                  type="checkbox"
+                  id="trangThai"
+                  checked={form.trangThai}
+                  onChange={e => setForm(f => ({ ...f, trangThai: e.target.checked }))}
                 />
                 <Label htmlFor="trangThai">{form.trangThai ? 'Đang hoạt động' : 'Tạm dừng hoạt động'}</Label>
               </div>
@@ -248,4 +248,3 @@ export default function DepartmentsPage() {
     </div>
   );
 }
- 
