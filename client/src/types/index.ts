@@ -233,6 +233,25 @@ export interface NhatKy {
   chiTiet: string;
 }
 
+export interface PhieuYeuCauNhap {
+  maPhieu: string;
+  tenThietBi: string;
+  loaiThietBi: 'VAT_TU_TIEU_HAO' | 'TAI_SU_DUNG';
+  donViTinh: string;
+  soLuong: number;
+  donGia: number;
+  maNhaCungCap?: string;
+  maNguoiYeuCau: string;
+  trangThai: 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI';
+  ngayTao: string;
+  ngayDuyet?: string;
+  nguoiDuyet?: string;
+  lyDoTuChoi?: string;
+  moTa?: string;
+  mucDichSuDung?: string;
+  hinhAnh?: string;
+}
+
 // ──────── Constants ────────
 export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',
