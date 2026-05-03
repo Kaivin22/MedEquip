@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export type PageKey =
-  | 'dashboard' | 'inventory' | 'equipment' | 'imports' | 'exports' | 'suppliers' | 'departments'
+  | 'dashboard' | 'inventory' | 'imports' | 'exports' | 'suppliers' | 'departments'
   | 'requests' | 'returns' | 'users' | 'notifications' | 'profile' | 'reports';
 
 interface NavItem {
@@ -25,7 +25,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { key: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'TRUONG_KHOA', 'QL_KHO'] },
   { key: 'inventory', label: 'Quản lý Kho', icon: <Package className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO', 'TRUONG_KHOA'] },
-  { key: 'equipment', label: 'Danh mục thiết bị', icon: <Wrench className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'suppliers', label: 'Nhà cung cấp', icon: <Truck className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'departments', label: 'Khoa', icon: <Building2 className="w-5 h-5" />, roles: ['ADMIN', 'NV_KHO', 'QL_KHO'] },
   { key: 'requests', label: 'Yêu cầu cấp phát', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'TRUONG_KHOA', 'NV_KHO', 'QL_KHO'] },

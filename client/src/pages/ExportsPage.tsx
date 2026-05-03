@@ -35,6 +35,7 @@ export default function ExportsPage() {
   const [deleting, setDeleting] = useState(false);
   const [selectedPhieu, setSelectedPhieu] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [confirmExportOpen, setConfirmExportOpen] = useState(false);
 
   // Form state
   const [lyDo, setLyDo] = useState('');
@@ -171,14 +172,24 @@ export default function ExportsPage() {
   };
 
   // Tạo phiếu xuất kho
-  const handleCreate = async () => {
-    // Validate
+  const handlePreCreate = () => {
     const validItems = items.filter(i => i.maThietBi && i.soLuong > 0);
     if (validItems.length === 0) {
       toast({ title: 'Lỗi', description: 'Vui lòng chọn ít nhất một thiết bị với số lượng hợp lệ.', variant: 'destructive' });
       return;
     }
 
+    if (!hinhAnhMinhChung) {
+      toast({ title: 'Lỗi', description: 'Bắt buộc phải tải lên hình ảnh minh chứng.', variant: 'destructive' });
+      return;
+    }
+    
+    setConfirmExportOpen(true);
+  };
+
+  const handleCreate = async () => {
+    setConfirmExportOpen(false);
+    const validItems = items.filter(i => i.maThietBi && i.soLuong > 0);
     setSubmitting(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/exports`, {
@@ -730,7 +741,9 @@ export default function ExportsPage() {
 
             {/* Hình ảnh minh chứng */}
             <div className="bg-muted/30 p-3 rounded-lg border space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Hình ảnh minh chứng hoá đơn (Tùy chọn)</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center">
+                Hình ảnh minh chứng hoá đơn <span className="text-destructive ml-1">*</span>
+              </p>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="flex gap-2">
@@ -773,7 +786,7 @@ export default function ExportsPage() {
             </Button>
             <Button
               className="gradient-primary text-white"
-              onClick={handleCreate}
+              onClick={handlePreCreate}
               disabled={submitting || items.filter(i => i.maThietBi && i.soLuong > 0).length === 0}
             >
               {submitting ? 'Đang xử lý...' : `Xác nhận xuất kho (${items.filter(i => i.maThietBi && i.soLuong > 0).length} thiết bị)`}
@@ -797,6 +810,25 @@ export default function ExportsPage() {
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Hủy</Button>
             <Button variant="destructive" onClick={handleDeleteMultiple}>Xác nhận xóa</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Xác nhận Xuất Kho */}
+      <Dialog open={confirmExportOpen} onOpenChange={setConfirmExportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <PackageMinus className="w-5 h-5" />
+              Xác nhận xuất kho
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-foreground/80">
+            Bạn có chắc chắn muốn xác nhận phiếu xuất kho này gồm <span className="font-bold text-foreground">{items.filter(i => i.maThietBi && i.soLuong > 0).length}</span> thiết bị không?
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setConfirmExportOpen(false)}>Hủy</Button>
+            <Button className="gradient-primary text-primary-foreground" onClick={handleCreate}>Xác nhận</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
