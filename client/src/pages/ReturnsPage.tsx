@@ -311,6 +311,27 @@ export default function ReturnsPage() {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập đầy đủ thông tin.', variant: 'destructive' });
       return;
     }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const newExtDate = new Date(extDate);
+    newExtDate.setHours(0, 0, 0, 0);
+
+    if (newExtDate <= today) {
+      toast({ title: 'Lỗi', description: 'Ngày gia hạn phải sau ngày yêu cầu (ngày hiện tại).', variant: 'destructive' });
+      return;
+    }
+
+    if (extendingAlloc.ngayDuKienTra) {
+      const oldDate = new Date(extendingAlloc.ngayDuKienTra);
+      oldDate.setHours(0, 0, 0, 0);
+      if (newExtDate <= oldDate) {
+        toast({ title: 'Lỗi', description: 'Ngày gia hạn không được trùng hoặc trước ngày trả hiện tại.', variant: 'destructive' });
+        return;
+      }
+    }
+
     try {
       // Gửi yêu cầu gia hạn thông qua luồng Yêu cầu cấp phát
       const result = await fetchApi<{ success: boolean; message: string }>('/requests', {
@@ -1063,7 +1084,14 @@ export default function ReturnsPage() {
           <div className="space-y-4 py-2">
             <div>
               <Label className="mb-1 block">Ngày gia hạn mới *</Label>
-              <Input type="date" value={extDate} onChange={e => setExtDate(e.target.value)} />
+              <Input 
+                type="date" 
+                value={extDate} 
+                onChange={e => setExtDate(e.target.value)} 
+                min={extendingAlloc?.ngayDuKienTra 
+                  ? new Date(Math.max(new Date(extendingAlloc.ngayDuKienTra).getTime() + 86400000, new Date().getTime() + 86400000)).toISOString().split('T')[0] 
+                  : new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+              />
             </div>
             <div>
               <Label className="mb-1 block">Lý do gia hạn *</Label>
