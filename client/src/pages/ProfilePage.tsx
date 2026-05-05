@@ -176,7 +176,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-3 py-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground w-28">Ngày tạo:</span>
-                <span className="text-sm">{user.ngayTao}</span>
+                <span className="text-sm">{user.ngayTao ? new Date(user.ngayTao).toLocaleString('vi-VN') : 'Chưa cập nhật'}</span>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" onClick={() => setEditing(true)}>Chỉnh sửa thông tin</Button>
