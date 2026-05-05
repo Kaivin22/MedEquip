@@ -96,6 +96,12 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  /* Ẩn con mắt mặc định của trình duyệt để không bị trùng với icon tùy chỉnh */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
 }
 
 @layer utilities {
