@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 const PHONE_REGEX = /^[0-9]{10,11}$/;
@@ -25,6 +25,9 @@ export default function ProfilePage() {
   const [formErrors, setFormErrors] = useState<{ email?: string; soDienThoai?: string }>({})
   const [passwordForm, setPasswordForm] = useState({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
   const [changingPw, setChangingPw] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   if (!user) return null;
 
@@ -191,9 +194,33 @@ export default function ProfilePage() {
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-base">Đổi mật khẩu</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div><Label>Mật khẩu cũ</Label><Input type="password" value={passwordForm.matKhauCu} onChange={e => setPasswordForm(f => ({ ...f, matKhauCu: e.target.value }))} /></div>
-            <div><Label>Mật khẩu mới</Label><Input type="password" value={passwordForm.matKhauMoi} onChange={e => setPasswordForm(f => ({ ...f, matKhauMoi: e.target.value }))} /></div>
-            <div><Label>Xác nhận mật khẩu mới</Label><Input type="password" value={passwordForm.xacNhan} onChange={e => setPasswordForm(f => ({ ...f, xacNhan: e.target.value }))} /></div>
+            <div>
+              <Label>Mật khẩu cũ</Label>
+              <div className="relative">
+                <Input type={showOldPassword ? "text" : "password"} value={passwordForm.matKhauCu} onChange={e => setPasswordForm(f => ({ ...f, matKhauCu: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowOldPassword(!showOldPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label>Mật khẩu mới</Label>
+              <div className="relative">
+                <Input type={showNewPassword ? "text" : "password"} value={passwordForm.matKhauMoi} onChange={e => setPasswordForm(f => ({ ...f, matKhauMoi: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label>Xác nhận mật khẩu mới</Label>
+              <div className="relative">
+                <Input type={showConfirmPassword ? "text" : "password"} value={passwordForm.xacNhan} onChange={e => setPasswordForm(f => ({ ...f, xacNhan: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleChangePassword} className="gradient-primary text-primary-foreground">Đổi mật khẩu</Button>
               <Button variant="outline" onClick={() => setChangingPw(false)}>Hủy</Button>
