@@ -75,8 +75,17 @@ export default function ProfilePage() {
     if (!passwordForm.matKhauCu) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu cũ', variant: 'destructive' }); return;
     }
+    if (!passwordForm.matKhauMoi) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu mới', variant: 'destructive' }); return;
+    }
     if (passwordForm.matKhauMoi.length < 6) {
-      toast({ title: 'Lỗi', description: 'Mật khẩu mới phải ít nhất 6 ký tự', variant: 'destructive' }); return;
+      toast({ title: 'Lỗi', description: 'Mật khẩu mới phải có ít nhất 6 ký tự', variant: 'destructive' }); return;
+    }
+    if (passwordForm.matKhauCu === passwordForm.matKhauMoi) {
+      toast({ title: 'Lỗi', description: 'Mật khẩu mới không được trùng với mật khẩu cũ', variant: 'destructive' }); return;
+    }
+    if (!passwordForm.xacNhan) {
+      toast({ title: 'Lỗi', description: 'Vui lòng xác nhận mật khẩu mới', variant: 'destructive' }); return;
     }
     if (passwordForm.matKhauMoi !== passwordForm.xacNhan) {
       toast({ title: 'Lỗi', description: 'Mật khẩu xác nhận không khớp', variant: 'destructive' }); return;
