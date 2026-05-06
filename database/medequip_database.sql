@@ -295,9 +295,10 @@ INSERT IGNORE INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, vai_tro, 
 ('ND-005', 'Trưởng khoa Sản', 'khoasan@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'TRUONG_KHOA', 'K-003'),
 ('ND-006', 'Lê Văn Quản Lý', 'qlkho@benhvien.vn', '$2b$10$z04YEefPoGr2UnW5g.aS9uGaSqO0I.PelKqY0FH4nNVSs9M/W3VP.', 'QL_KHO', NULL);
 
-INSERT IGNORE INTO nha_cung_cap (ma_nha_cung_cap, ten_nha_cung_cap) VALUES
-('NCC-001', 'Công ty Phương Nam'),
-('NCC-002', 'Công ty thiết bị Việt');
+INSERT IGNORE INTO nha_cung_cap (ma_nha_cung_cap, ten_nha_cung_cap, dia_chi, so_dien_thoai) VALUES
+('NCC-001', 'Công ty Phương Nam', '123 Đường ABC, Quận 1, TP.HCM', '02838000001'),
+('NCC-002', 'Công ty thiết bị Việt', '456 Đường XYZ, Hà Nội', '02439000002');
+
 
 INSERT IGNORE INTO thiet_bi (ma_thiet_bi, ten_thiet_bi, loai_thiet_bi, don_vi_co_so, don_vi_nhap, ma_nha_cung_cap) VALUES
 ('TB-001', 'Máy đo huyết áp', 'TAI_SU_DUNG', 'Cái', 'Hộp', 'NCC-001'),
