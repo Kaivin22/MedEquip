@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Shield, Calendar, Save, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 const PHONE_REGEX = /^[0-9]{10,11}$/;
@@ -25,6 +25,9 @@ export default function ProfilePage() {
   const [formErrors, setFormErrors] = useState<{ email?: string; soDienThoai?: string }>({})
   const [passwordForm, setPasswordForm] = useState({ matKhauCu: '', matKhauMoi: '', xacNhan: '' });
   const [changingPw, setChangingPw] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   if (!user) return null;
 
@@ -72,8 +75,17 @@ export default function ProfilePage() {
     if (!passwordForm.matKhauCu) {
       toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu cũ', variant: 'destructive' }); return;
     }
+    if (!passwordForm.matKhauMoi) {
+      toast({ title: 'Lỗi', description: 'Vui lòng nhập mật khẩu mới', variant: 'destructive' }); return;
+    }
     if (passwordForm.matKhauMoi.length < 6) {
-      toast({ title: 'Lỗi', description: 'Mật khẩu mới phải ít nhất 6 ký tự', variant: 'destructive' }); return;
+      toast({ title: 'Lỗi', description: 'Mật khẩu mới phải có ít nhất 6 ký tự', variant: 'destructive' }); return;
+    }
+    if (passwordForm.matKhauCu === passwordForm.matKhauMoi) {
+      toast({ title: 'Lỗi', description: 'Mật khẩu mới không được trùng với mật khẩu cũ', variant: 'destructive' }); return;
+    }
+    if (!passwordForm.xacNhan) {
+      toast({ title: 'Lỗi', description: 'Vui lòng xác nhận mật khẩu mới', variant: 'destructive' }); return;
     }
     if (passwordForm.matKhauMoi !== passwordForm.xacNhan) {
       toast({ title: 'Lỗi', description: 'Mật khẩu xác nhận không khớp', variant: 'destructive' }); return;
@@ -176,7 +188,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-3 py-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground w-28">Ngày tạo:</span>
-                <span className="text-sm">{user.ngayTao}</span>
+                <span className="text-sm">{user.ngayTao ? new Date(user.ngayTao).toLocaleString('vi-VN') : 'Chưa cập nhật'}</span>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" onClick={() => setEditing(true)}>Chỉnh sửa thông tin</Button>
@@ -191,9 +203,33 @@ export default function ProfilePage() {
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-base">Đổi mật khẩu</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div><Label>Mật khẩu cũ</Label><Input type="password" value={passwordForm.matKhauCu} onChange={e => setPasswordForm(f => ({ ...f, matKhauCu: e.target.value }))} /></div>
-            <div><Label>Mật khẩu mới</Label><Input type="password" value={passwordForm.matKhauMoi} onChange={e => setPasswordForm(f => ({ ...f, matKhauMoi: e.target.value }))} /></div>
-            <div><Label>Xác nhận mật khẩu mới</Label><Input type="password" value={passwordForm.xacNhan} onChange={e => setPasswordForm(f => ({ ...f, xacNhan: e.target.value }))} /></div>
+            <div>
+              <Label>Mật khẩu cũ</Label>
+              <div className="relative">
+                <Input type={showOldPassword ? "text" : "password"} value={passwordForm.matKhauCu} onChange={e => setPasswordForm(f => ({ ...f, matKhauCu: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowOldPassword(!showOldPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label>Mật khẩu mới</Label>
+              <div className="relative">
+                <Input type={showNewPassword ? "text" : "password"} value={passwordForm.matKhauMoi} onChange={e => setPasswordForm(f => ({ ...f, matKhauMoi: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label>Xác nhận mật khẩu mới</Label>
+              <div className="relative">
+                <Input type={showConfirmPassword ? "text" : "password"} value={passwordForm.xacNhan} onChange={e => setPasswordForm(f => ({ ...f, xacNhan: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button onClick={handleChangePassword} className="gradient-primary text-primary-foreground">Đổi mật khẩu</Button>
               <Button variant="outline" onClick={() => setChangingPw(false)}>Hủy</Button>
