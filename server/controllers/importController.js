@@ -133,13 +133,26 @@ export async function parseExcelPreview(req, res) {
       const loai = String(row.loai || "").trim();
       const soLuong = parseInt(row.so_luong) || 0;
       const donViNhap = String(row.don_vi_nhap || row.don_vi_tinh || "Cái").trim();
-      const donViCoSo = String(row.don_vi_co_so || donViNhap).trim();
-      let heSoQuyDoi = parseInt(row.he_so_quy_doi) || 1;
-      
       const donViNhapLower = donViNhap.toLowerCase();
+      
+      // Mặc định đơn vị cơ sở nếu không có trong Excel
+      let donViCoSo = String(row.don_vi_co_so || "").trim();
+      let heSoQuyDoi = parseInt(row.he_so_quy_doi) || 1;
+
+      if (!donViCoSo) {
+        if (donViNhapLower === 'thùng' || donViNhapLower === 'hộp') {
+          donViCoSo = 'Cái'; // Mặc định là Cái nếu nhập Thùng/Hộp mà không ghi đơn vị cơ sở
+        } else {
+          donViCoSo = donViNhap; // Các loại khác (Chai, Bình, Bộ, Cái) thì giữ nguyên
+        }
+      }
+
       const donViCoSoLower = donViCoSo.toLowerCase();
-      // Chỉ ép cứng hệ số quy đổi = 1 khi đơn vị nhập trùng khớp với đơn vị cơ sở (VD: Chai -> Chai, Bình -> Bình, Bộ -> Bộ)
-      if (donViNhapLower === donViCoSoLower && (donViNhapLower === 'bình' || donViNhapLower === 'chai' || donViNhapLower === 'bộ')) {
+
+      // Nếu đơn vị nhập trùng khớp với đơn vị cơ sở (VD: Chai -> Chai, Bình -> Bình, Bộ -> Bộ, Cái -> Cái)
+      // thì ép cứng hệ số quy đổi = 1 trừ khi là Thùng/Hộp (thường Thùng -> Cái vẫn có thể là 1:1 nếu user muốn, nhưng ưu tiên user nhập)
+      if (donViNhapLower === donViCoSoLower && 
+          ['bình', 'chai', 'bộ', 'cái'].includes(donViNhapLower)) {
         heSoQuyDoi = 1;
       }
 
